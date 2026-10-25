@@ -24,3 +24,6 @@ src/embeddings/
 frontend/tsconfig.tsbuildinfo
 # Runtime triage event logs (never commit)
 logs/triage_events.jsonl
+
+# Local agent session state (kept out of Git)
+/WORKFLOW_STATE.md
