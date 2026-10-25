@@ -28,3 +28,6 @@ logs/
 # Backend test + runtime logs (never commit)
 test-results/
 src/logs/
+
+# Local agent session state (kept out of Git)
+/WORKFLOW_STATE.md
