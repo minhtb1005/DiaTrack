@@ -17,6 +17,19 @@ Cập nhật file local sau khi chốt phạm vi, sau mốc triển khai hoặc 
 
 Khi file phình lớn, các phiên lặp lại cùng bối cảnh, hoặc trước handoff dài hạn, compact **phần lịch sử đã ổn định**. Nếu môi trường agent có cave-man skill, đọc hướng dẫn skill rồi dùng nó để compact; xem diff để bảo toàn trạng thái hiện tại, quyết định, bằng chứng, blocker và bước tiếp theo. Nếu không có skill, compact thủ công theo cùng tiêu chí; không tự cài một skill không rõ nguồn. Không compact giữa một bước chưa ghi đủ bằng chứng và không biến việc chưa xong thành hoàn thành.
 
+### Bàn giao trạng thái hiện hành
+
+Trước khi dừng/chuyển phiên, cập nhật mục **"Trạng thái hiện hành"** ở đầu `WORKFLOW_STATE.md`:
+
+- Mục tiêu và tiêu chí hoàn thành đã chốt
+- Nhánh, commit HEAD; file chưa commit
+- Đã xong / đang làm / bị chặn
+- Quyết định còn hiệu lực và lý do
+- Test: lệnh, kết quả, thời điểm, trạng thái code lúc chạy
+- Bước tiếp theo đầu tiên
+
+Phiên mới đọc mục này, đối chiếu `git status` và code, rồi chạy lại kiểm tra bị ảnh hưởng trước khi dựa vào kết quả cũ.
+
 ## Bản đồ repo
 
 - `src/api/main.py`: FastAPI composition root; `src/diabetes/`, `vitals/`, `triage/`, `labs/`, `monitors/`, `auth/`, `chat/`, `admin/`: domain và router; `src/shared/`: config, RAG và tiện ích chung. Đối chiếu `docs/api_contract.md`, `data_contract.md`, `architecture_diagram.md`, `evaluation.md` theo loại việc.
