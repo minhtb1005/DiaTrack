@@ -33,29 +33,15 @@ THRESHOLDS = {
 
 
 def glucose_severity(value_mgdl: float, context: str = "random") -> str:
-    """Return low, normal, elevated, high, or critical; never a diagnosis."""
+    """Return alert status only; context never turns diagnostic cutoffs into home targets."""
     v = float(value_mgdl)
     if v < THRESHOLDS["hypoglycemia"].value:
         return "low"
     if v >= THRESHOLDS["critical_high"].value:
         return "critical"
-    if context == "fasting":
-        if v < THRESHOLDS["fasting_normal_max"].value:
-            return "normal"
-        if v <= THRESHOLDS["fasting_prediabetes_max"].value:
-            return "elevated"
-        return "high"
-    if context == "post_meal_2h":
-        if v < THRESHOLDS["postprandial_normal_max"].value:
-            return "normal"
-        if v <= THRESHOLDS["postprandial_prediabetes_max"].value:
-            return "elevated"
-        return "high"
-    if v < THRESHOLDS["random_normal_max"].value:
-        return "normal"
-    if v < THRESHOLDS["random_elevated_max"].value:
-        return "elevated"
-    return "high"
+    if v > THRESHOLDS["spike_high"].value:
+        return "alert_high"
+    return "no_alert"
 
 
 def spike_direction(value_mgdl: float) -> str | None:

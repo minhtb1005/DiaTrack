@@ -68,8 +68,8 @@
         ]
       },
       "legacy_display_bands": {
-        "status": "unverified_for_home_monitoring",
-        "context": "Code cũ còn dùng các dải 100/125 mg/dL lúc đói, 140/199 mg/dL sau bữa ăn và 140/200 mg/dL đo bất kỳ để đặt nhãn hiển thị normal/elevated/high. Chưa có nguồn xác minh các dải này cho theo dõi bệnh nhân týp 2 tại nhà; không được dùng nhãn đó để tự động chuyển ca hay kết luận đạt mục tiêu.",
+        "status": "retired_for_home_tracker",
+        "context": "Các dải 100/125 mg/dL lúc đói, 140/199 mg/dL sau bữa ăn và 140/200 mg/dL đo bất kỳ không còn được dùng để đặt nhãn theo dõi tại nhà. GET log tính lại nhãn từ giá trị gốc; dữ liệu DB không bị sửa. Mã legacy vẫn giữ giá trị tương thích cho module xét nghiệm riêng, chưa được xác minh để áp vào mục tiêu tại nhà.",
         "source": "src/shared/glucose_policy.py (legacy demo values; clinical source unverified)"
       }
     },

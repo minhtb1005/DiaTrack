@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 
@@ -39,6 +40,50 @@ _CONTEXTS = (
     ("bedtime", ("truoc ngu", "toi", "dem", "bedtime", "di ngu")),
     ("pre_meal", ("truoc an", "pre",)),
 )
+
+VN_TZ = timezone(timedelta(hours=7))
+_TIME_RE = re.compile(
+    r"\b(?:(?P<day>hom qua|hom nay|sang nay|chieu nay|toi nay)\s+)?"
+    r"(?:(?:luc|vao)\s+)?(?P<hour>\d{1,2})\s*(?:gio|h)"
+    r"(?:\s*(?P<minute>\d{1,2})\s*(?:phut)?)?\s*"
+    r"(?P<period>sang|trua|chieu|toi|dem)?\b"
+)
+
+
+def parse_measurement_time(text: str, now: Optional[datetime] = None) -> Optional[str]:
+    """Return an explicit, non-future Vietnam measurement time; never guess AM/PM."""
+    t = _unaccent(text or "")
+    matches = list(_TIME_RE.finditer(t))
+    if len(matches) != 1:
+        return None
+    m = matches[0]
+    # "sau an 2 gio" is a context, not a clock reading.
+    if t[max(0, m.start() - 7):m.start()].strip().endswith("sau an"):
+        return None
+    day, period = m.group("day"), m.group("period")
+    if "hom qua" in t and day != "hom qua":
+        return None  # date after the clock is unsupported; do not store today
+    period = period or {"sang nay": "sang", "chieu nay": "chieu", "toi nay": "toi"}.get(day or "")
+    if not period:
+        return None
+    hour, minute = int(m.group("hour")), int(m.group("minute") or 0)
+    if minute > 59 or hour > 23:
+        return None
+    if hour == 12 and period in ("toi", "dem"):
+        return None  # midnight/noon wording needs clarification
+    if period in ("chieu", "toi", "dem") and hour <= 12:
+        hour = hour % 12 + 12
+    elif period in ("sang", "trua") and hour > 12:
+        return None
+    current = (now or datetime.now(VN_TZ)).astimezone(VN_TZ)
+    date = current.date() - timedelta(days=1 if day == "hom qua" else 0)
+    measured = datetime.combine(date, datetime.min.time(), VN_TZ).replace(hour=hour, minute=minute)
+    return measured.isoformat() if measured <= current else None
+
+
+def _without_clock(text: str) -> str:
+    """Remove only clock phrases with an explicit daypart, preserving 'sau an 2 gio'."""
+    return _TIME_RE.sub(lambda m: " " if m.group("period") or m.group("day") else m.group(0), text)
 
 
 def _words_to_number(words: list) -> Optional[float]:
@@ -107,10 +152,11 @@ def parse_vi(text: str) -> Dict[str, Any]:
         return {"value": None, "context": None, "ambiguous": True,
                 "reason": "empty", "confirm_text": ""}
 
-    context, ctx_key = _extract_context(t)
+    context, ctx_key = _extract_context(_without_clock(t))
     # Mask the matched context phrase before number parse ("sau an" would
     # otherwise read "sau" as 6).
-    num_t = t.replace(ctx_key, " ", 1) if ctx_key else t
+    num_t = _without_clock(t)
+    num_t = num_t.replace(ctx_key, " ", 1) if ctx_key else num_t
 
     # Ranges -> ambiguous (never average)
     if re.search(r"\btu\b.*\bden\b|\btoi\b.*\b\d|-|–|~|khoang", t):

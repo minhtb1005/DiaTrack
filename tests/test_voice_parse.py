@@ -8,7 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.voice.vn_parse import parse_vi
+from datetime import datetime, timedelta, timezone
+
+from src.voice.vn_parse import parse_vi, parse_measurement_time
 from tests._helpers import assert_parse_ambiguous, assert_parse_ok
 
 
@@ -86,3 +88,20 @@ def test_context_variants():
 
 def test_multi_number_ambiguous():
     _amb("126 và 140 lúc đói")
+
+
+def test_explicit_clock_is_separate_from_glucose_value():
+    _ok("110 lúc đói lúc 7 giờ sáng", 110, "fasting")
+    now = datetime(2026, 10, 30, 9, 0, tzinfo=timezone(timedelta(hours=7)))
+    assert parse_measurement_time("lúc 7 giờ sáng", now) == "2026-10-30T07:00:00+07:00"
+    assert parse_measurement_time("hôm qua lúc 8 giờ tối", now) == "2026-10-29T20:00:00+07:00"
+
+
+def test_clock_never_guesses_missing_daypart_or_future_time():
+    now = datetime(2026, 10, 30, 9, 0, tzinfo=timezone(timedelta(hours=7)))
+    assert parse_measurement_time("lúc 7 giờ", now) is None
+    assert parse_measurement_time("lúc 10 giờ sáng", now) is None
+    assert parse_measurement_time("sau ăn 2 giờ", now) is None
+    assert parse_measurement_time("7 giờ sáng hôm qua", now) is None
+    assert parse_measurement_time("12 giờ tối", now) is None
+    assert parse_vi("110 lúc 8 giờ tối")["reason"] == "no_context"

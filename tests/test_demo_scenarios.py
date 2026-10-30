@@ -70,7 +70,7 @@ class TestDemoScenarios:
         data = r.json()
         assert data["anomaly"]["type"] == "spike"
         assert len(data["follow_up_questions"]) > 0
-        assert data["classification"] in ("high", "critical")
+        assert data["classification"] in ("alert_high", "critical")
 
     def test_kb2_trend_cascade_and_followup(self, client: TestClient, make_user, iso_glucose):
         user, tok = make_user(role="user")

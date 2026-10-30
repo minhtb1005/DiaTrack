@@ -14,10 +14,10 @@ def test_threshold_provenance_is_explicit():
 def test_shared_boundaries_across_modules():
     for value, severity, spike, panic in (
         (69, "low", "spike_low", True),
-        (70, "normal", "none", False),
-        (250, "high", "none", False),
-        (251, "high", "spike_high", False),
-        (299, "high", "spike_high", False),
+        (70, "no_alert", "none", False),
+        (250, "no_alert", "none", False),
+        (251, "alert_high", "spike_high", False),
+        (299, "alert_high", "spike_high", False),
         (300, "critical", "spike_high", True),
     ):
         assert glucose_severity(value, "fasting") == severity

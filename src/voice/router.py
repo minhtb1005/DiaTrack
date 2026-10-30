@@ -77,13 +77,15 @@ async def transcribe_voice(audio: UploadFile = File(...),
     out: Dict[str, Any] = {"text": text, "emergency": False}
     try:
         try:
-            from src.voice.vn_parse import parse_vi
+            from src.voice.vn_parse import parse_vi, parse_measurement_time
         except ImportError:
-            from voice.vn_parse import parse_vi  # type: ignore
+            from voice.vn_parse import parse_vi, parse_measurement_time  # type: ignore
         out["parse"] = parse_vi(text)
+        out["measurement_time"] = parse_measurement_time(text)
     except Exception:
         out["parse"] = {"value": None, "context": None, "ambiguous": True,
                         "reason": "parse_error", "confirm_text": ""}
+        out["measurement_time"] = None
     try:
         try:
             from src.triage.red_flag import check_red_flag
@@ -95,6 +97,15 @@ async def transcribe_voice(audio: UploadFile = File(...),
                         "message": rf.get("message", "")})
     except Exception:
         pass
+    # A numeric red flag must not wait for context or measurement time.
+    value = out.get("parse", {}).get("value")
+    if not out["emergency"] and isinstance(value, (int, float)):
+        if value < 70:
+            out.update({"emergency": True, "red_flag_type": "glucose_low",
+                        "message": "Chỉ số dưới 70 mg/dL — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."})
+        elif value >= 300:
+            out.update({"emergency": True, "red_flag_type": "glucose_critical_high",
+                        "message": "Chỉ số từ 300 mg/dL — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."})
     return out
 
 

@@ -60,7 +60,7 @@ function mockGlucoseGet(page: any, logs: any[]) {
       body: JSON.stringify({
         user_id: ME.id,
         logs,
-        stats: { user_id: ME.id, total_logs: logs.length, avg_mgdl: 130, last_7_days_avg: 130, streak_days: 1, logs_per_week: 0.5, classification_counts: { high: logs.length } },
+        stats: { user_id: ME.id, total_logs: logs.length, avg_mgdl: 130, last_7_days_avg: 130, streak_days: 1, logs_per_week: 0.5, classification_counts: { no_alert: logs.length } },
         should_escalate: false,
         anomaly_ids: [],
       }),
@@ -80,7 +80,7 @@ function mockGlucosePost(page: any, resp: any) {
       contentType: 'application/json',
       body: JSON.stringify({
         id: 1, user_id: ME.id, value_mgdl: body.value_mgdl, measured_at: dayIso(),
-        context: body.context, notes: body.notes, classification: 'high', message: 'high message',
+        context: body.context, notes: body.notes, classification: 'no_alert', message: 'Chưa có cảnh báo; hỏi bác sĩ về mục tiêu cá nhân.',
         ...resp,
       }),
     });
@@ -92,26 +92,39 @@ test.describe('Tracker A — Guided UI', () => {
     await mockSession(page);
     await mockGlucoseGet(page, [
       { id: 2, user_id: ME.id, value_mgdl: 120, measured_at: '2026-10-28T07:00:00', context: 'fasting', notes: null, classification: 'elevated' },
-      { id: 1, user_id: ME.id, value_mgdl: 110, measured_at: '2026-10-27T07:00:00', context: 'fasting', notes: null, classification: 'elevated' },
+      { id: 1, user_id: ME.id, value_mgdl: 110, measured_at: '2026-10-27T07:00:00', context: 'fasting', notes: null, classification: 'normal' },
     ]);
     await page.goto('/tracker');
     await expect(page.getByText(/Tóm tắt xu hướng 14 ngày: 2 chỉ số/)).toBeAttached();
     await expect(page.locator('#log-1')).toContainText('110 mg/dL');
     await expect(page.locator('#log-2')).toContainText('120 mg/dL');
+    await expect(page.locator('#log-1')).toContainText('Chưa có cảnh báo');
+    await expect(page.locator('#log-2')).toContainText('Chưa có cảnh báo');
+    await expect(page.getByText('Trong ngưỡng tham khảo')).toHaveCount(0);
+  });
+
+  test('legacy high label uses measured value for warning badge', async ({ page }) => {
+    await mockSession(page);
+    await mockGlucoseGet(page, [
+      { id: 3, user_id: ME.id, value_mgdl: 280, measured_at: dayIso(), context: 'random', notes: null, classification: 'high' },
+    ]);
+    await page.goto('/tracker');
+    await expect(page.locator('#log-3')).toContainText('Liên hệ bác sĩ');
+    await expect(page.getByText('Cao', { exact: true })).toHaveCount(0);
   });
 
   test('submit safe log shows KPIs and history', async ({ page }) => {
     await mockSession(page);
     await mockGlucosePost(page, { anomaly: { type: 'none', reason: '' }, follow_up_questions: [] });
     await mockGlucoseGet(page, [
-      { id: 1, user_id: ME.id, value_mgdl: 130, measured_at: dayIso(), context: 'fasting', notes: null, classification: 'high' },
+      { id: 1, user_id: ME.id, value_mgdl: 130, measured_at: dayIso(), context: 'fasting', notes: null, classification: 'no_alert' },
     ]);
 
     await page.goto('/tracker');
     await page.locator('input[type="number"]').first().fill('130');
     await page.locator('select').first().selectOption('fasting');
     await page.getByRole('button', { name: /Lưu chỉ số/ }).click();
-    await expect(page.getByText('HIGH: high message')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Chưa có cảnh báo; hỏi bác sĩ về mục tiêu cá nhân.')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText(/Số lần ghi/)).toBeVisible();
   });
 
@@ -137,7 +150,7 @@ test.describe('Tracker A — Guided UI', () => {
   test('spike above 250 below 300 shows warning without emergency lock', async ({ page }) => {
     await mockSession(page);
     await mockGlucosePost(page, {
-      classification: 'high',
+      classification: 'alert_high',
       anomaly: { type: 'spike', direction: 'high', reason: 'Liên hệ bác sĩ để được hướng dẫn.' },
       follow_up_questions: ['q1?'],
     });
@@ -285,6 +298,50 @@ test.describe('Tracker A — Guided UI', () => {
     await page.getByTestId('mic-btn').click();
     await expect(page.getByText('Trả lời voice rút gọn.')).toBeVisible({ timeout: 10000 });
     await expect(page.getByPlaceholder('vd: ăn 2 miếng bánh ngọt')).toBeVisible();
+  });
+
+  test('voice asks for missing measurement time before saving', async ({ page }) => {
+    await page.addInitScript(() => {
+      const g = navigator as any;
+      if (!g.mediaDevices) g.mediaDevices = {};
+      g.mediaDevices.getUserMedia = async () => ({ getTracks: () => [] });
+      (window as any).MediaRecorder = class {
+        onstop: any = null;
+        start() {}
+        stop() { this.onstop?.(); }
+      };
+    });
+    await mockSession(page);
+    await mockGlucoseGet(page, []);
+    let transcriptCall = 0;
+    let saved: any = null;
+    await page.route('**/v1/voice/transcribe', async (route: any) => {
+      transcriptCall++;
+      const body = transcriptCall === 1
+        ? { text: '110 lúc đói', emergency: false, parse: { value: 110, context: 'fasting', ambiguous: false, confirm_text: 'Bác vừa nói 110 lúc đói, đúng không?' }, measurement_time: null }
+        : { text: 'lúc 7 giờ sáng', emergency: false, parse: { ambiguous: true }, measurement_time: '2026-10-30T07:00:00+07:00' };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    });
+    await page.route('**/v1/voice/speak', async (route: any) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ audio_available: false, text: '' }) });
+    });
+    await page.route('**/v1/glucose', async (route: any) => {
+      if (route.request().method() === 'POST') {
+        saved = route.request().postDataJSON();
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...saved, id: 1, anomaly: { type: 'none' }, follow_up_questions: [] }) });
+      } else await route.continue();
+    });
+    await page.goto('/tracker#voice-entry');
+    await expect(page.getByTestId('mic-btn')).toBeVisible();
+    await page.getByTestId('mic-btn').click();
+    await page.getByTestId('mic-btn').click();
+    await expect(page.getByRole('button', { name: 'Nói giờ đo' })).toBeVisible();
+    expect(saved).toBeNull();
+    await page.getByRole('button', { name: 'Nói giờ đo' }).click();
+    await page.getByTestId('mic-btn').click();
+    await expect(page.getByRole('button', { name: 'Xác nhận đúng, lưu chỉ số' })).toBeVisible();
+    await page.getByRole('button', { name: 'Xác nhận đúng, lưu chỉ số' }).click();
+    await expect.poll(() => saved?.measured_at).toBe('2026-10-30T07:00:00+07:00');
   });
 
   test('voice STT failure shows sys message and no auto-send', async ({ page }) => {

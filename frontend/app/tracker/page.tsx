@@ -22,7 +22,12 @@ const contexts = [
   { value: "pre_meal", label: "Trước ăn" },
   { value: "bedtime", label: "Trước ngủ" },
 ];
-function classColor(c: string){ if(c==="normal")return "bg-emerald-100 text-emerald-700 border-emerald-200"; if(c==="elevated")return "bg-amber-100 text-amber-700 border-amber-200"; if(c==="high")return "bg-red-100 text-red-700 border-red-200"; if(c==="critical")return "bg-red-600 text-white border-red-700"; if(c==="low")return "bg-orange-100 text-orange-700 border-orange-200"; return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";}
+function glucoseDisplayLevel(value: number): string {
+  if (value < 70) return "low";
+  if (value >= 300) return "critical";
+  if (value > 250) return "alert_high";
+  return "no_alert";
+}
 
 const CRITICAL_TEXT = "CẢNH BÁO: Đường huyết nguy hiểm. Vui lòng liên hệ bác sĩ hoặc cấp cứu ngay lập tức.";
 const GUARD_RE = /chỉ hỗ trợ theo dõi đái tháo đường|nằm ngoài phạm vi an toàn của hệ thống/i;
@@ -43,7 +48,7 @@ const EntryAlert = (p: any) => {
       <div className="relative mt-4 space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div><label htmlFor="glucose-value" className="text-xs text-slate-600 dark:text-slate-300">Giá trị (mg/dL)</label><Input id="glucose-value" type="number" inputMode="decimal" value={value} onChange={(e)=>setValue(e.target.value)} placeholder="vd: 110" className="mt-1" /></div>
-          <div><label htmlFor="glucose-context" className="text-xs text-slate-600 dark:text-slate-300">Thời điểm đo</label><select id="glucose-context" value={context} onChange={(e)=>setContext(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm min-h-[44px] dark:bg-slate-900 dark:border-slate-700">{contexts.map(c=> <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
+          <div><label htmlFor="glucose-context" className="text-xs text-slate-600 dark:text-slate-300">Bối cảnh đo</label><select id="glucose-context" value={context} onChange={(e)=>setContext(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm min-h-[44px] dark:bg-slate-900 dark:border-slate-700">{contexts.map(c=> <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
         </div>
         <div><label htmlFor="glucose-notes" className="text-xs text-slate-600 dark:text-slate-300">Ghi chú</label><Input id="glucose-notes" value={notes} onChange={(e)=>setNotes(e.target.value)} placeholder="vd: sau ăn phở" className="mt-1" /></div>
         <Button data-testid="tracker-save" onClick={submit} variant="success" className="w-full">Lưu chỉ số</Button>
@@ -88,6 +93,12 @@ const FqgChat = (p: any) => {
   const turnTimerRef = useRef<any>(null);
   const turnCountRef = useRef(0);
   const emptyStreakRef = useRef(0);
+  useEffect(() => {
+    const showVoiceEntry = () => { if (window.location.hash === "#voice-entry") setOpen(true); };
+    window.addEventListener("hashchange", showVoiceEntry);
+    showVoiceEntry();
+    return () => window.removeEventListener("hashchange", showVoiceEntry);
+  }, []);
   useEffect(()=>{
     if (fqg.length && !isCritical) {
       setFqgMode(true);
@@ -162,10 +173,29 @@ const FqgChat = (p: any) => {
       await playServerAudio(emgText, { persona });
       return "emergency";
     }
+    if (voicePending?.awaitingTime) {
+      if (transcript) setMessages((prev)=>[...prev, { role: "user", text: transcript }]);
+      if (!data?.measurement_time) {
+        const prompt = "Con chưa xác định được giờ đo. Bác nói rõ, ví dụ: lúc 7 giờ sáng hôm nay.";
+        setMessages((prev)=>[...prev, { role: "ai", text: prompt }]);
+        await playServerAudio(prompt, { persona });
+        return "confirm";
+      }
+      const confirmed = { ...voicePending, awaitingTime: false, measured_at: data.measurement_time };
+      setVoicePending(confirmed);
+      await playServerAudio(`Bác đo lúc ${new Date(data.measurement_time).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}. Đúng không ạ?`, { persona });
+      return "confirm";
+    }
     if (data?.parse && !data.parse.ambiguous) {
       if (transcript) setMessages((prev)=>[...prev, { role: "user", text: transcript }]);
-      setVoicePending({ parse: data.parse, transcript });
-      const tts = await playServerAudio(data.parse.confirm_text || "", { persona });
+      if (data.parse.value < 70 || data.parse.value >= 300) {
+        setMessages((prev)=>[...prev, { role: "emg", text: CRITICAL_TEXT }]);
+        await playServerAudio(CRITICAL_TEXT, { persona });
+      }
+      const missingTime = !data.measurement_time;
+      setVoicePending({ parse: data.parse, transcript, awaitingTime: missingTime, measured_at: data.measurement_time || null });
+      const prompt = missingTime ? "Bác đo đường huyết lúc mấy giờ? Con thấy bác chưa điền nên con điền hộ. Ví dụ: lúc 7 giờ sáng hôm nay." : `${data.parse.confirm_text} Giờ đo ${new Date(data.measurement_time).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.`;
+      const tts = await playServerAudio(prompt, { persona });
       if (cancelledRef.current) return "error";
       return tts === "error" ? "error" : "confirm";
     }
@@ -187,7 +217,7 @@ const FqgChat = (p: any) => {
       try { mediaRef.current?.stop(); } catch { setRecording(false); }
       return;
     }
-    setVoicePending(null);
+    if (!voicePending?.awaitingTime) setVoicePending(null);
     cancelledRef.current = false; // new single-turn recording: clear any stale loop cancel
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -208,10 +238,10 @@ const FqgChat = (p: any) => {
     }
   };
   const confirmVoiceSave = async ()=>{
-    if (!voicePending?.parse || voicePending.parse.ambiguous) return;
+    if (!voicePending?.parse || voicePending.parse.ambiguous || !voicePending.measured_at) return;
     if (!effectiveId) { setMessages((prev)=>[...prev, { role: "sys", text: "Cần đăng nhập" }]); return; }
     try {
-      const rec: any = await logGlucose({ user_id: effectiveId, value_mgdl: voicePending.parse.value, context: voicePending.parse.context });
+      const rec: any = await logGlucose({ user_id: effectiveId, value_mgdl: voicePending.parse.value, context: voicePending.parse.context, measured_at: voicePending.measured_at });
       setMessages((prev)=>[...prev, { role: "sys", text: `Đã lưu ${rec.value_mgdl} mg/dL (${rec.context}).` }]);
       try { await (onAnomaly?.(rec.anomaly, rec.follow_up_questions, rec)); } catch { /* fail-open */ }
       setVoicePending(null);
@@ -313,9 +343,8 @@ const FqgChat = (p: any) => {
     startListen();
   };
   const toggleVoiceMode = ()=>{ if (loopRef.current) stopLoop(); else startLoop(); };
-  if (!open && !fqg.length) return null;
   return (
-    <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm dark:bg-blue-950/40 dark:border-blue-900">
+    <div id="voice-entry" className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm dark:bg-blue-950/40 dark:border-blue-900">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <img src={recording || voiceLoop ? "/cocon-listen.png" : "/cocon.png"} alt="Cò Con" className="h-10 w-auto rounded-lg" />
@@ -349,9 +378,9 @@ const FqgChat = (p: any) => {
           </div>
           {voicePending?.parse && !voicePending.parse.ambiguous && (
             <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:bg-blue-950 dark:border-blue-800">
-              <div className="text-sm font-semibold text-blue-900 dark:text-blue-100">{voicePending.parse.confirm_text}</div>
+              <div className="text-sm font-semibold text-blue-900 dark:text-blue-100">{voicePending.awaitingTime ? "Bác đo đường huyết lúc mấy giờ? Con thấy bác chưa điền nên con điền hộ." : `${voicePending.parse.confirm_text} Giờ đo ${new Date(voicePending.measured_at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.`}</div>
               <div className="mt-3 flex gap-2">
-                <Button variant="success" onClick={confirmVoiceSave} aria-label="Xác nhận đúng, lưu chỉ số" className="px-6 py-3 font-bold">Đúng, lưu</Button>
+                {voicePending.awaitingTime ? <Button variant="success" onClick={toggleMic} aria-label="Nói giờ đo" className="px-6 py-3 font-bold">Nói giờ đo</Button> : <Button variant="success" onClick={confirmVoiceSave} aria-label="Xác nhận đúng, lưu chỉ số" className="px-6 py-3 font-bold">Đúng, lưu</Button>}
                 <Button variant="outline" onClick={()=>{ setVoicePending(null); if (loopRef.current && !cancelledRef.current) startListen(); else toggleMic(); }} aria-label="Nói lại chỉ số" className="px-6 py-3 border-blue-300 text-blue-900 dark:text-blue-100 dark:border-blue-700">Nói lại</Button>
               </div>
             </div>
@@ -496,7 +525,7 @@ const DailyCheckBanner = (p: any) => {
     <Alert className="border-amber-200 bg-amber-50 text-sm text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-100">
       <div className="flex items-start justify-between gap-2">
         <span>{daily.greeting}</span>
-        <a href="#manual-entry" className="shrink-0 px-2 py-2 text-xs underline min-h-[44px]">Tự điền</a>
+        <div className="flex gap-2"><a href="#voice-entry" className="shrink-0 px-2 py-2 text-xs underline min-h-[44px]">Trả lời bằng giọng nói</a><a href="#manual-entry" className="shrink-0 px-2 py-2 text-xs underline min-h-[44px]">Tự điền</a></div>
       </div>
     </Alert>
   );
@@ -544,7 +573,7 @@ const MyTracker = (p: any) => {
           {data?.logs?.length? data.logs.map((l:any)=>{
             const hl = String(l.id)===String(highlightId);
             const an = isAnom(l);
-            return <div key={l.id} id={`log-${l.id}`} className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${hl?"bg-yellow-100 ring-2 ring-yellow-400 dark:bg-yellow-950":""} ${an?"border-l-4 border-l-orange-500 bg-orange-50 dark:bg-orange-950/40":""}`}><div className="min-w-0 flex-1"><div className="text-base font-semibold">#{l.id} · {fmtDT(l.measured_at)} · {l.value_mgdl} mg/dL</div><div className="text-slate-500 dark:text-slate-400 truncate">{contexts.find(c=>c.value===l.context)?.label || l.context} {l.notes? `· ${l.notes}`:""}</div></div><span className="shrink-0"><StatusBadge level={l.classification}  /></span></div>;
+            return <div key={l.id} id={`log-${l.id}`} className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${hl?"bg-yellow-100 ring-2 ring-yellow-400 dark:bg-yellow-950":""} ${an?"border-l-4 border-l-orange-500 bg-orange-50 dark:bg-orange-950/40":""}`}><div className="min-w-0 flex-1"><div className="text-base font-semibold">#{l.id} · {fmtDT(l.measured_at)} · {l.value_mgdl} mg/dL</div><div className="text-slate-500 dark:text-slate-400 truncate">{contexts.find(c=>c.value===l.context)?.label || l.context} {l.notes? `· ${l.notes}`:""}</div></div><span className="shrink-0"><StatusBadge level={glucoseDisplayLevel(l.value_mgdl)} /></span></div>;
           }): <div className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Chưa có bản ghi. Hãy lưu chỉ số đầu tiên ở mục Nhập chỉ số.</div>}
         </div>
       </Card>
@@ -655,8 +684,8 @@ function TrackerContent(){
     setMsg(""); setTrend(""); setTrendSources([]); setAnomaly(null); setCriticalReading(false); setFqg([]);
     try{
       const rec:any=await logGlucose({ user_id: effectiveId, value_mgdl:v, context, notes: notes||undefined });
-      setMsg(`${rec.classification.toUpperCase()}: ${rec.message}`);
-      setCriticalReading(rec.classification === "critical" || rec.classification === "low");
+      setMsg(rec.message);
+      setCriticalReading(glucoseDisplayLevel(rec.value_mgdl) === "critical" || glucoseDisplayLevel(rec.value_mgdl) === "low");
       if(rec.anomaly && rec.anomaly.type && rec.anomaly.type!=="none") setAnomaly(rec.anomaly);
       if(typeof rec.id === "number") setLastLogId(rec.id);
       if(Array.isArray(rec.follow_up_questions) && rec.follow_up_questions.length) setFqg(rec.follow_up_questions);
@@ -666,7 +695,7 @@ function TrackerContent(){
   const explainTrend = async ()=>{
     if(!data?.logs?.length) return;
     setTrend("Đang phân tích xu hướng...");
-    const last=data.logs.slice(0,5).map((l:any)=>`${l.measured_at.slice(0,16)} ${l.value_mgdl}mg/dL (${l.context}, ${l.classification})`).join("; ");
+    const last=data.logs.slice(0,5).map((l:any)=>`${l.measured_at.slice(0,16)} ${l.value_mgdl}mg/dL (${l.context}, ${glucoseDisplayLevel(l.value_mgdl)})`).join("; ");
     const stats=data.stats;
     const q=`Tôi có các chỉ số đường huyết gần đây: ${last}. Trung bình 7 ngày ${stats.last_7_days_avg}mg/dL, tần suất ${stats.logs_per_week}/tuần, streak ${stats.streak_days} ngày. Hãy diễn giải xu hướng bằng tiếng Việt, có trích nguồn. Không suy ra chẩn đoán từ một lần đo hoặc dải hiển thị; cảnh báo an toàn <70, >250, ≥300 mg/dL theo chính sách dự án và nhắc hỏi bác sĩ về mục tiêu cá nhân.`;
     try{
@@ -686,8 +715,8 @@ function TrackerContent(){
   const handleFqgAnomaly = async (anomaly: any, followUp: string[], rec?: any)=>{
     if (anomaly && anomaly.type && anomaly.type !== "none") setAnomaly(anomaly);
     if (rec && typeof rec.id === "number") setLastLogId(rec.id);
-    if (rec?.classification && rec?.message) setMsg(`${String(rec.classification).toUpperCase()}: ${rec.message}`);
-    if (rec?.classification) setCriticalReading(rec.classification === "critical" || rec.classification === "low");
+    if (rec?.message) setMsg(rec.message);
+    if (typeof rec?.value_mgdl === "number") setCriticalReading(glucoseDisplayLevel(rec.value_mgdl) === "critical" || glucoseDisplayLevel(rec.value_mgdl) === "low");
     if (Array.isArray(followUp) && followUp.length) setFqg(followUp);
     await refresh();
   };

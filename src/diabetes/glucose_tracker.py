@@ -13,14 +13,12 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
-from src.shared.glucose_policy import glucose_severity
+from src.shared.glucose_policy import THRESHOLDS, glucose_severity
 
 try:
-    from src.shared.config import GLUCOSE_THRESHOLDS_MGDL
     from src.shared.config import GLUCOSE_DB_PATH as _DEFAULT_GLUCOSE_DB_PATH
     from src.vitals.base_tracker import get_conn as _base_get_conn, init_table, fetch_logs, classification_counts, calc_streak, calc_logs_per_week
 except ImportError:  # pragma: no cover
-    from shared.config import GLUCOSE_THRESHOLDS_MGDL  # type: ignore
     from shared.config import GLUCOSE_DB_PATH as _DEFAULT_GLUCOSE_DB_PATH  # type: ignore
     from vitals.base_tracker import get_conn as _base_get_conn, init_table, fetch_logs, classification_counts, calc_streak, calc_logs_per_week  # type: ignore
 
@@ -53,36 +51,16 @@ def init_glucose_db():
 def classify_glucose(value_mgdl: float, context: str) -> Tuple[str, str]:
     """
     Returns (classification, message).
-    classification in: low | normal | elevated | high | critical
+    classification in: low | no_alert | alert_high | critical
     """
-    t = GLUCOSE_THRESHOLDS_MGDL
     severity = glucose_severity(value_mgdl, context)
     if severity == "low":
-        return severity, f"Hạ đường huyết (<{t['hypoglycemia']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
+        return severity, f"Chỉ số dưới {THRESHOLDS['hypoglycemia'].value:g} mg/dL — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
     if severity == "critical":
-        return severity, f"Đường huyết rất cao (≥{t['random_critical_high']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
-    if context == "fasting":
-        if severity == "normal":
-            return "normal", "Chưa có cảnh báo theo ngưỡng an toàn; mục tiêu lúc đói do bác sĩ cá thể hóa."
-        elif severity == "elevated":
-            return "elevated", "Ghi nhận số đo lúc đói; đối chiếu với mục tiêu bác sĩ đã đặt."
-        else:
-            return "high", "Chỉ số lúc đói cần trao đổi với bác sĩ; không tự kết luận từ một lần đo."
-    elif context == "post_meal_2h":
-        if severity == "normal":
-            return "normal", "Chưa có cảnh báo theo ngưỡng an toàn; mục tiêu sau ăn do bác sĩ cá thể hóa."
-        elif severity == "elevated":
-            return "elevated", "Ghi nhận số đo sau ăn; đối chiếu với mục tiêu bác sĩ đã đặt."
-        else:
-            return "high", "Chỉ số sau ăn cần trao đổi với bác sĩ; mốc 200 mg/dL của OGTT không dùng để chẩn đoán từ bữa ăn thường."
-    else:
-        # random / pre_meal / bedtime: dùng ngưỡng chung
-        if severity == "normal":
-            return "normal", "Chưa có cảnh báo theo ngưỡng an toàn; đối chiếu với mục tiêu bác sĩ đã đặt."
-        elif severity == "elevated":
-            return "elevated", "Ghi nhận số đo; đối chiếu với mục tiêu bác sĩ đã đặt."
-        else:
-            return "high", "Chỉ số cần trao đổi với bác sĩ; không tự kết luận từ một lần đo."
+        return severity, f"Chỉ số từ {THRESHOLDS['critical_high'].value:g} mg/dL — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
+    if severity == "alert_high":
+        return severity, f"Chỉ số trên {THRESHOLDS['spike_high'].value:g} mg/dL — liên hệ bác sĩ để được hướng dẫn; không tự đổi liều thuốc hoặc insulin."
+    return severity, "Chưa chạm ngưỡng cảnh báo của hệ thống; điều này không xác nhận chỉ số đạt mục tiêu cá nhân. Hãy đối chiếu với mục tiêu bác sĩ đã đặt."
 
 
 def should_escalate_to_doctor(user_id: str, lookback: int = 3) -> bool:
@@ -135,7 +113,8 @@ def get_logs(user_id: str, limit: int = 50, days: Optional[int] = None) -> List[
             "measured_at": r["measured_at"],
             "context": r["context"],
             "notes": r["notes"],
-            "classification": r["classification"],
+            # Stored legacy labels are not clinical evidence; re-evaluate on read.
+            "classification": glucose_severity(r["value_mgdl"], r["context"]),
         })
     return out
 

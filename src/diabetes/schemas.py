@@ -21,7 +21,7 @@ class GlucoseLogOut(BaseModel):
     measured_at: datetime
     context: str
     notes: Optional[str]
-    classification: str  # normal / elevated / high / critical / low
+    classification: str  # no_alert / alert_high / critical / low
     message: str
     anomaly: Optional[Dict[str, Any]] = Field(None, description="Anomaly middleware: {type: spike|trend|none, ...}")
     follow_up_questions: List[str] = Field(default_factory=list, description="FQG context questions")

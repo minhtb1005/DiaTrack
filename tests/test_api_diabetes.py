@@ -33,7 +33,7 @@ class TestDiabetesAPI:
         uid = auth_header["user"]["id"]
         r = client.post("/v1/glucose", json={"user_id": uid, "value_mgdl": 145, "context": "fasting", "notes": "after breakfast"}, headers=hdr)
         assert r.status_code == 200, r.text
-        assert r.json()["classification"] in ("elevated", "high", "normal", "low", "critical")
+        assert r.json()["classification"] in ("no_alert", "alert_high", "low", "critical")
         r2 = client.get(f"/v1/glucose/{uid}", headers=hdr)
         assert r2.status_code == 200
         assert r2.json()["stats"]["total_logs"] >= 1
@@ -102,7 +102,7 @@ class TestDiabetesAPI:
     def test_glucose_urgent_boundaries(self, client: TestClient, auth_header):
         hdr = {"Authorization": f"Bearer {auth_header['token']}"}
         uid = auth_header["user"]["id"]
-        for value, classification, urgent in ((69, "low", True), (110, "elevated", False), (280, "high", False), (300, "critical", True)):
+        for value, classification, urgent in ((69, "low", True), (110, "no_alert", False), (250, "no_alert", False), (280, "alert_high", False), (300, "critical", True)):
             response = client.post("/v1/glucose", json={"user_id": uid, "value_mgdl": value, "context": "fasting"}, headers=hdr)
             assert response.status_code == 200, response.text
             data = response.json()

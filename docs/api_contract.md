@@ -42,9 +42,10 @@ Tất cả cần login; user thường chỉ được thao tác trên `user_id` 
 
 ### 5.1 Diabetes — Glucose
 
-- `POST /v1/glucose`: `{"user_id": "...", "value_mgdl": 145, "context": "fasting"}` (`value 20..800`, context: fasting/pre_meal/post_meal_2h/bedtime/random). Trả thêm `classification` (low/normal/elevated/high/critical), `message`, `anomaly {spike|trend|none}`, `follow_up_questions[]`.
+- `POST /v1/glucose`: `{"user_id": "...", "value_mgdl": 145, "context": "fasting"}` (`value 20..800`, context: fasting/pre_meal/post_meal_2h/bedtime/random). Trả thêm `classification` (`low` <70, `no_alert` 70–250, `alert_high` >250 và <300, `critical` ≥300), `message`, `anomaly {spike|trend|none}`, `follow_up_questions[]`. `no_alert` chỉ nghĩa là chưa chạm ngưỡng cảnh báo của hệ thống, không xác nhận đạt mục tiêu cá nhân. GET log cũ tính lại nhãn từ giá trị đo; dữ liệu gốc không bị sửa.
 - Ngưỡng cảnh báo sản phẩm: <70 cần liên hệ y tế, >250 cần liên hệ bác sĩ, ≥300 cần liên hệ y tế ngay; dấu hiệu nặng gọi 115. Mốc xét nghiệm lúc đói ≥126 và OGTT 2 giờ ≥200 là tiêu chuẩn chẩn đoán trong phòng xét nghiệm, không dùng để chẩn đoán từ một lần đo tại nhà. Xem nguồn và giới hạn từng mốc ở `docs/project_requirements.json#scope_rules.threshold_evidence`.
-- `GET /v1/glucose/{user_id}?limit=50&days=14`: trả `logs[]` + `stats` (trung bình, streak) + `should_escalate` (critical 1 lần hoặc ≥3 high).
+- `GET /v1/glucose/{user_id}?limit=50&days=14`: trả `logs[]` + `stats` (trung bình, streak) + `should_escalate` (có số đo <70 hoặc ≥300 trong các log gần nhất). Nhãn hiển thị cũ không tự kích hoạt chuyển ca.
+- `POST /v1/voice/transcribe`: trả `parse` (giá trị và bối cảnh), `measurement_time` (ISO 8601 +07:00 khi nghe rõ giờ và buổi đo) và cảnh báo red-flag. Luồng voice hỏi lại giờ đo nếu thiếu hoặc mơ hồ; chỉ gọi `POST /v1/glucose` với `measured_at` sau khi bệnh nhân xác nhận. Không tự gán giờ hiện tại cho bản ghi voice. Khi mất micro hoặc STT, người dùng có thể nhập thủ công.
 
 ### 5.2 Hypertension — BP
 
