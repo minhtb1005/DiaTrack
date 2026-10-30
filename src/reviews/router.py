@@ -14,6 +14,18 @@ except ImportError:
 
 router = APIRouter(prefix="/v1", tags=["reviews"])
 
+
+def _patient_review(review: dict) -> dict:
+    """Patients receive the approved result, never an unpublished draft."""
+    visible = dict(review)
+    visible.pop("draft_answer", None)
+    visible.pop("contexts_json", None)
+    return visible
+
+
+def _patient_history(history: list[dict]) -> list[dict]:
+    return [({**item, "answer": None} if item.get("status") == "pending_review" else item) for item in history]
+
 # ---------- reviews ----------
 @router.get("/reviews")
 def get_reviews(
@@ -28,7 +40,7 @@ def get_reviews(
     # user: can only see own
     if role == "user":
         reviews = list_reviews(status=status, requester_id=current_user["id"], limit=limit, offset=offset)
-        return {"reviews": reviews, "total": len(reviews)}
+        return {"reviews": [_patient_review(r) for r in reviews], "total": len(reviews)}
     # expert: see pending routed to them + all if admin, or mine
     if role in ("doctor", "pharmacist", "specialist"):
         if mine:
@@ -52,6 +64,8 @@ def get_reviews(
                 # filter to routed_role if provided else show all
                 if routed_role:
                     reviews = [r for r in reviews if r.get("routed_role") == routed_role]
+        if role != "doctor":
+            reviews = [r for r in reviews if not (r.get("evaluation") or {}).get("review_required_by_workflow")]
         return {"reviews": reviews, "total": len(reviews)}
     # admin: see all
     reviews = list_reviews(status=status, routed_role=routed_role, limit=limit, offset=offset)
@@ -61,7 +75,7 @@ def get_reviews(
 def get_my_reviews(limit: int = Query(50, ge=1, le=200), current_user=Depends(get_current_user)):
     reviews = list_reviews(requester_id=current_user["id"], limit=limit)
     history = list_query_history(current_user["id"], limit=limit)
-    return {"reviews": reviews, "history": history}
+    return {"reviews": [_patient_review(r) for r in reviews], "history": _patient_history(history)}
 
 @router.get("/reviews/{review_id}")
 def get_review_detail(review_id: str, current_user=Depends(get_current_user)):
@@ -72,6 +86,10 @@ def get_review_detail(review_id: str, current_user=Depends(get_current_user)):
     # user can only see own
     if role == "user" and rev["requester_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Forbidden")
+    if role == "user":
+        return _patient_review(rev)
+    if (rev.get("evaluation") or {}).get("review_required_by_workflow") and role not in ("doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Doctor approval required")
     # expert can see pending for their role or all if admin
     if role in ("doctor", "pharmacist", "specialist"):
         # allow if pending and routed to their role, or if they are assigned, or if admin fallback
@@ -103,6 +121,9 @@ class DecisionBody(BaseModel):
 
 @router.post("/reviews/{review_id}/decide")
 def post_decision_json(review_id: str, body: DecisionBody, current_user=Depends(require_expert)):
+    review = get_review(review_id)
+    if review and (review.get("evaluation") or {}).get("review_required_by_workflow") and current_user["role"] not in ("doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Doctor approval required")
     try:
         result = decide_review(review_id, decision=body.decision, expert_id=current_user["id"], final_answer=body.final_answer, expert_notes=body.expert_notes)
     except ValueError as e:
@@ -113,7 +134,7 @@ def post_decision_json(review_id: str, body: DecisionBody, current_user=Depends(
 def query_history(limit: int = Query(50, ge=1, le=200), current_user=Depends(get_current_user)):
     # Returns query history including pending_review status
     history = list_query_history(current_user["id"], limit=limit)
-    return {"history": history, "total": len(history)}
+    return {"history": _patient_history(history), "total": len(history)}
 
 # ---------- admin stats ----------
 @router.get("/admin/reviews/stats", dependencies=[Depends(require_admin)])

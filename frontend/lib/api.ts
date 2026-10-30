@@ -78,8 +78,8 @@ function ragBody(query: string, top_k = 5, user_id = "default_user") {
   return { query, top_k, user_id, include_audit: true };
 }
 
-export async function queryRag(query: string, top_k = 5, user_id = "default_user", language = "vi") {
-  return apiPost("/v1/query", { ...ragBody(query, top_k, user_id), language }, "query");
+export async function queryRag(query: string, top_k = 5, user_id = "default_user", language = "vi", requireDoctorReview = false) {
+  return apiPost("/v1/query", { ...ragBody(query, top_k, user_id), language, require_doctor_review: requireDoctorReview }, "query");
 }
 
 // SSE streaming for POST /v1/query/stream — yields {event, data} via callback
@@ -308,3 +308,10 @@ export async function getTodayLesson(userId: string) {
 export async function saveLearnOnboarding(userId: string, data: { age?: number; meds?: string; has_meter?: number }) {
   return apiPost(`/v1/lessons/onboarding?user_id=${encodeURIComponent(userId)}`, data, "learn onboarding");
 }
+
+export const medicationPlans = (patientId: string) => apiGet(`/v1/medications/patients/${encodeURIComponent(patientId)}`);
+export const createMedicationPlan = (body: unknown) => apiPost('/v1/medications/plans', body);
+export const approveMedicationPlan = (id: string) => apiPost(`/v1/medications/plans/${encodeURIComponent(id)}/approve`);
+export const recordMedicationDose = (id: string, due_at: string, status: 'taken'|'skipped') => apiPost(`/v1/medications/plans/${encodeURIComponent(id)}/doses`, {due_at, status});
+
+export const stopMedicationPlan = (id: string, reason: string) => apiPost(`/v1/medications/plans/${encodeURIComponent(id)}/stop`, {reason});

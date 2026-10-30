@@ -3,8 +3,9 @@ import { useState, useRef } from "react";
 import { queryRag, queryRagStream, API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
+import PatientQuestions from "@/components/PatientQuestions";
 
-export default function ApiPlaygroundPage() {
+function DeveloperPlayground() {
   const { user } = useAuth();
   const [query, setQuery] = useState("Dấu hiệu đái tháo đường type 2 là gì? Khi nào cần đi khám?");
   const [topK, setTopK] = useState(5);
@@ -134,3 +135,5 @@ function Metric({k,v,t}:{k:string, v:number, t:number}){
   const ok = v>=t;
   return <div className={`rounded-lg border p-2 ${ok?"bg-emerald-50 border-emerald-200":"bg-red-50 border-red-200"}`}><div className="font-bold text-xs">{k}</div><div className="text-sm">{v?.toFixed(1)} / 5 <span className="text-[11px]">ngưỡng {t}</span></div><div className="text-[11px]">{ok?"✅ đạt":"❌ thiếu"}</div></div>;
 }
+
+export default function QuestionsPage(){ const { isAdmin }=useAuth(); return isAdmin ? <DeveloperPlayground/> : <PatientQuestions/>; }

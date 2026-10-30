@@ -83,12 +83,22 @@ def test_hilt_low_confidence_creates_review(client: TestClient, auth_header, doc
     assert rq.status_code == 200
     reviews = rq.json()["reviews"]
     assert any(rv["id"]==review_id for rv in reviews)
+    hdr = {"Authorization": f"Bearer {auth_header['token']}"}
+    pending_reviews = client.get("/v1/reviews/me", headers=hdr)
+    assert pending_reviews.status_code == 200
+    own_pending = next(rv for rv in pending_reviews.json()["reviews"] if rv["id"] == review_id)
+    assert "draft_answer" not in own_pending
+    assert "Draft answer that is not confident" not in pending_reviews.text
+    patient_detail = client.get(f"/v1/reviews/{review_id}", headers=hdr)
+    assert patient_detail.status_code == 200
+    assert "draft_answer" not in patient_detail.json()
+    pending_history = client.get("/v1/query/history", headers=hdr)
+    assert next(h for h in pending_history.json()["history"] if h.get("review_id") == review_id)["answer"] is None
     # doctor can see vitals
     rd_detail = client.get(f"/v1/reviews/{review_id}", headers=dhdr)
     assert rd_detail.status_code == 200
     assert "vitals" in rd_detail.json()
     # doctor decide
-    hdr = {"Authorization": f"Bearer {auth_header['token']}"}
     rd = client.post(f"/v1/reviews/{review_id}/decide", json={"decision":"approved"}, headers=dhdr)
     assert rd.status_code == 200, rd.text
     assert rd.json()["status"] == "approved"
@@ -100,6 +110,7 @@ def test_hilt_low_confidence_creates_review(client: TestClient, auth_header, doc
     rh = client.get("/v1/query/history", headers=hdr)
     assert rh.status_code == 200
     assert any(h.get("review_id")==review_id for h in rh.json()["history"])
+    assert next(h for h in rh.json()["history"] if h.get("review_id") == review_id)["answer"] == "Draft answer that is not confident [Source 1]"
     # user cannot decide (should be 403)
     r_forbidden = client.post(f"/v1/reviews/{review_id}/decide", json={"decision":"rejected"}, headers=hdr)
     assert r_forbidden.status_code in (400,403)

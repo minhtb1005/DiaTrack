@@ -177,6 +177,8 @@ app.add_middleware(
 )
 
 # ---------- include routers ----------
+from src.medications.router import router as medications_router
+app.include_router(medications_router)
 if AUTH_ENABLED and auth_router is not None:
     app.include_router(auth_router)
     app.include_router(reviews_router)  # type: ignore

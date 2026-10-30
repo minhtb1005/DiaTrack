@@ -3,8 +3,8 @@
 An AI assistant that helps people with diabetes stay on track between doctor visits - and gives doctors a 10-second pre-visit brief they can trust.
 
 - **Watch the demo (0 setup):** [demo video](docs/demo/demo.webm) (~1 min, PC1→PC4, Playwright robot draft)
-  (recording script: [docs/demo/script.md](docs/demo/script.md); robot draft: `frontend/e2e/demo_recorder.spec.ts`)
-- **Jump to the story:** [2. What I built](#2-what-i-built--two-stories) - [3. Watch the 3-step demo](#3-live-demo--watch-first-run-if-youre-technical)
+  (recording script: [docs/demo/script.md](docs/demo/script.md))
+- **Jump to the story:** [2. What I built](#2-what-i-built--two-stories) - [3. Watch the 3-step demo](#3-demo-walkthrough)
 
 <!--
   Screenshot placeholders (uncomment when assets land - do NOT use live ![] to missing files):
@@ -12,6 +12,29 @@ An AI assistant that helps people with diabetes stay on track between doctor vis
   - docs/demo/previsit-soap.png - doctor pre-visit view: 90-day sparkline + SOAP note
   - Video: replace the TODO link above with the real recording
 -->
+
+---
+
+## Scope
+
+DiaTrack supports **type 2 diabetes only**. Other conditions (hypertension, respiratory, mental health) are out of scope and appear only as comorbidities or complications of diabetes. Questions outside diabetes get the fixed refusal described in [Safety by design](#4-safety-by-design---why-an-employer-can-trust-this-with-health-data).
+
+Six capabilities:
+
+1. **Glucose tracking & alerts** - log readings (mg/dL), anomaly/trend detection, doctor pre-visit view.
+2. **Symptom triage** - diabetes red-flags (severe hypoglycemia, suspected DKA/severe hyperglycemia, foot infection, cardio/stroke signs) routed to a human.
+3. **Medication reminders** - adherence tracking for doctor-approved regimens; never changes doses.
+4. **Doctor SOAP notes** - draft notes for doctor review; Plan stays empty.
+5. **Nutrition guidance** - carbohydrate-aware advice using Vietnamese foods, reviewed by a professional.
+6. **Appointment booking** - routing to endocrine, diabetes-complication and nutrition clinics.
+
+Where to read next:
+
+- Current scope, six project requirements and safety rules: [docs/project_requirements.json](docs/project_requirements.json) (`scope_rules`).
+- Task list and acceptance criteria: `docs/TASKS.md` when present.
+- Agent workflow, verification and handoff: [AGENTS.md](AGENTS.md)
+- Container configuration: [docker-compose.yml](docker-compose.yml), [backend Dockerfile](Dockerfile), [frontend Dockerfile](frontend/Dockerfile)
+- Code navigation: [Repository map](#repository-map)
 
 ---
 
@@ -32,7 +55,7 @@ In Vietnam, **7.3% of adults (about 7 million people)** live with diabetes. Over
 You log a reading (e.g. 260 mg/dL). Instead of silence, you get an anomaly banner plus Follow-up Questions (FQG - short clarifying questions that gather context before any escalation, e.g. "did you eat sweets last night / miss medication?"). Dangerous lows (below 70) and critical highs (300 and above) always trigger an immediate safety message first.
 
 **Story 2 - Doctor side: 3-5 minutes of prep in 10 seconds.**
-The pre-visit view is 30% chart + 70% text: a **90-day sparkline** with red dots on anomalies, plus a SOAP note (SOAP - the standard doctor note format: Subjective / Objective / Assessment / Plan). Every claim carries a **[View log #id]** link that jumps back to the raw log. The Plan section is **intentionally left empty** - "for the doctor to decide". Doctors also get a smart patient queue at `/expert/patients` (triage-sorted: critical spike first, then trend cascade, safe last). The tracker architecture is modular for multi-metric expansion (BP/HR/SpO2), but this MVP focuses deeply on glucose as a proof of concept.
+The pre-visit view is 30% chart + 70% text: a **90-day sparkline** with red dots on anomalies, plus a SOAP note (SOAP - the standard doctor note format: Subjective / Objective / Assessment / Plan). Every claim carries a **[View log #id]** link that jumps back to the raw log. The Plan section is **intentionally left empty** - "for the doctor to decide". Doctors also get a smart patient queue at `/expert/patients` (triage-sorted: critical spike first, then trend cascade, safe last). The product is intentionally limited to diabetes; other vital signs (BP/HR/SpO2) are out of scope.
 
 <!--
   TODO assets:
@@ -42,9 +65,9 @@ The pre-visit view is 30% chart + 70% text: a **90-day sparkline** with red dots
 
 ---
 
-## 3. Live demo - watch first, run if you're technical
+## 3. Demo walkthrough
 
-### A. Watch (for everyone - 0 setup)
+### Watch the demo
 
 **3-click scenario (under 2 minutes):**
 1. **Log a high reading** (e.g. 260 mg/dL) in the tracker - see the anomaly banner + follow-up questions.
@@ -53,46 +76,12 @@ The pre-visit view is 30% chart + 70% text: a **90-day sparkline** with red dots
 
 Video demo: [docs/demo/demo.webm](docs/demo/demo.webm) (~1 min, PC1→PC4). Full lời thoại + checklist quay: [docs/demo/script.md](docs/demo/script.md).
 
-### B. Run (for developers - collapsed)
-
-<details>
-<summary><strong>Run the local demo in about 5 minutes</strong></summary>
-
-Backend (FastAPI):
-
-```bash
-pip install -e .
-# alternative: pip install -r requirements.txt  (same openai-only base)
-# local embeddings/reranker: pip install .[local]
-# .env needs: OPENAI_API_KEY=sk-proj-... (demo runs on gpt-4o-mini, no GPU needed)
-uvicorn src.api.main:app --reload --port 8000
-```
-
-Frontend (Next.js):
-
-```bash
-cd frontend && npm install && npm run dev  # http://localhost:3000
-# .env.local needs: NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-Try it:
-
-```bash
-curl -X POST http://localhost:8000/v1/glucose \
-  -H "Content-Type: application/json" \
-  -d '{"user_id":"demo","value_mgdl":260,"context":"fasting"}'
-```
-
-Full setup, indexing, and test commands are in the [Tech snapshot](#6-tech-snapshot-for-developers) and existing docs (`docs/architecture_diagram.md`, `docs/api_contract.md`).
-
-</details>
-
 ---
 
 ## 4. Safety by design - why an employer can trust this with health data
 
 - **Hard safety thresholds, always on:** low below 70, critical 300+, fasting high 126+, post-meal high 200+ mg/dL. Spikes above 250 / below 70 always warn before anything else.
-- **Out-of-scope questions get a fixed refusal - before any medical lookup:** e.g. "which antibiotics should I take?" returns exactly: *"This system is designed only for blood-sugar tracking. [Topic] is outside its safe scope. Please ask your doctor at your next visit."* The RAG lookup (RAG - Retrieval-Augmented Generation: answers grounded in WHO/Ministry-of-Health guidelines with citations) is never called for these.
+- **Out-of-scope questions get a fixed refusal - before any medical lookup:** e.g. a question about antibiotics returns the fixed Vietnamese response in `scope_rules.out_of_scope_reply` The RAG lookup (RAG - Retrieval-Augmented Generation: answers grounded in WHO/Ministry-of-Health guidelines with citations) is never called for these.
 - **Assessment is narrow and honest:** it only states whether readings align with the **HbA1c <7% target** per Vietnam's QD 5481/QD-BYT 2020 (Type 2 diabetes) + ADA Standards of Care 2024. Note: QD 3192 covers **hypertension, not diabetes** - it is never used for diabetes assessment. The system never makes a new diagnosis.
 - **Plan stays empty + every claim is auditable:** the Plan section returns empty with a greyed-out "for the doctor to decide" placeholder, and every Subjective/Objective/Assessment line carries a **[View log #id]** link to the raw entry.
 - **Fails safe:** if the anomaly check crashes, the glucose log itself still saves (anomaly = none) - the safety layer can never break core data.
@@ -137,23 +126,29 @@ flowchart TD
 | Frontend | Next.js 14 + Recharts (90-day sparkline) |
 | Knowledge | Chroma + OpenAI `text-embedding-3-small`; WHO + ADA 2024 + BYT QD 5481 |
 | AI (demo) | `gpt-4o-mini` via API - no GPU needed |
-| Quality | **45 pytest pass** (`test_anomaly_detector` + `test_soap_summary` + `test_api_diabetes` + `test_glucose_tracker`), `tsc --noEmit` 0 errors, RAGAS faithfulness scoring on retrieved contexts |
+| Quality | pytest (anomaly detector, SOAP summary, diabetes API, glucose tracker), `tsc --noEmit`, RAGAS faithfulness scoring on retrieved contexts. Verification commands and evidence requirements are defined in [AGENTS.md](AGENTS.md) |
 
-<details>
-<summary><strong>Tests and quality signals (full)</strong></summary>
+Test results belong with the task and its evidence, not in this overview. A demo recording does not replace automated tests or validation of clinical behavior.
 
-```bash
-pip install -e .[test]
-pytest tests/test_anomaly_detector.py tests/test_soap_summary.py tests/test_api_diabetes.py tests/test_glucose_tracker.py -v  # 45 passed
-cd frontend && npx tsc --noEmit  # 0 errors
-```
+Existing docs: `AGENTS.md` - `docs/architecture_diagram.md` - `docs/api_contract.md` - `docs/evaluation.md` - `docs/data_contract.md` - `docs/monitoring.md`
 
-- RAGAS faithfulness is scored on retrieved guideline contexts (memory rows are filtered out of the evaluator so they cannot inflate the score).
-- E2E note: older Playwright specs predate the current auth UI and fail on `User ID` selectors - unrelated to this demo; manual UI recording is the source of truth.
+---
 
-</details>
+## Repository map
 
-Existing docs: `docs/architecture_diagram.md` - `docs/api_contract.md` - `docs/evaluation.md` - `docs/data_contract.md` - `docs/monitoring.md`
+| Path | Purpose |
+|---|---|
+| `src/api/main.py` | FastAPI composition root and router wiring |
+| `src/diabetes/`, `src/triage/`, `src/scheduling/`, `src/medications/`, `src/learn/` | Diabetes workflows, booking, medication schedules and lessons |
+| `src/auth/`, `src/chat/`, `src/reviews/`, `src/admin/` | Accounts, assistant, expert review and administration |
+| `src/shared/` | Configuration, retrieval, memory and shared utilities |
+| `frontend/app/`, `frontend/components/`, `frontend/lib/` | Next.js pages, UI components and API clients |
+| `tests/`, `frontend/e2e/` | Backend and browser tests; shared auth fixtures in `tests/conftest.py` |
+| `scripts/`, `data/` | Data preparation, evaluation scripts and local data; data may be absent from a clone |
+| `docs/` | Architecture, API/data contracts, evaluation and product documentation |
+| `Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` | Separate backend/frontend image builds and service configuration |
+
+Additional modules in `src/vitals/`, `src/labs/` and `src/monitors/` do not expand the product scope beyond type 2 diabetes.
 
 ---
 
@@ -171,7 +166,7 @@ flowchart LR
     D --> E["Streaming response"]
 ```
 
-Also future: full multi-turn FQG, LLM intent classifier (replacing the current keyword gate), direct HbA1c lab import.
+Also future: full multi-turn FQG, LLM intent classifier (replacing the current keyword gate), photo/OCR import of glucose-meter and lab-report images (deferred to a later phase).
 
 ---
 
@@ -183,5 +178,3 @@ Also future: full multi-turn FQG, LLM intent classifier (replacing the current k
 - ADA Standards of Care in Diabetes 2024: https://diabetesjournals.org/care/issue/47/Supplement_1
 - WHO GHO diabetes data: https://www.who.int/data/gho/data/indicators/indicator-details/GHO/prevalence-of-diabetes-age-standardized
 - BHYT telehealth reimbursement from 1/7/2025 + doctor-density stats: see prior README history (`git log -- README.md`, 553-line version)
-
-**Contact / next steps:** *TODO: your name, email, LinkedIn, and what you are looking for (internship / junior role / collaboration).*

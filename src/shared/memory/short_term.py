@@ -280,9 +280,12 @@ class ShortTermMemory:
 
 
 # Global instance for easy access
-short_term_memory = ShortTermMemory()
+short_term_memory = None  # Initialize only when this memory is requested.
 
 
 def get_short_term_memory() -> ShortTermMemory:
     """Get the global short-term memory instance."""
+    global short_term_memory
+    if short_term_memory is None:
+        short_term_memory = ShortTermMemory()
     return short_term_memory

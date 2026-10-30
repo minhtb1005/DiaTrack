@@ -1,0 +1,90 @@
+{
+  "source": "tat_ca_376_de.xlsx",
+  "sheet": "tat_ca_376_de",
+  "numbering": "1-based data rows, excluding header",
+  "scope": "diabetes only",
+  "scope_rules": {
+    "disease": "Đái tháo đường týp 2 (người lớn, đặc biệt người cao tuổi)",
+    "out_of_scope": "Tăng huyết áp, hô hấp, tâm thần và mọi bệnh khác chỉ xuất hiện như bệnh đi kèm/biến chứng của đái tháo đường, không có module riêng.",
+    "out_of_scope_reply": "Hệ thống chỉ hỗ trợ theo dõi đái tháo đường. Nội dung này nằm ngoài phạm vi an toàn của hệ thống, vui lòng hỏi bác sĩ ở lần khám tới.",
+    "unit": "mg/dL (mmol/L × 18)",
+    "safety_thresholds_mgdl": {
+      "hypoglycemia": "< 70",
+      "fasting_high": ">= 126",
+      "post_meal_2h_high": ">= 200",
+      "spike_alert": "> 250",
+      "critical": ">= 300"
+    },
+    "hba1c_target": "< 7% (BYT QĐ5481/2020 + ADA Standards of Care 2024); mục tiêu cụ thể do bác sĩ đặt cho từng bệnh nhân",
+    "rag_sources": [
+      "WHO Classification of Diabetes 2019",
+      "WHO HEARTS-D 2020",
+      "WHO PEN 2020",
+      "ADA Standards of Care 2024",
+      "BYT QĐ5481/QĐ-BYT 2020 (QĐ3319 cho tham khảo)"
+    ],
+    "note_sources": "QĐ3192 là hướng dẫn tăng huyết áp, KHÔNG dùng cho đái tháo đường.",
+    "common_constraints": [
+      "HITL bắt buộc: ngưỡng mục tiêu, thuốc, insulin do bác sĩ đặt và duyệt",
+      "AI không chẩn đoán (kể cả DKA, biến chứng), không kê đơn, không đổi/ngưng liều",
+      "Hạ đường huyết nặng, nghi DKA, nhiễm trùng bàn chân, dấu hiệu tim mạch/đột quỵ: cảnh báo khẩn, gọi 115 hoặc đến cơ sở y tế ngay",
+      "Grounded trên nguồn có trích dẫn, chống bịa; bảo mật PII/PHI; luôn hiển thị khuyến cáo tham vấn bác sĩ"
+    ]
+  },
+  "projects": [
+    {
+      "id": "258-triage",
+      "excel_row": 259,
+      "title": "AI Agent Phân Loại Triệu Chứng & Triage Thông Minh cho Bệnh Nhân Tiểu Đường (Không Chẩn Đoán Thay Bác Sĩ)",
+      "problem": "📍 Thực trạng: Bệnh nhân tiểu đường mô tả triệu chứng qua app/hotline, việc phân luồng mức độ khẩn cấp (cấp cứu / khám sớm / tự theo dõi) phụ thuộc điều dưỡng trực, dễ quá tải và không đồng nhất. Nhiều tình huống của người tiểu đường diễn tiến nhanh (hạ đường huyết nặng, tăng đường huyết nguy hiểm, nhiễm trùng bàn chân).\n\n🎯 Vấn đề: Cần AI Agent triage thu thập triệu chứng theo kịch bản hỏi-đáp có cấu trúc, kết hợp chỉ số đường huyết gần nhất của bệnh nhân, lập luận nhiều bước để phân loại mức độ ưu tiên và đề xuất hướng xử trí (đến cấp cứu / đặt lịch khám / chăm sóc tại nhà), có tool tra bảng phân độ triage tiểu đường và chuyển ca cho điều dưỡng khi vượt ngưỡng.\n\n🔒 Ràng buộc: HITL BẮT BUỘC — kết quả triage là ĐỀ XUẤT, điều dưỡng/bác sĩ phê duyệt trước khi thông báo hướng xử trí; AI TUYỆT ĐỐI KHÔNG kết luận chẩn đoán (kể cả DKA hay biến chứng cụ thể). Grounded trên protocol triage tiểu đường mô phỏng theo WHO HEARTS-D, ADA 2024, BYT QĐ5481, chống bịa. Luôn ưu tiên an toàn: nghi ngờ red-flag → escalate cấp cứu ngay, cảnh báo rõ ràng. Nhóm red-flag bắt buộc: (1) hạ đường huyết nặng (lơ mơ, vã mồ hôi, run, đường huyết < 70); (2) nghi tăng đường huyết nguy hiểm/DKA (khát nhiều, tiểu nhiều, hơi thở mùi xeton, buồn nôn/nôn, thở nhanh, đường huyết ≥ 300); (3) nhiễm trùng bàn chân (sưng đỏ, chảy mủ, hoại tử, sốt); (4) dấu hiệu tim mạch/đột quỵ (đau ngực, méo miệng, yếu nửa người). Bảo mật PII/PHI. Hiển thị giới hạn & khuyến cáo gặp nhân viên y tế.",
+      "suggested_stack": "• LLM đa nhà cung cấp\n• LangGraph với nhánh điều kiện theo mức triage & node escalation\n• RAG trên bộ protocol triage tiểu đường mô phỏng + guideline WHO/ADA/BYT + vector DB\n• guardrails chặn chẩn đoán/kê đơn, red-flag detector (rule + LLM, hỗ trợ tiếng Việt có dấu và không dấu)\n• tool: symptom questionnaire engine (có chỉ số đường huyết gần nhất), bảng phân độ triage tiểu đường, hàng đợi điều dưỡng\n• backend FastAPI\n• frontend React/Next.js đăng nhập bệnh nhân & điều dưỡng\n• realtime (WebSocket) đẩy ca cho điều dưỡng\n• Postgres\n• deploy cloud (Docker/Vercel/Render).",
+      "deliverables": "Cơ bản:\n• App deploy, 2 vai trò (bệnh nhân/điều dưỡng)\n• agent hỏi-đáp triage có cấu trúc, phân 3-4 mức ưu tiên kèm hướng xử trí đề xuất\n• phát hiện 4 nhóm red-flag tiểu đường → cảnh báo cấp cứu\n• khuyến cáo & disclaimer rõ.\n\nNâng cao:\n• Hàng đợi triage realtime cho điều dưỡng duyệt/điều chỉnh (HITL)\n• memory phiên & tổng hợp triệu chứng + đường huyết gần đây thành phiếu bàn giao\n• giải thích lý do phân độ có trích guideline\n• xử lý thông tin thiếu/mâu thuẫn bằng câu hỏi làm rõ\n• log kiểm toán & thống kê độ chính xác so với điều dưỡng.",
+      "verified": false
+    },
+    {
+      "id": 260,
+      "excel_row": 261,
+      "title": "AI Agent Nhắc Thuốc & Theo Dõi Tuân Thủ Điều Trị Tiểu Đường",
+      "problem": "📍 Thực trạng: Bệnh nhân tiểu đường, đặc biệt người cao tuổi, thường quên uống thuốc, uống sai liều/sai giờ, tự ý ngưng thuốc hoặc tự tăng liều khi thấy đường huyết cao, làm giảm hiệu quả điều trị và tăng nguy cơ biến chứng, tái nhập viện.\n\n🎯 Vấn đề: Cần AI Agent quản lý phác đồ thuốc tiểu đường (từ đơn mô phỏng do bác sĩ nhập: thuốc uống như metformin, nhóm sulfonylurea, và insulin; kèm thuốc huyết áp/mỡ máu thường gặp), tự lập lịch nhắc thông minh gắn với bữa ăn và lịch đo đường huyết, hội thoại xác nhận đã uống, phát hiện bỏ liều/tác dụng phụ, và chủ động cảnh báo cho người thân/điều dưỡng khi tuân thủ kém — agent lập kế hoạch thu thập→phân tích→giáo dục→escalate.\n\n🔒 Ràng buộc: HITL BẮT BUỘC — đơn thuốc/liều CHỈ do bác sĩ tạo và duyệt; AI KHÔNG tự kê, tự đổi liều, KHÔNG hướng dẫn tăng/giảm/ngưng thuốc hay insulin; khi quên liều chỉ hướng dẫn nguyên tắc chung (không uống gấp đôi) và nhắc hỏi bác sĩ/dược sĩ. Mọi thay đổi phác đồ phải bác sĩ phê duyệt. Grounded trên đơn đã duyệt & thông tin thuốc có nguồn, chống bịa liều/tương tác. Khi bệnh nhân báo triệu chứng hạ đường huyết nặng hoặc tác dụng phụ nghiêm trọng → cảnh báo an toàn và chuyển bác sĩ/cấp cứu. Bảo mật PII/PHI.",
+      "suggested_stack": "• LLM\n• LangGraph agent với scheduler & vòng lặp theo dõi tuân thủ\n• RAG trên cơ sở dữ liệu thuốc tiểu đường mô phỏng (chỉ định, tác dụng phụ, bảo quản insulin) + vector DB\n• tool: reminder/notification (email/web push), adherence tracker, escalation\n• guardrails chặn kê đơn/đổi liều\n• backend FastAPI + cron/Celery\n• frontend React/Next.js đăng nhập bệnh nhân, người thân, bác sĩ\n• Postgres\n• deploy cloud.",
+      "deliverables": "Cơ bản:\n• App deploy, ≥2 vai trò (bệnh nhân/bác sĩ, tùy chọn người thân)\n• bác sĩ nhập & duyệt phác đồ, agent tạo lịch nhắc theo giờ uống/bữa ăn, hội thoại xác nhận uống thuốc và ghi nhận\n• hiển thị khuyến cáo & không tự đổi liều.\n\nNâng cao:\n• Dashboard tuân thủ (tỉ lệ, chuỗi bỏ liều) cho bác sĩ, đối chiếu với xu hướng đường huyết\n• cảnh báo hạ đường huyết/tác dụng phụ nghiêm trọng → escalate\n• HITL để bác sĩ duyệt điều chỉnh lịch\n• memory thói quen bệnh nhân tối ưu giờ nhắc\n• báo cáo định kỳ\n• xử lý lỗi khi bệnh nhân không phản hồi (nhắc lại/báo người thân).",
+      "verified": false
+    },
+    {
+      "id": 262,
+      "excel_row": 263,
+      "title": "AI Agent Trợ Lý Bác Sĩ Soạn Ghi Chú Lâm Sàng SOAP cho Bệnh Nhân Tiểu Đường",
+      "problem": "📍 Thực trạng: Bác sĩ nội tiết/đái tháo đường tốn nhiều thời gian ghi chép bệnh án sau mỗi lượt khám, thường làm cuối ngày dễ sót thông tin (HbA1c, thuốc đang dùng, biến chứng), giảm thời gian cho bệnh nhân.\n\n🎯 Vấn đề: Cần AI Agent nhận nội dung hội thoại/ghi chú thô của buổi khám và nhật ký đường huyết (văn bản hoặc thoại→text mô phỏng) và soạn ghi chú lâm sàng có cấu trúc SOAP (Subjective/Objective/Assessment/Plan), trích các chỉ số đã nêu, gợi ý mã ICD-10 tham khảo thuộc nhóm đái tháo đường týp 2 và biến chứng (E11.x) cùng các mục còn thiếu để bác sĩ bổ sung — agent lập kế hoạch trích xuất→cấu trúc hóa→kiểm tra thiếu sót→chờ duyệt.\n\n🔒 Ràng buộc: HITL BẮT BUỘC — ghi chú là BẢN NHÁP, bác sĩ phải rà soát, chỉnh và ký duyệt trước khi lưu; AI KHÔNG tự đưa chẩn đoán cuối hay chỉ định điều trị. Phần Assessment chỉ đối chiếu mục tiêu HbA1c < 7% (BYT QĐ5481 + ADA 2024), phần Plan để trống cho bác sĩ. Grounded trên nội dung buổi khám, chống bịa triệu chứng/chỉ số không được nêu (đánh dấu 'chưa ghi nhận'). Mỗi nhận định S/O/A có liên kết về log gốc. Bảo mật PHI. Cảnh báo giới hạn & yêu cầu bác sĩ kiểm chứng mã ICD/thuật ngữ.",
+      "suggested_stack": "• LLM\n• LangGraph điều phối trích xuất→SOAP→gợi ý ICD→review\n• RAG trên template SOAP tiểu đường & danh mục ICD-10 nhóm E11 mô phỏng + vector DB\n• tool: ASR→text (mô phỏng/tùy chọn), ICD lookup, missing-field checker (HbA1c gần nhất, thuốc đang dùng, biến chứng mắt/thận/thần kinh/bàn chân, hạ đường huyết gần đây)\n• guardrails chống bịa & buộc đánh dấu thông tin thiếu\n• backend FastAPI\n• frontend Next.js editor có track changes, đăng nhập bác sĩ/quản trị\n• Postgres\n• deploy cloud.",
+      "deliverables": "Cơ bản:\n• App deploy, đăng nhập bác sĩ\n• nhập ghi chú thô/transcript + nhật ký đường huyết, agent sinh note SOAP có cấu trúc + đánh dấu mục thiếu\n• bác sĩ chỉnh & duyệt trước khi lưu\n• disclaimer bản nháp.\n\nNâng cao:\n• Gợi ý mã ICD E11.x tham khảo có nguồn\n• ghi âm→text\n• HITL editor so sánh AI vs bản duyệt\n• memory mẫu ghi chú theo bác sĩ\n• kiểm tra nhất quán với hồ sơ trước (xu hướng HbA1c, thuốc)\n• xuất PDF/bàn giao\n• audit log & cảnh báo khi thông tin không đủ để soạn.",
+      "verified": false
+    },
+    {
+      "id": 264,
+      "excel_row": 265,
+      "title": "AI Agent Quản lý bệnh đái tháo đường & theo dõi đường huyết tại nhà",
+      "problem": "📍 Bệnh nhân tiểu đường phải tự đo đường huyết, ghi nhật ký, điều chỉnh ăn uống/vận động; dữ liệu rời rạc, bác sĩ khó theo dõi giữa các lần tái khám.\n\n🎯 Vấn đề: Cần AI Agent theo dõi bệnh mạn tính: nhận số đo đường huyết (mg/dL)/HbA1c, bữa ăn, vận động (mô phỏng bệnh nhân nhập), phân tích xu hướng, nhắc đo & tái khám, đưa lời khuyên lối sống chung theo phác đồ bác sĩ, và cảnh báo bác sĩ khi ngoài ngưỡng — agent lập kế hoạch thu thập→phân tích→giáo dục→escalate.\n\n🔒 Ràng buộc: HITL BẮT BUỘC — ngưỡng mục tiêu & mọi thay đổi thuốc/insulin do bác sĩ đặt và duyệt; AI KHÔNG tự chỉnh liều insulin, KHÔNG chẩn đoán biến chứng. Grounded trên hướng dẫn quản lý tiểu đường có nguồn (WHO HEARTS-D, ADA 2024, BYT QĐ5481) & phác đồ bác sĩ, chống bịa. Đường huyết quá thấp/cao nguy hiểm (< 70, ≥ 300, hạ đường huyết nặng, nghi DKA) → cảnh báo xử trí khẩn & liên hệ y tế ngay. Bảo mật PHI. Luôn khuyến cáo tham vấn bác sĩ.",
+      "suggested_stack": "• LLM\n• LangGraph agent theo dõi định kỳ + node cảnh báo ngưỡng\n• RAG trên guideline WHO HEARTS-D/ADA 2024/BYT QĐ5481 + vector DB\n• tool: glucose log, trend/analytics, reminder, escalation\n• guardrails chặn chỉnh liều/chẩn đoán\n• backend FastAPI + scheduler\n• frontend Next.js biểu đồ, đăng nhập bệnh nhân/bác sĩ\n• Postgres/time-series\n• deploy cloud.",
+      "deliverables": "Cơ bản:\n• App deploy, ≥2 vai trò\n• nhập số đo & nhật ký, agent hiển thị xu hướng, nhắc đo/tái khám, lời khuyên lối sống chung có nguồn\n• phát hiện giá trị nguy hiểm → cảnh báo.\n\nNâng cao:\n• Dashboard bác sĩ theo dõi nhiều bệnh nhân & gắn cờ ngoài ngưỡng (HITL duyệt lời khuyên)\n• dự báo xu hướng đơn giản\n• tích hợp dinh dưỡng/vận động\n• memory cá nhân hóa mục tiêu\n• báo cáo định kỳ cho lần tái khám\n• xử lý dữ liệu thiếu/bất thường.",
+      "verified": false
+    },
+    {
+      "id": 266,
+      "excel_row": 267,
+      "title": "AI Agent Trợ Lý Dinh Dưỡng & Lối Sống cho Bệnh Nhân Tiểu Đường",
+      "problem": "📍 Thực trạng: Bệnh nhân tiểu đường cần chế độ ăn kiểm soát carbohydrate và đường huyết sau ăn, nhưng khó tự lập thực đơn cân đối với món Việt quen thuộc (cơm, phở, bún, cháo), dễ theo lời khuyên thiếu căn cứ.\n\n🎯 Vấn đề: Cần AI Agent dinh dưỡng: nhận hồ sơ & ràng buộc ăn kiêng (mô phỏng), gợi ý thực đơn/khẩu phần theo nguyên tắc dinh dưỡng lâm sàng cho tiểu đường, ước tính năng lượng/carbohydrate/đường/muối, ghi nhật ký ăn uống đối chiếu với đường huyết sau ăn và phản hồi điều chỉnh, đồng bộ mục tiêu do bác sĩ/dinh dưỡng đặt — agent lập kế hoạch: phân tích nhu cầu→tra CSDL thực phẩm→sinh thực đơn→theo dõi.\n\n🔒 Ràng buộc: HITL BẮT BUỘC — kế hoạch dinh dưỡng cho bệnh nhân tiểu đường phải chuyên gia dinh dưỡng/bác sĩ duyệt; AI KHÔNG tự kê chế độ điều trị y khoa, KHÔNG chẩn đoán. Grounded trên bảng thành phần thực phẩm Việt Nam & guideline dinh dưỡng tiểu đường có nguồn, chống bịa số liệu calo/dinh dưỡng. Muối chỉ xét như yếu tố bệnh đi kèm (huyết áp). Cảnh báo dị ứng & tương tác thực phẩm-thuốc (rượu bia, nhịn ăn khi đang dùng thuốc/insulin có nguy cơ hạ đường huyết). Bảo mật PII/PHI. Luôn khuyến cáo tham vấn chuyên gia.",
+      "suggested_stack": "• LLM\n• LangGraph điều phối tính nhu cầu→truy vấn thực phẩm→lập thực đơn→theo dõi\n• RAG trên bảng thành phần thực phẩm VN & guideline dinh dưỡng tiểu đường + vector DB\n• tool: nutrition calculator (carbohydrate/đường/muối), meal planner, food log, allergy/food-drug interaction checker\n• guardrails chống bịa & chặn chỉ định y khoa\n• backend FastAPI\n• frontend Next.js đăng nhập bệnh nhân & chuyên gia dinh dưỡng\n• Postgres\n• deploy cloud.",
+      "deliverables": "Cơ bản:\n• App deploy, ≥2 vai trò (bệnh nhân/dinh dưỡng)\n• nhập hồ sơ & ràng buộc, agent gợi ý thực đơn món Việt kèm ước tính carbohydrate/dinh dưỡng có nguồn, nhật ký ăn uống\n• disclaimer & cảnh báo dị ứng.\n\nNâng cao:\n• HITL cho chuyên gia duyệt/chỉnh thực đơn\n• đối chiếu nhật ký ăn với đường huyết sau ăn 2 giờ để phân tích xu hướng\n• cảnh báo vượt ngưỡng carbohydrate/đường (và muối nếu có tăng huyết áp)\n• memory sở thích & thực phẩm sẵn có, tình huống đặc biệt (đi tiệc, Tết, ăn chay)\n• tạo danh sách đi chợ\n• đồng bộ với mục tiêu bác sĩ\n• xử lý thực phẩm ngoài CSDL.",
+      "verified": false
+    },
+    {
+      "id": "258-booking",
+      "excel_row": 259,
+      "title": "AI Agent Trợ Lý Đặt Lịch Khám & Điều Hướng Chuyên Khoa Thông Minh cho bệnh nhân tiểu đường",
+      "problem": "📍 Thực trạng: Bệnh nhân tiểu đường trên app Ứng dụng y tế X thường không biết nên khám chuyên khoa nào (nội tiết, mắt, thận, thần kinh, bàn chân, dinh dưỡng), đặt nhầm khoa, gọi tổng đài chờ lâu; lịch bác sĩ, phòng khám, khung giờ phân tán khiến việc đặt lịch tái khám định kỳ và khám sàng lọc biến chứng hằng năm nhiều bước thủ công.\n\n🎯 Vấn đề: Cần một AI Agent hội thoại tiếp nhận mô tả nhu cầu/triệu chứng bằng ngôn ngữ tự nhiên, tự lập kế hoạch nhiều bước (làm rõ nhu cầu → gợi ý chuyên khoa phù hợp → tra lịch trống bác sĩ → giữ chỗ → xác nhận đặt lịch → gửi nhắc), có memory nhớ hồ sơ và lịch sử khám để cá nhân hóa.\n\n🔒 Ràng buộc: HITL BẮT BUỘC — agent CHỈ gợi ý chuyên khoa/định hướng, KHÔNG chẩn đoán bệnh; mọi đặt lịch phải bệnh nhân xác nhận và lễ tân/điều phối duyệt trước khi chốt. Bảo mật PII/PHI (mã hóa, phân quyền theo vai trò). Luôn hiển thị khuyến cáo 'thông tin chỉ mang tính tham khảo, vui lòng gặp bác sĩ để được tư vấn chính xác'. Grounded trên danh mục chuyên khoa/dịch vụ liên quan tiểu đường của Hệ thống y tế X (mô phỏng): nội tiết, biến chứng đái tháo đường (mắt, thận, thần kinh, bàn chân), dinh dưỡng; chống bịa tên bác sĩ/khoa không tồn tại. Phát hiện dấu hiệu cấp cứu (hạ đường huyết nặng, nghi tăng đường huyết nguy hiểm/DKA, đau ngực dữ dội, khó thở, dấu hiệu đột quỵ) phải cảnh báo gọi 115/đến cấp cứu ngay thay vì đặt lịch thường.",
+      "suggested_stack": "• LLM\n• LangGraph điều phối agent đa bước với state machine (làm rõ→tra lịch→giữ chỗ→xác nhận)\n• RAG trên danh mục chuyên khoa/dịch vụ tiểu đường/mô tả triệu chứng-khoa (nguồn nội bộ mô phỏng) + vector DB (Qdrant/Chroma/pgvector)\n• tool: booking API mô phỏng (query lịch trống, hold slot, confirm), calendar, hỗ trợ ràng buộc BHYT/khung giờ/ngày loại trừ\n• guardrails (NeMo Guardrails/Guardrails AI) chặn chẩn đoán & lọc PII\n• backend FastAPI/Node\n• frontend Next.js/React + Tailwind, đăng nhập ≥2 vai trò (bệnh nhân, lễ tân/điều phối)\n• DB Postgres\n• deploy Vercel + Render/Railway (hoặc Docker trên cloud).",
+      "deliverables": "Cơ bản:\n• Web app deploy online, đăng nhập 2 vai trò (bệnh nhân/lễ tân)\n• agent hội thoại gợi ý chuyên khoa tiểu đường, tra lịch trống mô phỏng và đặt lịch có bước bệnh nhân xác nhận\n• hiển thị khuyến cáo y tế & phát hiện từ khóa cấp cứu\n• RAG có trích nguồn danh mục khoa.\n\nNâng cao:\n• Memory hồ sơ bệnh nhân cá nhân hóa gợi ý (lịch tái khám HbA1c, khám sàng lọc biến chứng hằng năm)\n• human-in-the-loop cho lễ tân duyệt/đổi lịch\n• xử lý xung đột lịch & đề xuất khung giờ thay thế\n• nhắc lịch tự động (email/thông báo)\n• thống kê tải công việc\n• dashboard điều phối theo dõi tỉ lệ đặt đúng khoa\n• log & cảnh báo khi agent không đủ tự tin (chuyển người thật).",
+      "verified": false
+    }
+  ]
+}

@@ -2,99 +2,18 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { useEffect, useState } from "react";
-import { getNotifications } from "@/lib/api";
+import { useState } from "react";
+import { HeartPulse, Menu, X, LogOut } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
-import { Button } from "@/components/ui/button";
 
-const baseNav = [
-  { href: "/", label: "Tổng quan" },
-  { href: "/tracker", label: "Nhật ký ĐH" },
-  { href: "/previsit", label: "Tái khám" },
-  { href: "/api-playground", label: "WHO-RAG API" },
-];
-
-export default function Header() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const { user, loading, logout, isAdmin, isExpert } = useAuth();
-  const [unread, setUnread] = useState(0);
-
-  useEffect(() => {
-    if (!user) return;
-    const fetchNotif = async () => {
-      try {
-        const data = await getNotifications();
-        setUnread(data.unread_count || 0);
-      } catch {}
-    };
-    fetchNotif();
-    const id = setInterval(fetchNotif, 10000);
-    return () => clearInterval(id);
-  }, [user]);
-
-  const nav = [...baseNav];
-  if (user) nav.push({ href: "/my/reviews", label: "Lịch sử" });
-  if (user) nav.push({ href: "/settings", label: "Cài đặt" });
-  if (isExpert || isAdmin) nav.push({ href: "/expert/queue", label: "Duyệt" + (unread ? ` (${unread})` : "") });
-  if (isExpert || isAdmin) nav.push({ href: "/expert/patients", label: "Bệnh nhân" });
-  if (isAdmin) {
-    nav.push({ href: "/admin/tracing", label: "Tracing" });
-    nav.push({ href: "/admin/prompts", label: "Prompts" });
-    nav.push({ href: "/admin/users", label: "Quản trị" });
-  }
-  // Giám sát: admin + specialist/doctor (guidelines) + pharmacist (alerts)
-  if (user && (isAdmin || ["specialist", "doctor", "pharmacist"].includes(user.role))) {
-    nav.push({ href: "/monitor/guidelines", label: "Giám sát" });
-  }
-
-  // Grouped by role (calm nav): patient / doctor / admin
-  const patientNav = nav.filter((n) => ["/", "/tracker", "/previsit", "/api-playground", "/my/reviews", "/settings"].includes(n.href));
-  const doctorNav = nav.filter((n) => ["/expert/queue", "/expert/patients", "/monitor/guidelines"].includes(n.href));
-  const adminNav = nav.filter((n) => n.href.startsWith("/admin"));
-  const renderGroup = (items: { href: string; label: string }[]) =>
-    items.map((item) => {
-      const active = pathname === item.href;
-      return (
-        <Link key={item.href} href={item.href} className={`rounded-full px-3 py-1.5 text-sm transition min-h-[44px] inline-flex items-center whitespace-nowrap shrink-0 ${active ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"}`}>
-          {item.label}
-        </Link>
-      );
-    });
-
-  return (
-    <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur dark:bg-slate-950/80 dark:border-slate-800">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-sm">ĐTĐ</div>
-          <div>
-            <div className="text-sm font-semibold leading-none">Diabetes RAG</div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">WHO • ADA • BYT</div>
-          </div>
-        </Link>
-        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2" aria-label="Điều hướng chính">
-          {renderGroup(patientNav)}
-          {doctorNav.length > 0 && <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-slate-200 dark:bg-slate-700" />}
-          {renderGroup(doctorNav)}
-          {adminNav.length > 0 && <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-slate-200 dark:bg-slate-700" />}
-          {renderGroup(adminNav)}
-        </nav>
-        <div className="flex items-center gap-2 text-xs">
-          <ThemeToggle />
-          {loading ? <span className="text-slate-400">…</span> : user ? (
-            <>
-              <span className="hidden shrink-0 rounded-full bg-slate-100 px-2 py-1 border xl:inline dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{user.username} <span className="text-slate-500 dark:text-slate-400">· {user.role}</span></span>
-              {unread > 0 && <span className="rounded-full bg-red-500 text-white px-2 py-1">{unread}</span>}
-              <Button variant="dark" onClick={async () => { await logout(); router.push("/login"); }} className="rounded-full px-3">Đăng xuất</Button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="rounded-full bg-slate-900 text-white px-3 py-1.5 hover:bg-black">Đăng nhập</Link>
-              <Link href="/register" className="rounded-full border px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Đăng ký</Link>
-            </>
-          )}
-        </div>
-      </div>
-    </header>
-  );
+export default function Header(){
+ const {user,loading,logout,isExpert,isAdmin}=useAuth();
+ const pathname=usePathname();const router=useRouter();const [open,setOpen]=useState(false);
+ const items=user ? [{href:'/tracker',label:'Sổ đường huyết'},{href:'/medications',label:'Lịch thuốc'},{href:'/hoc',label:'Bài học'},{href:'/previsit',label:'Tái khám'}] : [{href:'/#cach-su-dung',label:'Cách sử dụng'},{href:'/hoc',label:'Bài học'}];
+ const more=user ? [{href:'/api-playground',label:'Hỏi đáp'},{href:'/my/reviews',label:'Lịch sử tư vấn'},{href:'/settings',label:'Cài đặt'},...(isExpert||isAdmin?[{href:'/expert/patients',label:'Bệnh nhân'},{href:'/expert/queue',label:'Cần duyệt'},{href:'/monitor/guidelines',label:'Tài liệu chuyên môn'}]:[]),...(isAdmin?[{href:'/admin/users',label:'Quản lý tài khoản'},{href:'/admin/tracing',label:'Nhật ký hệ thống'},{href:'/admin/prompts',label:'Cấu hình trợ lý'},{href:'/admin/triage',label:'Theo dõi phân luồng'}]:[])] : [];
+ const link=(item:{href:string;label:string})=><Link key={item.href} href={item.href} aria-current={pathname===item.href?'page':undefined} className={pathname===item.href?'nav-link active':'nav-link'} onClick={()=>setOpen(false)}>{item.label}</Link>;
+ return <header className="site-header"><a href="#main-content" className="skip-link">Đến nội dung chính</a><div className="header-inner"><Link href="/" className="brand" aria-label="DiaTrack — Trang chủ"><span className="brand-icon"><HeartPulse aria-hidden size={25}/></span><span>DiaTrack<span className="brand-sub">Cùng bạn mỗi ngày</span></span></Link>
+ <nav aria-label="Điều hướng chính" className="desktop-nav">{items.map(link)}{more.length>0&&<details className="nav-more"><summary>Thêm</summary><div>{more.map(link)}</div></details>}</nav>
+ <div className="header-actions"><ThemeToggle/>{loading?<span role="status">Đang tải…</span>:user?<button className="account-exit" aria-label="Đăng xuất" onClick={async()=>{await logout();router.push('/login');}}><LogOut aria-hidden size={18}/><span>Đăng xuất</span></button>:<Link href="/login" className="login-link">Đăng nhập</Link>}<button className="menu-toggle" aria-label={open?'Đóng menu':'Mở menu'} aria-expanded={open} aria-controls="mobile-navigation" onClick={()=>setOpen(!open)}>{open?<X aria-hidden/>:<Menu aria-hidden/>}</button></div></div>
+ {open&&<nav id="mobile-navigation" aria-label="Điều hướng di động" className="mobile-nav">{[...items,...more].map(link)}</nav>}</header>;
 }

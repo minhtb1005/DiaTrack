@@ -2,7 +2,7 @@
 Safeguard guardrail (Diabetes demo): hard keyword gate + canned template.
 
 - is_out_of_scope(text): pure function, keyword match (case-insensitive).
-- SAFEGUARD_TEMPLATE: exact canned response; [X] = short topic label.
+- SAFEGUARD_TEMPLATE: exact fixed response from project scope_rules.
 - Must be checked BEFORE any RAG/LLM call (see src/api/main.py::rag_query
   early-return when disease == diabetes).
 - LLM intent classifier is future-work (see README).
@@ -11,9 +11,7 @@ Safeguard guardrail (Diabetes demo): hard keyword gate + canned template.
 from __future__ import annotations
 
 SAFEGUARD_TEMPLATE = (
-    "Hệ thống này được thiết kế riêng để theo dõi đường huyết. "
-    "Vấn đề {topic} nằm ngoài phạm vi hỗ trợ và an toàn y khoa. "
-    "Vui lòng tham vấn bác sĩ tại buổi khám tới."
+    "Hệ thống chỉ hỗ trợ theo dõi đái tháo đường. Nội dung này nằm ngoài phạm vi an toàn của hệ thống, vui lòng hỏi bác sĩ ở lần khám tới."
 )
 
 # Out-of-diabetes-scope keyword groups -> short topic label for [X].
@@ -55,5 +53,4 @@ def is_out_of_scope(text: str) -> bool:
 
 def safeguard_response(text: str, topic: str | None = None) -> str:
     """Render the exact canned safeguard template."""
-    label = topic or detect_topic(text or "") or "này"
-    return SAFEGUARD_TEMPLATE.format(topic=label)
+    return SAFEGUARD_TEMPLATE

@@ -4,8 +4,8 @@ import Header from "@/components/Header";
 import { AuthProvider } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Diabetes RAG — WHO-RAG Assistant",
-  description: "Trợ lý đái tháo đường: theo dõi đường huyết (Hướng A), tóm tắt tái khám SOAP (Hướng B), WHO-RAG API (Hướng C)",
+  title: "DiaTrack — Cùng bạn chăm sóc đường huyết",
+  description: "Theo dõi đường huyết, lịch thuốc đã duyệt và chuẩn bị tái khám, trong một không gian dễ sử dụng.",
 };
 
 const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('med-theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`;
@@ -16,12 +16,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="min-h-screen bg-slate-50 text-sm text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <body className="min-h-screen text-slate-900 dark:text-slate-100">
         <AuthProvider>
           <Header />
-          <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{children}</main>
-          <footer className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
-            Diabetes WHO-RAG • FastAPI + Next.js • Không thay thế chỉ định bác sĩ • Built for B2B2C
+          <main id="main-content" className="app-main" tabIndex={-1}>{children}</main>
+          <footer className="site-footer">
+            <strong>DiaTrack · Cùng bạn mỗi ngày</strong><span>Hỗ trợ theo dõi, không thay thế chỉ định bác sĩ.</span>
           </footer>
         </AuthProvider>
       </body>

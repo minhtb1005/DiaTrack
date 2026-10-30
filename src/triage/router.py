@@ -263,11 +263,11 @@ def list_doctor_patients(
             _trend = detect_trend(_logs)
             _esc = should_escalate_to_doctor(_uid)
             _cls = str(_last.get("classification") or "")
-            if _spike.get("type") != "none" or _cls in ("critical", "low"):
+            if _cls in ("critical", "low"):
                 _level = "critical"
             elif _trend.get("type") == "trend_cascade":
                 _level = "trend"
-            elif _esc or _cls == "high":
+            elif _spike.get("type") != "none" or _esc or _cls == "high":
                 _level = "watch"
             else:
                 _level = "safe"

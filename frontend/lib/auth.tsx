@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchMe = async () => {
     try {
-      const res = await fetch(`${API}/v1/auth/me`, { credentials: "include" });
+      const res = await fetch(`${API}/v1/auth/me`, { credentials: "include", signal: AbortSignal.timeout(15000) });
       if (res.ok) {
         const u = await res.json();
         setUser(u);
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
-      credentials: "include",
+      credentials: "include", signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: data.username, email: data.email, password: data.password, full_name: data.full_name }),
-      credentials: "include",
+      credentials: "include", signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -85,12 +85,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    await fetch(`${API}/v1/auth/logout`, { method: "POST", credentials: "include" });
+    await fetch(`${API}/v1/auth/logout`, { method: "POST", credentials: "include", signal: AbortSignal.timeout(15000) });
     setUser(null);
   };
 
   const refresh = async () => {
-    const res = await fetch(`${API}/v1/auth/refresh`, { method: "POST", credentials: "include" });
+    const res = await fetch(`${API}/v1/auth/refresh`, { method: "POST", credentials: "include", signal: AbortSignal.timeout(15000) });
     if (res.ok) {
       const data = await res.json();
       setUser(data.user);

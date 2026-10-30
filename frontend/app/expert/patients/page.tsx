@@ -26,12 +26,12 @@ export default function DoctorPatientsPage(){
   if(loading) return <div className="rounded-2xl border bg-white p-8 text-center text-sm text-slate-500 dark:bg-slate-900 dark:border-slate-700">Đang tải...</div>;
   if(!user) return <div className="rounded-2xl border bg-white p-8 text-center dark:bg-slate-900 dark:border-slate-700">Cần đăng nhập <Link href="/login" className="underline">Đăng nhập</Link></div>;
   if(!allowed) return <div role="alert" className="rounded-2xl border bg-white p-8 text-center text-sm text-red-700 dark:bg-slate-900 dark:border-slate-700">403 — Chỉ bác sĩ mới xem được hàng đợi bệnh nhân.</div>;
-  const filtered = patients.filter(p=>!q || String(p.username || "").toLowerCase().includes(q.toLowerCase()));
+  const filtered = patients.filter(p=>!q || String((p.full_name || "") + " " + (p.username || "")).toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="space-y-4">
-      <div><h1 className="text-xl font-bold">Hàng đợi bệnh nhân (Glucose)</h1><p className="text-sm text-slate-600 dark:text-slate-300">Sắp xếp theo mức ưu tiên: critical → trend → watch → safe.</p></div>
+      <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-xl font-bold">Theo dõi bệnh nhân</h1><p className="text-sm text-slate-600 dark:text-slate-300">Ưu tiên người cần hỗ trợ trước. Phân nhóm dựa trên nhật ký đường huyết, không thay thế đánh giá lâm sàng.</p></div><Link href="/expert/queue" className="inline-flex min-h-12 items-center rounded-xl bg-blue-700 px-5 py-3 text-base font-semibold text-white hover:bg-blue-800">Duyệt nội dung chờ bác sĩ</Link></div>
       <div className="rounded-2xl border bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-slate-700">
-        <Input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Lọc theo username..." className="text-sm dark:bg-slate-900 dark:border-slate-700" />
+        <label htmlFor="patient-search" className="block font-semibold mb-2">Tìm bệnh nhân</label><Input id="patient-search" value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Nhập tên hoặc tên đăng nhập…" className="text-sm dark:bg-slate-900 dark:border-slate-700" />
       </div>
       {err && <div role="alert" className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{err}</div>}
       <div className="grid gap-3">
@@ -39,14 +39,14 @@ export default function DoctorPatientsPage(){
           <Link key={p.user_id} data-testid="queue-row" href={`/expert/patients/${p.user_id}`} className="rounded-2xl border bg-white p-4 shadow-sm hover:border-blue-300 dark:bg-slate-900 dark:border-slate-700 overflow-x-auto">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm font-semibold">{p.username}</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">Gần nhất: {p.last_value ?? "—"} mg/dL ({p.last_classification || "—"}) · {p.anomaly_count ?? 0} anomaly</div>
+                <div className="text-sm font-semibold">{p.full_name || p.username}</div>
+                <div className="text-base text-slate-500 dark:text-slate-400">Gần nhất: {p.last_value ?? "—"} mg/dL · {p.anomaly_count ?? 0} chỉ số cần lưu ý</div>
               </div>
               <StatusBadge level={p.level} text={p.level} />
             </div>
           </Link>
         ))}
-        {!filtered.length && !err && <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-600 dark:bg-slate-900 dark:border-slate-700">Chưa có bệnh nhân có log đường huyết.</div>}
+        {!filtered.length && !err && <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-600 dark:bg-slate-900 dark:border-slate-700">Chưa có bệnh nhân phù hợp. Thử đổi từ khóa hoặc quay lại sau khi có bản ghi mới.</div>}
       </div>
     </div>
   );

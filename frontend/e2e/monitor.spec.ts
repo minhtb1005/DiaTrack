@@ -60,7 +60,7 @@ test.describe('Monitor — Guidelines & Alerts', () => {
     });
     await page.goto('/monitor/guidelines');
     // Should show mocked item or at least not error
-    await expect(page.getByText(/Giám sát|GOLD|Không có/)).toBeVisible();
+    await expect(page.getByText('[gold] GOLD COPD 2024 Test', {exact:true})).toBeVisible();
   });
 
   test('alerts pending list mock', async ({ page }) => {
@@ -112,6 +112,7 @@ test.describe('Monitor — Guidelines & Alerts', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [], unread_count: 0 }) });
     });
     await page.goto('/');
-    await expect(page.getByText('Giám sát').first()).toBeVisible();
+    await page.getByText('Thêm', {exact:true}).click();
+    await expect(page.getByRole('link', {name:'Tài liệu chuyên môn'})).toBeVisible();
   });
 });

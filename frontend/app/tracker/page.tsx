@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { logGlucose, getGlucose, queryRag, saveGlucoseFollowup, getDoctorPatients, fmtDT } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
@@ -25,7 +25,7 @@ const contexts = [
 function classColor(c: string){ if(c==="normal")return "bg-emerald-100 text-emerald-700 border-emerald-200"; if(c==="elevated")return "bg-amber-100 text-amber-700 border-amber-200"; if(c==="high")return "bg-red-100 text-red-700 border-red-200"; if(c==="critical")return "bg-red-600 text-white border-red-700"; if(c==="low")return "bg-orange-100 text-orange-700 border-orange-200"; return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";}
 
 const CRITICAL_TEXT = "CẢNH BÁO: Đường huyết nguy hiểm. Vui lòng liên hệ bác sĩ hoặc cấp cứu ngay lập tức.";
-const GUARD_RE = /thiết kế riêng để theo dõi đường huyết|nằm ngoài phạm vi hỗ trợ/i;
+const GUARD_RE = /chỉ hỗ trợ theo dõi đái tháo đường|nằm ngoài phạm vi an toàn của hệ thống/i;
 
 const EntryAlert = (p: any) => {
   const { value, setValue, context, setContext, notes, setNotes, msg, anomaly, isCritical, submit } = p;
@@ -43,18 +43,18 @@ const EntryAlert = (p: any) => {
       <div className="relative mt-4 space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div><label htmlFor="glucose-value" className="text-xs text-slate-600 dark:text-slate-300">Giá trị (mg/dL)</label><Input id="glucose-value" type="number" inputMode="decimal" value={value} onChange={(e)=>setValue(e.target.value)} placeholder="vd: 110" className="mt-1" /></div>
-          <div><label htmlFor="glucose-context" className="text-xs text-slate-600 dark:text-slate-300">Bối cảnh</label><select id="glucose-context" value={context} onChange={(e)=>setContext(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm min-h-[44px] dark:bg-slate-900 dark:border-slate-700">{contexts.map(c=> <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
+          <div><label htmlFor="glucose-context" className="text-xs text-slate-600 dark:text-slate-300">Thời điểm đo</label><select id="glucose-context" value={context} onChange={(e)=>setContext(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm min-h-[44px] dark:bg-slate-900 dark:border-slate-700">{contexts.map(c=> <option key={c.value} value={c.value}>{c.label}</option>)}</select></div>
         </div>
         <div><label htmlFor="glucose-notes" className="text-xs text-slate-600 dark:text-slate-300">Ghi chú</label><Input id="glucose-notes" value={notes} onChange={(e)=>setNotes(e.target.value)} placeholder="vd: sau ăn phở" className="mt-1" /></div>
         <Button data-testid="tracker-save" onClick={submit} variant="success" className="w-full">Lưu chỉ số</Button>
         {msg && <div role="status" className="rounded-lg border bg-slate-50 p-3 text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{msg}</div>}
         {anomaly && anomaly.type !== "none" && !isCritical && (
           <Alert className="border-amber-200 bg-amber-50 text-xs text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-100">
-            <div className="font-bold flex items-center gap-1.5"><TrendingUp size={14} aria-hidden /> Cảnh báo chuỗi tăng — {anomaly.direction||""}</div>
+            <div className="font-bold flex items-center gap-1.5"><TrendingUp size={14} aria-hidden /> {anomaly.type === "spike" ? "Cảnh báo chỉ số" : "Cảnh báo chuỗi tăng"}</div>
             <div className="mt-1">{anomaly.reason}</div>
           </Alert>
         )}
-        <Alert className="bg-blue-50 text-xs text-blue-800 border-blue-100 dark:bg-blue-950 dark:text-blue-100 dark:border-blue-900">Ngưỡng WHO/ADA: Đói &lt;100, 100–125, ≥126 · Sau ăn &lt;140, 140–199, ≥200 · Hạ &lt;70 · Critical ≥300</Alert>
+        <Alert className="bg-blue-50 text-xs text-blue-800 border-blue-100 dark:bg-blue-950 dark:text-blue-100 dark:border-blue-900">Mục tiêu đường huyết cần được bác sĩ xác định cho bạn. Một lần đo không đủ để tự kết luận bệnh hoặc thay đổi thuốc.</Alert>
       </div>
     </Card>
   );
@@ -438,7 +438,7 @@ const TriageWidget = (p: any) => {
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold flex items-center gap-1.5"><CalendarPlus size={15} aria-hidden /> Đặt lịch khám (AI triage)</h3>
+        <h3 className="text-sm font-semibold flex items-center gap-1.5"><CalendarPlus size={15} aria-hidden /> Hỗ trợ đặt lịch khám</h3>
         <Button variant="accent" onClick={() => setOpen((o) => !o)} className="rounded-full px-4 text-xs">{open ? "Thu gọn" : "Mở"}</Button>
       </div>
       {locked && (
@@ -458,7 +458,7 @@ const TriageWidget = (p: any) => {
             )) : <div className="p-2 text-xs text-slate-500 dark:text-slate-400">Mô tả triệu chứng + thời gian muốn khám, vd: “tê chân, mắt mờ, tuần sau trừ T4”.</div>}
           </div>
           <div className="mt-2 flex gap-2">
-            <Input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="vd: tê chân, mắt mờ, tuần sau trừ T4" />
+            <Input aria-label="Triệu chứng và thời gian muốn khám" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="vd: tê chân, mắt mờ, tuần sau trừ T4" />
             <Button variant="accent" onClick={send} disabled={sending} className="px-4 shrink-0">{sending ? "..." : "Gửi"}</Button>
           </div>
         </>
@@ -502,7 +502,7 @@ const DailyCheckBanner = (p: any) => {
 };
 
 const MyTracker = (p: any) => {
-  const { data, highlightId, trend, explainTrend, isCritical, anomalySet, hasServerIds, readOnly, loaded } = p;
+  const { data, highlightId, trend, trendSources, explainTrend, isCritical, anomalySet, hasServerIds, readOnly, loaded } = p;
   const points = data?.logs ? [...data.logs].reverse().map((l: any)=>({ time: l.measured_at.slice(5,16).replace("T"," "), value: l.value_mgdl, anomaly: hasServerIds ? anomalySet.has(Number(l.id)) : (l.value_mgdl > 250 || l.value_mgdl < 70) })) : [];
   const isAnom = (l: any) => hasServerIds ? anomalySet.has(Number(l.id)) : (l.value_mgdl > 250 || l.value_mgdl < 70);
   const vals = points.map((x: any)=>Number(x.value)).filter((v: number)=>Number.isFinite(v));
@@ -521,21 +521,21 @@ const MyTracker = (p: any) => {
     <div className="space-y-6 lg:col-span-2">
       {data?.stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi label="Tổng logs" value={data.stats.total_logs} />
+          <Kpi label="Số lần ghi" value={data.stats.total_logs} />
           <Kpi label="Trung bình" value={data.stats.avg_mgdl? `${data.stats.avg_mgdl} mg/dL`:"—"} />
           <Kpi label="7 ngày" value={data.stats.last_7_days_avg? `${data.stats.last_7_days_avg} mg/dL`:"—"} />
-          <Kpi label="Tần suất" value={`${data.stats.logs_per_week}/tuần`} sub={data.stats.logs_per_week<3? "Chưa đạt KPI":"Đạt KPI"} alert={data.stats.logs_per_week<3} />
+          <Kpi label="Số lần ghi mỗi tuần" value={`${data.stats.logs_per_week}`} sub="Đo theo lịch bác sĩ đã hướng dẫn" />
         </div>
       )}
       <Card className="p-5">
-        <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Biểu đồ 14 ngày</h3>{!isCritical && !readOnly && <Button data-testid="trend-explain" variant="dark" onClick={explainTrend} className="rounded-full px-4 text-xs">Diễn giải xu hướng (RAG)</Button>}</div>
-        <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-500 dark:text-slate-400"><span className="inline-flex items-center gap-1"><span aria-hidden className="inline-block h-2 w-2 rounded-full bg-slate-400" /> Bình thường (chấm tròn)</span><span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400"><span aria-hidden className="text-red-600">▲</span> Bất thường spike/trend (hình tam giác)</span><span>Ngưỡng 70 / 126 / 200</span></div>
+        <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Biểu đồ 14 ngày</h3>{!isCritical && !readOnly && <Button data-testid="trend-explain" variant="dark" onClick={explainTrend} className="rounded-full px-4 text-xs">Giúp tôi hiểu biểu đồ</Button>}</div>
+        <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-500 dark:text-slate-400"><span className="inline-flex items-center gap-1"><span aria-hidden className="inline-block h-2 w-2 rounded-full bg-slate-400" /> Chỉ số đã ghi (chấm tròn)</span><span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400"><span aria-hidden className="text-red-600">▲</span> Điểm cần lưu ý (hình tam giác)</span><span>Ngưỡng mục tiêu cá nhân do bác sĩ xác định</span></div>
         <div className="mt-4 h-56">
-          <GlucoseChart points={points} emptyHint="Chưa có dữ liệu — nhập chỉ số đầu tiên ở khung bên trái." />
+          <GlucoseChart points={points} emptyHint="Chưa có dữ liệu. Hãy bắt đầu ở mục Ghi chỉ số." />
         </div>
         <div className="sr-only"><p>{trendSummary}</p><table><tbody>{points.map((x: any, i: number)=><tr key={i}><td>{x.time}</td><td>{x.value} mg/dL{x.anomaly ? " (bất thường)" : ""}</td></tr>)}</tbody></table></div>
         {data?.should_escalate && <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-100 flex items-center gap-1.5"><TriangleAlert size={14} aria-hidden /> Khuyến nghị liên hệ bác sĩ</div>}
-        {trend && <div className="mt-4 rounded-lg border bg-slate-50 p-4 text-xs leading-relaxed whitespace-pre-wrap dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{trend}</div>}
+        {trend && <div className="mt-4 rounded-lg border bg-slate-50 p-4 text-sm leading-relaxed dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"><p className="whitespace-pre-wrap">{trend}</p>{trendSources.length > 0 && <div className="mt-3 border-t pt-3 dark:border-slate-700"><strong>Nguồn tham khảo</strong><ul className="mt-1 list-disc pl-5">{trendSources.map((source: string, i: number) => <li key={`${source}-${i}`}>{source}</li>)}</ul></div>}{data?.logs?.length > 0 && <div className="mt-3 border-t pt-3 dark:border-slate-700"><strong>Chỉ số gốc</strong><div className="mt-1 flex flex-wrap gap-3">{data.logs.slice(0, 5).map((log: any) => <a key={log.id} href={`#log-${log.id}`} className="font-medium text-blue-700 underline dark:text-blue-300">Bản ghi #{log.id}</a>)}</div></div>}</div>}
       </Card>
       <Card className="p-5">
         <h3 className="text-sm font-semibold">Lịch sử</h3>
@@ -543,15 +543,66 @@ const MyTracker = (p: any) => {
           {data?.logs?.length? data.logs.map((l:any)=>{
             const hl = String(l.id)===String(highlightId);
             const an = isAnom(l);
-            return <div key={l.id} id={`log-${l.id}`} className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${hl?"bg-yellow-100 ring-2 ring-yellow-400 dark:bg-yellow-950":""} ${an?"border-l-4 border-l-orange-500 bg-orange-50 dark:bg-orange-950/40":""}`}><div className="min-w-0 flex-1"><div className="font-mono text-[11px]">#{l.id} · {fmtDT(l.measured_at)} · {l.value_mgdl} mg/dL</div><div className="text-slate-500 dark:text-slate-400 truncate">{l.context} {l.notes? `· ${l.notes}`:""}</div></div><span className="shrink-0"><StatusBadge level={l.classification} text={l.classification} /></span></div>;
-          }): <div className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Chưa có log — dữ liệu sẽ hiện sau lần lưu đầu tiên.</div>}
+            return <div key={l.id} id={`log-${l.id}`} className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${hl?"bg-yellow-100 ring-2 ring-yellow-400 dark:bg-yellow-950":""} ${an?"border-l-4 border-l-orange-500 bg-orange-50 dark:bg-orange-950/40":""}`}><div className="min-w-0 flex-1"><div className="text-base font-semibold">#{l.id} · {fmtDT(l.measured_at)} · {l.value_mgdl} mg/dL</div><div className="text-slate-500 dark:text-slate-400 truncate">{contexts.find(c=>c.value===l.context)?.label || l.context} {l.notes? `· ${l.notes}`:""}</div></div><span className="shrink-0"><StatusBadge level={l.classification}  /></span></div>;
+          }): <div className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">Chưa có bản ghi. Hãy lưu chỉ số đầu tiên ở mục Nhập chỉ số.</div>}
         </div>
       </Card>
     </div>
   );
 };
 
-export default function TrackerPage(){
+function TrackerReminders({ userId }: { userId: string }) {
+  const [measureAt, setMeasureAt] = useState("");
+  const [visitAt, setVisitAt] = useState("");
+  const [activeMeasureAt, setActiveMeasureAt] = useState("");
+  const [activeVisitAt, setActiveVisitAt] = useState("");
+  const [now, setNow] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const storageKey = `diatrack:tracker-reminders:${userId}`;
+
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    try {
+      const value = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+      setMeasureAt(typeof value.measureAt === "string" ? value.measureAt : "");
+      setVisitAt(typeof value.visitAt === "string" ? value.visitAt : "");
+      setActiveMeasureAt(typeof value.measureAt === "string" ? value.measureAt : "");
+      setActiveVisitAt(typeof value.visitAt === "string" ? value.visitAt : "");
+    } catch { setMeasureAt(""); setVisitAt(""); setActiveMeasureAt(""); setActiveVisitAt(""); }
+    return () => window.clearInterval(timer);
+  }, [storageKey]);
+
+  const save = () => {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify({ measureAt, visitAt }));
+      setActiveMeasureAt(measureAt);
+      setActiveVisitAt(visitAt);
+      setSaved(true);
+      setNow(Date.now());
+    } catch { setSaved(false); }
+  };
+  const due = (value: string) => Boolean(value && now && Number.isFinite(new Date(value).getTime()) && new Date(value).getTime() <= now);
+  const clear = () => {
+    try { window.localStorage.removeItem(storageKey); } catch { /* UI still clears */ }
+    setMeasureAt(""); setVisitAt(""); setActiveMeasureAt(""); setActiveVisitAt(""); setSaved(false);
+  };
+
+  return <Card className="p-5">
+    <h2 className="text-lg font-semibold">Lịch nhắc của tôi</h2>
+    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Ghi lại lịch đo và ngày tái khám đã được nhân viên y tế hướng dẫn. Nhắc việc sẽ hiện khi bạn mở trang này.</p>
+    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <label className="text-sm font-medium">Lần đo tiếp theo<Input aria-label="Lần đo tiếp theo" type="datetime-local" value={measureAt} onChange={e => { setMeasureAt(e.target.value); setSaved(false); }} className="mt-1" /></label>
+      <label className="text-sm font-medium">Lần tái khám tiếp theo<Input aria-label="Lần tái khám tiếp theo" type="datetime-local" value={visitAt} onChange={e => { setVisitAt(e.target.value); setSaved(false); }} className="mt-1" /></label>
+    </div>
+    <div className="mt-4 flex flex-wrap gap-3"><Button type="button" onClick={save}>Lưu lịch nhắc</Button><Button type="button" variant="outline" onClick={clear}>Xóa lịch nhắc trên thiết bị</Button></div>
+    {saved && <p role="status" className="mt-2 text-sm text-emerald-700">Đã lưu lịch nhắc trên thiết bị này.</p>}
+    {due(activeMeasureAt) && <Alert role="alert" className="mt-4 border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Đã tới lịch đo đường huyết. Hãy đo theo hướng dẫn của nhân viên y tế và ghi chỉ số vào nhật ký.</Alert>}
+    {due(activeVisitAt) && <Alert role="alert" className="mt-4 border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Đã tới lịch tái khám. Hãy liên hệ cơ sở y tế để xác nhận lịch hẹn.</Alert>}
+  </Card>;
+}
+
+function TrackerContent(){
   const { user, isExpert, isAdmin } = useAuth();
   const [value,setValue]=useState("");
   const [context,setContext]=useState("fasting");
@@ -559,7 +610,9 @@ export default function TrackerPage(){
   const [data,setData]=useState<any>(null);
   const [msg,setMsg]=useState("");
   const [trend,setTrend]=useState("");
+  const [trendSources,setTrendSources]=useState<string[]>([]);
   const [anomaly,setAnomaly]=useState<any>(null);
+  const [criticalReading,setCriticalReading]=useState(false);
   const [fqg,setFqg]=useState<string[]>([]);
   const [lastLogId,setLastLogId]=useState<number|undefined>(undefined);
   const [loaded,setLoaded]=useState(false);
@@ -583,7 +636,7 @@ export default function TrackerPage(){
       if (hit?.username) setViewPatientName(hit.username);
     }).catch(() => {});
   }, [viewPatient]);
-  const isCritical = anomaly?.type === "spike";
+  const isCritical = criticalReading;
   const anomalySet = new Set(((Array.isArray(data?.anomaly_ids) ? data.anomaly_ids : []) as any[]).map((x)=>Number(x)));
   const hasServerIds = Array.isArray(data?.anomaly_ids);
   const refresh = async ()=>{
@@ -598,10 +651,11 @@ export default function TrackerPage(){
     if(!user){ setMsg("Cần đăng nhập"); return; }
     const v = Number(value);
     if(!value.trim() || !Number.isFinite(v)){ setMsg("Nhập chỉ số đường huyết trước khi lưu (vd: 110)."); return; }
-    setMsg(""); setTrend(""); setAnomaly(null); setFqg([]);
+    setMsg(""); setTrend(""); setTrendSources([]); setAnomaly(null); setCriticalReading(false); setFqg([]);
     try{
       const rec:any=await logGlucose({ user_id: effectiveId, value_mgdl:v, context, notes: notes||undefined });
       setMsg(`${rec.classification.toUpperCase()}: ${rec.message}`);
+      setCriticalReading(rec.classification === "critical" || rec.classification === "low");
       if(rec.anomaly && rec.anomaly.type && rec.anomaly.type!=="none") setAnomaly(rec.anomaly);
       if(typeof rec.id === "number") setLastLogId(rec.id);
       if(Array.isArray(rec.follow_up_questions) && rec.follow_up_questions.length) setFqg(rec.follow_up_questions);
@@ -614,12 +668,25 @@ export default function TrackerPage(){
     const last=data.logs.slice(0,5).map((l:any)=>`${l.measured_at.slice(0,16)} ${l.value_mgdl}mg/dL (${l.context}, ${l.classification})`).join("; ");
     const stats=data.stats;
     const q=`Tôi có các chỉ số đường huyết gần đây: ${last}. Trung bình 7 ngày ${stats.last_7_days_avg}mg/dL, tần suất ${stats.logs_per_week}/tuần, streak ${stats.streak_days} ngày. Hãy diễn giải xu hướng bằng tiếng Việt, dùng guideline WHO/ADA/BYT, chỉ escalate nếu critical hoặc 3 lần high liên tiếp.`;
-    try{ const ans=await queryRag(q,5,effectiveId); setTrend(ans.status==="pending_review"? `⏳ Đang chờ duyệt (${ans.evaluation?.routed_role}): ${ans.answer.slice(0,300)}` : ans.answer); }catch(e:any){ setTrend("Lỗi RAG: "+e.message); }
+    try{
+      const ans=await queryRag(q,5,effectiveId,"vi",true);
+      if(ans.status==="pending_review"){
+        setTrend("Câu hỏi đang được chuyên gia xem lại. Xem câu trả lời đã duyệt trong Lịch sử tư vấn.");
+        setTrendSources([]);
+      }else{
+        const sources: string[] = Array.isArray(ans.contexts) ? ans.contexts
+          .filter((c: any) => c && (c.file_name || c.source_id))
+          .map((c: any) => `${c.file_name || c.source_id}${Array.isArray(c.page_numbers) && c.page_numbers.length ? `, trang ${c.page_numbers.join(", ")}` : ""}`) : [];
+        setTrendSources([...new Set<string>(sources)]);
+        setTrend(sources.length ? (ans.answer || "Chưa có diễn giải có nguồn. Hãy trao đổi với bác sĩ.") : "Chưa có diễn giải kèm nguồn để hiển thị. Hãy trao đổi với bác sĩ.");
+      }
+    }catch(e:any){ setTrend("Chưa nhận được thông tin. Bạn hãy thử lại sau."); setTrendSources([]); }
   };
   const handleFqgAnomaly = async (anomaly: any, followUp: string[], rec?: any)=>{
     if (anomaly && anomaly.type && anomaly.type !== "none") setAnomaly(anomaly);
     if (rec && typeof rec.id === "number") setLastLogId(rec.id);
     if (rec?.classification && rec?.message) setMsg(`${String(rec.classification).toUpperCase()}: ${rec.message}`);
+    if (rec?.classification) setCriticalReading(rec.classification === "critical" || rec.classification === "low");
     if (Array.isArray(followUp) && followUp.length) setFqg(followUp);
     await refresh();
   };
@@ -634,10 +701,11 @@ export default function TrackerPage(){
           <Link href="/expert/patients" className="underline">← Danh sách bệnh nhân</Link>
         </Alert>
       )}
-      <div><h1 className="text-xl font-bold">Hướng A — Nhật ký đường huyết</h1><p className="text-sm text-slate-600 dark:text-slate-300">{readOnly ? `Bệnh nhân ${viewPatientName || viewPatient.slice(0,8)} (chỉ đọc) · Chỉ escalate khi critical hoặc 3×high.` : `User: ${user.username} (${user.role}) · KPI ≥3 lần/tuần. Chỉ escalate khi critical hoặc 3×high.`}</p></div>
+      <div><h1 className="text-xl font-bold">Nhật ký đường huyết</h1><p className="text-sm text-slate-600 dark:text-slate-300">{readOnly ? `Bệnh nhân ${viewPatientName || viewPatient.slice(0,8)} (chỉ đọc).` : "Ghi lại chỉ số vừa đo và xem lại những ngày trước. Đo theo lịch bác sĩ đã hướng dẫn."}</p></div>
+      {!readOnly && <TrackerReminders key={effectiveId} userId={effectiveId} />}
       <div className="grid gap-6 lg:grid-cols-3">
         {!readOnly && <EntryAlert value={value} setValue={setValue} context={context} setContext={setContext} notes={notes} setNotes={setNotes} msg={msg} anomaly={anomaly} isCritical={isCritical} submit={submit} />}
-        <MyTracker data={data} highlightId={highlightId} trend={trend} explainTrend={explainTrend} isCritical={isCritical} anomalySet={anomalySet} hasServerIds={hasServerIds} readOnly={readOnly} loaded={loaded} />
+        <MyTracker data={data} highlightId={highlightId} trend={trend} trendSources={trendSources} explainTrend={explainTrend} isCritical={isCritical} anomalySet={anomalySet} hasServerIds={hasServerIds} readOnly={readOnly} loaded={loaded} />
       </div>
       {!readOnly && (
       <>
@@ -651,3 +719,7 @@ export default function TrackerPage(){
   );
 }
 function Kpi({label,value,sub,alert}:any){ return <div className={`rounded-xl border p-3 ${alert?"bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800":"bg-white dark:bg-slate-900 dark:border-slate-700"}`}><div className="text-[11px] text-slate-500 dark:text-slate-400">{label}</div><div className="text-sm font-bold">{value}</div>{sub && <div className={`text-[11px] ${alert?"text-amber-700 dark:text-amber-300":"text-slate-500 dark:text-slate-400"}`}>{sub}</div>}</div>; }
+
+export default function TrackerPage() {
+  return <Suspense fallback={<div role="status">Đang tải nhật ký đường huyết…</div>}><TrackerContent /></Suspense>;
+}

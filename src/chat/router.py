@@ -82,7 +82,7 @@ def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noq
     try:
         # pass username for tracing
         username = current_user.get("username") if isinstance(current_user, dict) else None
-        result = rag_chat(req.query, top_k=req.top_k, user_id=effective_user_id, username=username, language=req.language)
+        result = rag_chat(req.query, top_k=req.top_k, user_id=effective_user_id, username=username, language=req.language, defer_publication=req.require_doctor_review)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"RAG error: {e}") from e
     raw = result.get("raw_answer", {})
@@ -97,7 +97,9 @@ def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noq
     if AUTH_ENABLED:
         try:
             evaluation = evaluate_rag(req.query, answer, contexts)
-            is_low = evaluation.get("is_low_confidence", False)
+            if req.require_doctor_review:
+                evaluation = {**evaluation, "routed_role": "doctor", "review_required_by_workflow": True}
+            is_low = bool(evaluation.get("is_low_confidence", False) or req.require_doctor_review)
             if is_low:
                 # create review request
                 trace_id_val = result.get("trace_id")
@@ -135,11 +137,14 @@ def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noq
                 try:
                     add_query_history(user_id=effective_user_id, query=req.query, answer=answer, status="answered", confidence=evaluation.get("confidence"))
                     from src.shared.observability.tracing_db import update_trace as _ut2
-                    _ut2(trace_id_val, status="answered", is_low_confidence=0)
+                    _ut2(result.get("trace_id"), status="answered", is_low_confidence=0)
                 except Exception:
                     pass
         except Exception as e:
-            # evaluator failure should not block answer
+            # Clinician review requests fail closed when the review queue is unavailable.
+            if req.require_doctor_review:
+                raise HTTPException(status_code=503, detail="Doctor review is unavailable") from e
+            # Ordinary RAG questions retain their existing fallback behavior.
             print(f"[HILT] evaluator error: {e}")
             try:
                 add_query_history(user_id=effective_user_id, query=req.query, answer=answer, status="answered", confidence=None)
@@ -168,8 +173,9 @@ def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noq
             latency_ms=round((time.perf_counter() - t0) * 1000, 2),
         )
     # Build response extras: inject HILT fields via headers? Instead extend QueryResponse model — for backward compat add to langsmith extras
+    visible_answer = "Bản diễn giải đang chờ bác sĩ duyệt trước khi hiển thị." if status_str == "pending_review" else answer
     resp = QueryResponse(
-        answer=answer,
+        answer=visible_answer,
         cited_sources=cited_sources,
         contexts=contexts,
         audit=audit,

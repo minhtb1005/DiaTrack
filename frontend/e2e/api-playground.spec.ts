@@ -3,11 +3,12 @@ import { test, expect } from './fixtures';
 // Submit yêu cầu đăng nhập + query non-empty (nút disabled khi thiếu) — mock như tracker.spec.ts.
 function mockSession(page: any) {
   return page.route('**/v1/auth/me', async (route: any) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'e2e_user', username: 'e2e_user', role: 'user', is_active: true, is_verified: true }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'e2e_user', username: 'e2e_user', role: 'admin', is_active: true, is_verified: true }) });
   });
 }
 
 test.describe('API Playground C — WHO-RAG Query', () => {
+  test.beforeEach(async ({page}) => { await mockSession(page); });
   test('submits diabetes query and shows audit trail', async ({ page }) => {
     await page.route('**/v1/query', async (route) => {
       await route.fulfill({

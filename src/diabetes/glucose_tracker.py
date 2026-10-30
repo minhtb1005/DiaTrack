@@ -56,21 +56,21 @@ def classify_glucose(value_mgdl: float, context: str) -> Tuple[str, str]:
     """
     t = GLUCOSE_THRESHOLDS_MGDL
     if value_mgdl < t["hypoglycemia"]:
-        return "low", f"Hạ đường huyết (<{t['hypoglycemia']} mg/dL) — cần xử trí ngay, ăn nhẹ và theo dõi."
+        return "low", f"Hạ đường huyết (<{t['hypoglycemia']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
     if value_mgdl >= t["random_critical_high"]:
-        return "critical", f"Rất cao (≥{t['random_critical_high']} mg/dL) — nguy cơ cấp cứu, liên hệ bác sĩ ngay."
+        return "critical", f"Đường huyết rất cao (≥{t['random_critical_high']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
     if context == "fasting":
         if value_mgdl < t["fasting_normal_max"]:
             return "normal", "Bình thường lúc đói."
         elif value_mgdl <= t["fasting_prediabetes_max"]:
-            return "elevated", "Tiền đái tháo đường lúc đói (100-125) — cần theo dõi sát."
+            return "elevated", "Chỉ số lúc đói tăng so với ngưỡng tham khảo; trao đổi với bác sĩ."
         else:
-            return "high", "Cao lúc đói (≥126) — vượt ngưỡng chẩn đoán ĐTĐ."
+            return "high", "Chỉ số lúc đói cao so với ngưỡng tham khảo; trao đổi với bác sĩ."
     elif context == "post_meal_2h":
         if value_mgdl < t["postprandial_normal_max"]:
             return "normal", "Bình thường sau ăn 2h."
         elif value_mgdl <= t["postprandial_prediabetes_max"]:
-            return "elevated", "Tiền ĐTĐ sau ăn (140-199) — cần điều chỉnh chế độ."
+            return "elevated", "Chỉ số sau ăn 2 giờ tăng so với ngưỡng tham khảo; trao đổi với bác sĩ."
         else:
             return "high", "Cao sau ăn 2h (≥200) — vượt ngưỡng."
     else:

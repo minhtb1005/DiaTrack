@@ -48,7 +48,7 @@ test.describe('Pre-visit B — SOAP Generation', () => {
   test('shows empty state when no SOAP yet', async ({ page }) => {
     await mockSession(page);
     await page.goto('/previsit');
-    await expect(page.getByText(/Nhập logs ở Tracker trước rồi tạo SOAP/)).toBeVisible();
+    await expect(page.getByText(/Hãy ghi chỉ số ở Sổ đường huyết/)).toBeVisible();
   });
 
   test('generate SOAP JSON shows sections and empty-plan placeholder', async ({ page }) => {
@@ -63,10 +63,10 @@ test.describe('Pre-visit B — SOAP Generation', () => {
 
     await page.goto('/previsit');
     await expect(page.getByTestId('soap-json-btn')).toBeVisible();
-    await page.getByRole('button', { name: /Tạo SOAP \(JSON\)/ }).click();
-    await expect(page.getByText('S — Subjective')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('O — Objective')).toBeVisible();
-    await expect(page.getByText('A — Assessment')).toBeVisible();
+    await page.getByRole('button', { name: /Tạo bản tóm tắt/ }).click();
+    await expect(page.getByText('S — Điều bạn chia sẻ')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('O — Chỉ số đã ghi')).toBeVisible();
+    await expect(page.getByText('A — Nhận định tham khảo')).toBeVisible();
     await expect(page.getByText('Dành cho bác sĩ chỉ định')).toBeVisible();
     await expect(page.getByTestId('log-link').first()).toBeVisible();
     await expect(page.locator('a[href*="/tracker?highlight="]').first()).toBeVisible();
@@ -81,10 +81,10 @@ test.describe('Pre-visit B — SOAP Generation', () => {
     });
 
     await page.goto('/previsit');
-    await page.getByRole('button', { name: /Tạo Markdown/ }).click();
+    await page.getByRole('button', { name: /Tạo bản để tải về/ }).click();
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: /Tải \.md/ }).click(),
+      page.getByRole('button', { name: /Tải bản tóm tắt/ }).click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/SOAP_/);
   });
@@ -101,7 +101,7 @@ test.describe('Pre-visit B — SOAP Generation', () => {
     });
 
     await page.goto('/previsit');
-    await page.getByRole('button', { name: /Tạo SOAP \(JSON\)/ }).click();
-    await expect(page.getByText(/soap failed 500/)).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: /Tạo bản tóm tắt/ }).click();
+    await expect(page.getByText(/Chưa tạo được bản tóm tắt/)).toBeVisible({ timeout: 5000 });
   });
 });

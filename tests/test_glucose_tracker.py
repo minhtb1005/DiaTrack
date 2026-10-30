@@ -100,3 +100,12 @@ class TestGlucoseStatsAndEscalation:
 ])
 def test_classify_via_helpers(args, expected):
     assert_classify_first(classify_glucose, args, expected)
+
+
+def test_single_reading_message_does_not_diagnose():
+    for value, context in ((110, "fasting"), (130, "fasting"), (190, "post_meal_2h")):
+        _, message = classify_glucose(value, context)
+        assert "chẩn đoán" not in message.lower()
+        assert "tiền đái tháo đường" not in message.lower()
+        assert "tiền đtđ" not in message.lower()
+        assert "đổi liều" not in message.lower()

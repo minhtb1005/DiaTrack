@@ -366,12 +366,12 @@ class LongTermMemory:
 
 
 # Global instance for easy access
-long_term_memory = LongTermMemory()
+long_term_memory = None  # Initialize only when this memory is requested.
 
 
 def get_long_term_memory(user_id: str = "default_user") -> LongTermMemory:
     """Get the global long-term memory instance for a user."""
     global long_term_memory
-    if long_term_memory.user_id != user_id:
+    if long_term_memory is None or long_term_memory.user_id != user_id:
         long_term_memory = LongTermMemory(user_id=user_id)
     return long_term_memory

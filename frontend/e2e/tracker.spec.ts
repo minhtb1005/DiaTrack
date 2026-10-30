@@ -88,6 +88,18 @@ function mockGlucosePost(page: any, resp: any) {
 }
 
 test.describe('Tracker A — Guided UI', () => {
+  test('multiple days appear in chart summary and original log links', async ({ page }) => {
+    await mockSession(page);
+    await mockGlucoseGet(page, [
+      { id: 2, user_id: ME.id, value_mgdl: 120, measured_at: '2026-10-28T07:00:00', context: 'fasting', notes: null, classification: 'elevated' },
+      { id: 1, user_id: ME.id, value_mgdl: 110, measured_at: '2026-10-27T07:00:00', context: 'fasting', notes: null, classification: 'elevated' },
+    ]);
+    await page.goto('/tracker');
+    await expect(page.getByText(/Tóm tắt xu hướng 14 ngày: 2 chỉ số/)).toBeAttached();
+    await expect(page.locator('#log-1')).toContainText('110 mg/dL');
+    await expect(page.locator('#log-2')).toContainText('120 mg/dL');
+  });
+
   test('submit safe log shows KPIs and history', async ({ page }) => {
     await mockSession(page);
     await mockGlucosePost(page, { anomaly: { type: 'none', reason: '' }, follow_up_questions: [] });
@@ -100,14 +112,33 @@ test.describe('Tracker A — Guided UI', () => {
     await page.locator('select').first().selectOption('fasting');
     await page.getByRole('button', { name: /Lưu chỉ số/ }).click();
     await expect(page.getByText('HIGH: high message')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText(/Tổng logs/)).toBeVisible();
+    await expect(page.getByText(/Số lần ghi/)).toBeVisible();
   });
 
-  test('spike submit shows red banner and locks chat', async ({ page }) => {
+  test('critical submit shows red banner and locks chat', async ({ page }) => {
+    await mockSession(page);
+    await mockGlucosePost(page, {
+      classification: 'critical',
+      anomaly: { type: 'spike', direction: 'high', reason: 'spike test' },
+      follow_up_questions: ['q1?'],
+    });
+    await mockGlucoseGet(page, []);
+
+    await page.goto('/tracker');
+    await page.locator('input[type="number"]').first().fill('300');
+    await page.getByRole('button', { name: /Lưu chỉ số/ }).click();
+    await expect(page.getByText(/CẢNH BÁO: Đường huyết nguy hiểm/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('critical-banner')).toBeVisible();
+    await expect(page.getByTestId('tracker-save')).toBeVisible();
+    await expect(page.getByText(/Hỏi thêm ngữ cảnh/)).toBeHidden();
+    await expect(page.getByRole('button', { name: /Giúp tôi hiểu biểu đồ/ })).toBeHidden();
+  });
+
+  test('spike above 250 below 300 shows warning without emergency lock', async ({ page }) => {
     await mockSession(page);
     await mockGlucosePost(page, {
       classification: 'high',
-      anomaly: { type: 'spike', direction: 'high', reason: 'spike test' },
+      anomaly: { type: 'spike', direction: 'high', reason: 'Liên hệ bác sĩ để được hướng dẫn.' },
       follow_up_questions: ['q1?'],
     });
     await mockGlucoseGet(page, []);
@@ -115,11 +146,9 @@ test.describe('Tracker A — Guided UI', () => {
     await page.goto('/tracker');
     await page.locator('input[type="number"]').first().fill('280');
     await page.getByRole('button', { name: /Lưu chỉ số/ }).click();
-    await expect(page.getByText(/CẢNH BÁO: Đường huyết nguy hiểm/)).toBeVisible({ timeout: 5000 });
-    await expect(page.getByTestId('critical-banner')).toBeVisible();
-    await expect(page.getByTestId('tracker-save')).toBeVisible();
-    await expect(page.getByText(/Hỏi thêm ngữ cảnh/)).toBeHidden();
-    await expect(page.getByRole('button', { name: /Diễn giải xu hướng/ })).toBeHidden();
+    await expect(page.getByTestId('critical-banner')).toBeHidden();
+    await expect(page.getByText('Liên hệ bác sĩ để được hướng dẫn.')).toBeVisible();
+    await expect(page.getByText(/Hỏi thêm ngữ cảnh/)).toBeVisible();
   });
 
   test('trend submit opens FQG chat and reply saves context', async ({ page }) => {
@@ -157,17 +186,55 @@ test.describe('Tracker A — Guided UI', () => {
       { id: 1, user_id: ME.id, value_mgdl: 130, measured_at: dayIso(), context: 'fasting', notes: null, classification: 'high' },
     ]);
     await page.route('**/v1/query', async (route: any) => {
+      expect((await route.request().postDataJSON()).require_doctor_review).toBe(true);
       await route.fulfill({
         status: 200, contentType: 'application/json',
-        body: JSON.stringify({ answer: 'Xu hướng tăng nhẹ, khuyến nghị theo dõi WHO.', contexts: [] }),
+        body: JSON.stringify({ answer: 'Xu hướng tăng nhẹ, khuyến nghị theo dõi WHO.', contexts: [{ source_id: 'WHO-HEARTS-D', file_name: 'WHO_HEARTS-D_2020.pdf', page_numbers: [12] }] }),
       });
     });
 
     await page.goto('/tracker');
     await expect(page.getByText(/Biểu đồ 14 ngày/)).toBeVisible();
     await expect(page.getByTestId('trend-explain')).toBeVisible();
-    await page.getByRole('button', { name: /Diễn giải xu hướng/ }).click();
+    await page.getByRole('button', { name: /Giúp tôi hiểu biểu đồ/ }).click();
     await expect(page.getByText(/Xu hướng tăng nhẹ/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('WHO_HEARTS-D_2020.pdf, trang 12')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Bản ghi #1' })).toHaveAttribute('href', '#log-1');
+  });
+
+  test('tracker hides draft while doctor review is pending', async ({ page }) => {
+    await mockSession(page);
+    await mockGlucoseGet(page, [
+      { id: 1, user_id: ME.id, value_mgdl: 110, measured_at: dayIso(), context: 'fasting', notes: null, classification: 'elevated' },
+    ]);
+    await page.route('**/v1/query', async (route: any) => {
+      expect((await route.request().postDataJSON()).require_doctor_review).toBe(true);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        status: 'pending_review', answer: 'Bản nháp không được hiển thị', review_id: 'review-1', contexts: [],
+      }) });
+    });
+    await page.goto('/tracker');
+    await page.getByRole('button', { name: /Giúp tôi hiểu biểu đồ/ }).click();
+    await expect(page.getByText(/Câu hỏi đang được chuyên gia xem lại/)).toBeVisible();
+    await expect(page.getByText('Bản nháp không được hiển thị')).toBeHidden();
+  });
+
+  test('due reminders persist and appear when tracker opens', async ({ page }) => {
+    await mockSession(page);
+    await mockGlucoseGet(page, []);
+    await page.goto('/tracker');
+    await page.getByLabel('Lần đo tiếp theo').fill('2020-01-01T08:00');
+    await page.getByLabel('Lần tái khám tiếp theo').fill('2020-01-02T08:00');
+    await page.getByRole('button', { name: 'Lưu lịch nhắc' }).click();
+    await expect(page.getByText(/Đã tới lịch đo đường huyết/)).toBeVisible();
+    await expect(page.getByText(/Đã tới lịch tái khám/)).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('Lần đo tiếp theo')).toHaveValue('2020-01-01T08:00');
+    await expect(page.getByText(/Đã tới lịch tái khám/)).toBeVisible();
+    await page.getByRole('button', { name: 'Xóa lịch nhắc trên thiết bị' }).click();
+    await expect(page.getByText(/Đã tới lịch tái khám/)).toBeHidden();
+    await page.reload();
+    await expect(page.getByLabel('Lần đo tiếp theo')).toHaveValue('');
   });
 
   test('voice mic transcribes ambiguous then auto-sends via existing path', async ({ page }) => {

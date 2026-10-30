@@ -17,6 +17,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List
 
+from src.shared.config import GLUCOSE_THRESHOLDS_MGDL
+
 
 SPIKE_HIGH = 250
 SPIKE_LOW = 70
@@ -47,14 +49,19 @@ def detect_spike(value_mgdl: float) -> Dict[str, Any]:
     except (TypeError, ValueError):
         return {"type": "none", "reason": ""}
     if v > SPIKE_HIGH:
+        urgent = v >= GLUCOSE_THRESHOLDS_MGDL["random_critical_high"]
         return {
             "type": "spike_high",
-            "reason": f"Spike cao: {v:g} mg/dL vượt ngưỡng cứng {SPIKE_HIGH} mg/dL — cần xử trí an toàn ngay.",
+            "reason": (
+                f"Chỉ số {v:g} mg/dL ở mức nguy hiểm — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115. Không tự đổi liều thuốc hoặc insulin."
+                if urgent else
+                f"Chỉ số {v:g} mg/dL vượt ngưỡng cảnh báo {SPIKE_HIGH} mg/dL — liên hệ bác sĩ để được hướng dẫn; không tự đổi liều thuốc hoặc insulin."
+            ),
         }
     if v < SPIKE_LOW:
         return {
             "type": "spike_low",
-            "reason": f"Spike thấp: {v:g} mg/dL dưới ngưỡng cứng {SPIKE_LOW} mg/dL — nguy cơ hạ đường huyết, xử trí ngay.",
+            "reason": f"Chỉ số {v:g} mg/dL dưới {SPIKE_LOW} mg/dL — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115. Không tự đổi liều thuốc hoặc insulin.",
         }
     return {"type": "none", "reason": ""}
 

@@ -1,0 +1,10 @@
+.venv
+.git
+.env
+metadata
+embeddings
+data
+node_modules
+frontend/node_modules
+test-results
+.pytest_cache

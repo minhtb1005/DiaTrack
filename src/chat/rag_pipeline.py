@@ -29,9 +29,9 @@ except ImportError:
     from src.shared.prompt_manager import get_prompt_version
 
 cache = CAGHybridCache(max_size=CAG_MAX_SIZE, ttl_seconds=CAG_TTL_SECONDS, semantic_model_name=CAG_SEMANTIC_MODEL, semantic_threshold=CAG_SEMANTIC_THRESHOLD)
-short_term_memory = get_short_term_memory()
-episodic_memory = get_episodic_memory()
-long_term_memory = get_long_term_memory()
+short_term_memory = None  # rag_chat initializes memory on demand.
+episodic_memory = None  # rag_chat initializes memory on demand.
+long_term_memory = None  # rag_chat initializes memory on demand.
 
 try:
     from src.monitors.gho_snapshot import looks_like_stats_question, query_gho_stats
@@ -125,7 +125,8 @@ def rag_chat(question: str, top_k: int = TOP_K, user_id: str = "default_user", u
     # 0) Cache
     s_cache = start_span("cache_check", inputs={"query": question[:200]})
     t0 = time.perf_counter()
-    cached: LLMOutput | None = cache.get(question)
+    defer_publication = bool(kwargs.get("defer_publication", False))
+    cached: LLMOutput | None = None if defer_publication else cache.get(question)
     timings['cache_check'] = time.perf_counter() - t0
     finish_span(s_cache, outputs={"hit": bool(cached)}, metadata={"duration_ms": timings['cache_check']*1000})
     if cached:
@@ -212,14 +213,16 @@ def rag_chat(question: str, top_k: int = TOP_K, user_id: str = "default_user", u
     # 5) Cache put
     s_cache_put = start_span("cache_put")
     t6 = time.perf_counter()
-    cache.put(question, llm_output)
+    if not defer_publication:
+        cache.put(question, llm_output)
     timings['cache_put'] = time.perf_counter() - t6
     finish_span(s_cache_put)
 
     # 6) Memories
     s_mem = start_span("update_memories")
     t7 = time.perf_counter()
-    _update_memories(question, llm_output.answer, user_id)
+    if not defer_publication:
+        _update_memories(question, llm_output.answer, user_id)
     timings['update_memories'] = time.perf_counter() - t7
     finish_span(s_mem)
 

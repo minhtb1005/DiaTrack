@@ -12,6 +12,7 @@ class QueryRequest(BaseModel):
     user_id: str = Field("default_user", description="ID người dùng cho memory")
     include_audit: bool = Field(True, description="Có trả về audit trail (citations, faithfulness) không")
     language: str = Field("vi", description="Ngôn ngữ trả lời (vi|en); mặc định tiếng Việt")
+    require_doctor_review: bool = Field(False, description="Buộc bác sĩ duyệt bản nháp trước khi hiển thị cho bệnh nhân")
 
 
 class CitationItem(BaseModel):

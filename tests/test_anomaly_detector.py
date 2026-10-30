@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from src.diabetes.anomaly_detector import (
     analyze_glucose_log,
     detect_spike,
@@ -20,6 +22,25 @@ def _fasting_day(base: datetime, offset_days: int, value: float, idx: int = 0):
 
 
 class TestDetectSpike:
+    @pytest.mark.parametrize(
+        ("value", "kind", "phrase"),
+        [
+            (69, "spike_low", "liên hệ cơ sở y tế ngay"),
+            (70, "none", ""),
+            (110, "none", ""),
+            (250, "none", ""),
+            (251, "spike_high", "liên hệ bác sĩ"),
+            (299, "spike_high", "liên hệ bác sĩ"),
+            (300, "spike_high", "liên hệ cơ sở y tế ngay"),
+        ],
+    )
+    def test_scope_threshold_boundaries(self, value, kind, phrase):
+        result = detect_spike(value)
+        assert result["type"] == kind
+        assert phrase in result["reason"]
+        if kind != "none":
+            assert "không tự đổi liều" in result["reason"].lower()
+
     def test_spike_high_over_250(self):
         r = detect_spike(260)
         assert r["type"] == "spike_high"

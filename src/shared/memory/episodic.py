@@ -337,9 +337,12 @@ class EpisodicMemory:
 
 
 # Global instance for easy access
-episodic_memory = EpisodicMemory()
+episodic_memory = None  # Initialize only when this memory is requested.
 
 
 def get_episodic_memory() -> EpisodicMemory:
     """Get the global episodic memory instance."""
+    global episodic_memory
+    if episodic_memory is None:
+        episodic_memory = EpisodicMemory()
     return episodic_memory

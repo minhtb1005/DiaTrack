@@ -39,6 +39,28 @@ class TestDiabetesAPI:
         assert r2.json()["stats"]["total_logs"] >= 1
         assert "logs_per_week" in r2.json()["stats"]
 
+    def test_glucose_110_roundtrip_and_ownership(self, client: TestClient, make_user):
+        first, first_token = make_user(role="user")
+        second, second_token = make_user(role="user")
+        h1 = {"Authorization": f"Bearer {first_token}"}
+        h2 = {"Authorization": f"Bearer {second_token}"}
+        payload = {"user_id": first["id"], "value_mgdl": 110, "context": "fasting"}
+        posted = client.post("/v1/glucose", json=payload, headers=h1)
+        assert posted.status_code == 200, posted.text
+        record = posted.json()
+        assert record["user_id"] == first["id"]
+        assert record["value_mgdl"] == 110
+        assert record["context"] == "fasting"
+        assert record["measured_at"]
+        assert "chẩn đoán" not in record["message"].lower()
+        own = client.get(f"/v1/glucose/{first['id']}", headers=h1)
+        assert own.status_code == 200
+        assert any(row["id"] == record["id"] and row["value_mgdl"] == 110 for row in own.json()["logs"])
+        assert client.get(f"/v1/glucose/{first['id']}", headers=h2).status_code == 403
+        assert client.post("/v1/glucose", json=payload, headers=h2).status_code == 403
+        for invalid in ({"user_id": first["id"], "context": "fasting"}, {**payload, "value_mgdl": "not-a-number"}):
+            assert client.post("/v1/glucose", json=invalid, headers=h1).status_code == 422
+
     def test_glucose_validation_rejects_out_of_range(self, client: TestClient, auth_header):
         hdr = {"Authorization": f"Bearer {auth_header['token']}"}
         uid = auth_header["user"]["id"]
@@ -77,6 +99,21 @@ class TestDiabetesAPI:
         assert r2.json()["anomaly"]["type"] == "none"
         assert r2.json()["follow_up_questions"] == []
 
+    def test_glucose_urgent_boundaries(self, client: TestClient, auth_header):
+        hdr = {"Authorization": f"Bearer {auth_header['token']}"}
+        uid = auth_header["user"]["id"]
+        for value, classification, urgent in ((69, "low", True), (110, "elevated", False), (280, "high", False), (300, "critical", True)):
+            response = client.post("/v1/glucose", json={"user_id": uid, "value_mgdl": value, "context": "fasting"}, headers=hdr)
+            assert response.status_code == 200, response.text
+            data = response.json()
+            assert data["classification"] == classification
+            if urgent:
+                assert "liên hệ cơ sở y tế ngay" in data["message"]
+                assert "liên hệ cơ sở y tế ngay" in data["anomaly"]["reason"]
+            else:
+                assert "liên hệ cơ sở y tế ngay" not in data["message"]
+                assert "liên hệ cơ sở y tế ngay" not in data["anomaly"]["reason"]
+
     def test_safeguard_out_of_scope_no_rag(self, client: TestClient, auth_header, monkeypatch):
         import src.api.main as api_main
         called = {"rag": False}
@@ -91,8 +128,7 @@ class TestDiabetesAPI:
         resp = client.post("/v1/query", json={"query": "Tôi nên uống kháng sinh nào?", "top_k": 3, "user_id": uid}, headers=hdr)
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        assert "được thiết kế riêng để theo dõi đường huyết" in data["answer"]
-        assert "nằm ngoài phạm vi hỗ trợ" in data["answer"]
+        assert data["answer"] == "Hệ thống chỉ hỗ trợ theo dõi đái tháo đường. Nội dung này nằm ngoài phạm vi an toàn của hệ thống, vui lòng hỏi bác sĩ ở lần khám tới."
         assert data.get("safeguard") is True
 
     def test_soap_markdown(self, client: TestClient, auth_header):

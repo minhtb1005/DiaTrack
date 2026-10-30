@@ -10,15 +10,15 @@ export default function SettingsPage() {
   if (!user) {
     return (
       <div className="mx-auto max-w-2xl p-6 text-sm">
-        Bác cần <Link href="/login" className="underline">đăng nhập</Link> để đổi giọng đọc nhé.
+        Bạn cần <Link href="/login" className="underline">đăng nhập</Link> để đổi giọng đọc.
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-2xl rounded-2xl border bg-white p-6 shadow-sm dark:bg-slate-900 dark:border-slate-700">
-      <h1 className="text-lg font-bold">Cài đặt</h1>
-      <h2 className="mt-4 text-sm font-semibold">🎧 Giọng người đồng hành</h2>
+      <h1 className="text-3xl font-semibold">Cài đặt</h1>
+      <h2 className="mt-4 text-sm font-semibold">Giọng đọc bạn muốn nghe</h2>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Đổi giọng đọc bất cứ lúc nào — giọng mới dùng ngay cho mọi câu trả lời.
       </p>

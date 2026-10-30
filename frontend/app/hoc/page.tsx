@@ -29,22 +29,22 @@ export default function HocPage() {
         setData(await getLessons(user.id));
         setToday(await getTodayLesson(user.id));
       } catch (e: any) {
-        setErr(e.message);
+        setErr("Chưa tải được bài học. Bạn hãy tải lại trang để thử lại.");
       }
     })();
   }, [loading, user]);
 
   if (loading) return <div className="mx-auto max-w-4xl p-6 text-sm">Đang tải…</div>;
-  if (!user) return <div className="mx-auto max-w-4xl p-6 text-sm">Bác đăng nhập để học nhé.</div>;
+  if (!user) return <div className="mx-auto max-w-4xl p-6 text-sm">Bạn hãy <Link href="/login" className="underline font-semibold">đăng nhập</Link> để xem bài học.</div>;
 
   const lessons: any[] = data?.lessons || [];
   const doneCount = lessons.filter((l) => l.status === "done").length;
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <h1 className="text-lg font-bold flex items-center gap-2"><BookOpen size={18} aria-hidden /> Học mỗi ngày một chút</h1>
+      <h1 className="text-3xl font-semibold flex items-center gap-2"><BookOpen size={18} aria-hidden /> Học mỗi ngày một chút</h1>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-        Đã học {doneCount}/{lessons.length} bài. Mỗi bài nghe khoảng 1 phút.
+        Đã học {doneCount}/{lessons.length} bài. Bạn có thể đọc hoặc nghe theo nhịp của mình.
       </p>
       {today?.lesson && (
         <div className="mt-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-4 dark:bg-emerald-950 dark:border-emerald-700">
@@ -65,8 +65,8 @@ export default function HocPage() {
               <ul className="mt-2 space-y-1">
                 {items.map((l) => (
                   <li key={l.id}>
-                    <Link href={`/hoc/${l.id}`} className="flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 min-h-[44px]">
-                      {l.status === "done" ? <CheckCircle2 size={14} aria-hidden className="text-emerald-600" /> : <Circle size={14} aria-hidden className="text-slate-400" />}{l.title}
+                    <Link href={`/hoc/${l.id}`} className="flex items-center gap-3 rounded-xl px-3 py-4 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 min-h-[44px]">
+                      {l.status === "done" ? <CheckCircle2 size={22} aria-hidden className="text-emerald-600" /> : <Circle size={22} aria-hidden className="text-slate-400" />}{l.title}
                     </Link>
                   </li>
                 ))}

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getReviews, getReviewDetail, decideReview, API_BASE, parseFailedMetrics, fmtDT } from "@/lib/api";
+import { getReviews, getReviewDetail, decideReview, parseFailedMetrics, fmtDT } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -49,9 +49,8 @@ export default function ExpertQueuePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">Hàng đợi duyệt HILT</h1>
-        <p className="text-xs text-slate-600 dark:text-slate-300">AI thiếu tự tin (faithfulness / precision / recall / answer_relevance &lt; ngưỡng) → chuyển tới {user?.role}. Polling 8s + xem toàn bộ vitals.</p>
-        <div className="text-xs text-slate-500 dark:text-slate-400">API: {API_BASE} · Auto route: faithfulness→doctor, precision/recall→specialist, drug queries→pharmacist</div>
+        <h1 className="text-xl font-bold">Duyệt nội dung cho bệnh nhân</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-300">Xem bản nháp và chỉ số liên quan trước khi quyết định nội dung nào được gửi cho bệnh nhân.</p>
       </div>
       {msg && <div className="rounded-lg border bg-amber-50 p-2 text-xs dark:bg-amber-950 dark:border-amber-800 dark:text-amber-100">{msg}</div>}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -95,9 +94,6 @@ export default function ExpertQueuePage() {
                   <div>Requester: {selected.requester?.username} ({selected.requester?.role})</div>
                   <div className="mt-1">Glucose: {(selected.vitals?.glucose_logs||[]).length} logs · avg {selected.vitals?.glucose_stats?.avg_mgdl}</div>
                   {(selected.vitals?.glucose_logs||[]).slice(0,3).map((l:any)=><div key={l.id} className="text-[11px] text-slate-600 dark:text-slate-300">{fmtDT(l.measured_at)} {l.value_mgdl} mg/dL {l.classification}</div>)}
-                  <div className="mt-1">BP: {(selected.vitals?.bp_logs||[]).length} logs</div>
-                  <div>Mood: {(selected.vitals?.mood_logs||[]).length} logs</div>
-                  <div>Respiratory: {(selected.vitals?.respiratory_logs||[]).length} logs</div>
                 </div>
               </div>
               <div>

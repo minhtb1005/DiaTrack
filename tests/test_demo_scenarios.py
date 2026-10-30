@@ -108,8 +108,7 @@ class TestDemoScenarios:
         }, headers=hdr)
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        assert "theo dõi đường huyết" in data["answer"]
-        assert "nằm ngoài phạm vi hỗ trợ" in data["answer"]
+        assert data["answer"] == "Hệ thống chỉ hỗ trợ theo dõi đái tháo đường. Nội dung này nằm ngoài phạm vi an toàn của hệ thống, vui lòng hỏi bác sĩ ở lần khám tới."
         assert data.get("safeguard") is True
 
     def test_kb4_anomaly_ids_and_soap(self, client: TestClient, make_user, iso_glucose, mock_openai):

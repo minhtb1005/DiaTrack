@@ -45,7 +45,7 @@ export default function PrevisitView({ patientId, patientName, title, subtitle }
       setGlucose(g);
       if(asMd){ const text=await generateSoapMarkdown(patientId,days); setMd(text); }
       else { const j=await generateSoap(patientId,days); setData(j); }
-    }catch(e:any){ setErr(e.message); } finally{ setLoading(false); }
+    }catch(e:any){ setErr("Chưa tạo được bản tóm tắt. Bạn hãy thử lại sau."); } finally{ setLoading(false); }
   };
   const downloadMd=()=>{
     if(!md) return;
@@ -66,38 +66,38 @@ export default function PrevisitView({ patientId, patientName, title, subtitle }
       <Card className="p-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="text-xs">Bệnh nhân: {patientName || patientId.slice(0,8)}</div>
-          <div><label className="text-xs">Số ngày</label><select value={days} onChange={(e)=>setDays(Number(e.target.value))} className="mt-1 rounded-lg border px-3 py-2 text-sm dark:bg-slate-900 dark:border-slate-700 min-h-[44px]"><option value={7}>7 ngày</option><option value={14}>14 ngày</option><option value={30}>30 ngày</option><option value={90}>90 ngày</option></select></div>
-          <Button data-testid="soap-json-btn" onClick={()=>gen(false)} disabled={loading} className="px-5">{loading?"Đang tạo...":"Tạo SOAP (JSON)"}</Button>
-          <Button onClick={()=>gen(true)} disabled={loading} variant="outline" className="px-5">Tạo Markdown</Button>
+          <div><label htmlFor="summary-days" className="text-xs">Khoảng thời gian</label><select id="summary-days" value={days} onChange={(e)=>setDays(Number(e.target.value))} className="mt-1 rounded-lg border px-3 py-2 text-sm dark:bg-slate-900 dark:border-slate-700 min-h-[44px]"><option value={7}>7 ngày</option><option value={14}>14 ngày</option><option value={30}>30 ngày</option><option value={90}>90 ngày</option></select></div>
+          <Button data-testid="soap-json-btn" onClick={()=>gen(false)} disabled={loading} className="px-5">{loading?"Đang tạo...":"Tạo bản tóm tắt"}</Button>
+          <Button onClick={()=>gen(true)} disabled={loading} variant="outline" className="px-5">Tạo bản để tải về</Button>
         </div>
         {err && <Alert variant="destructive" className="mt-3 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200">{err}</Alert>}
       </Card>
       {data && (
         <Card className="p-5">
-          <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Kết quả SOAP — {data.period}</h2><div className="text-[11px] text-slate-500 dark:text-slate-400">{new Date(data.generated_at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</div></div>
+          <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Bản tóm tắt — {data.period}</h2><div className="text-[11px] text-slate-500 dark:text-slate-400">{new Date(data.generated_at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</div></div>
           <div className="mt-3 grid gap-4 lg:grid-cols-10 max-w-6xl">
             <div className="rounded-xl border bg-white p-4 shadow-sm lg:col-span-3 dark:bg-slate-900 dark:border-slate-700">
               <div className="text-xs font-bold">Biểu đồ {days} ngày</div>
               <div className="mt-2 h-56">
                 <GlucoseChart points={chartData} yDomain={[yMin, yMax]} emptyHint="Chưa có dữ liệu" />
               </div>
-              <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Chấm đỏ = anomaly ({anomalySource === "server" ? "theo server: spike + trend cascade" : "spike >250 / <70"}). Click [Xem log #id] để xem log thô.</div>
+              <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Điểm màu đỏ là chỉ số cần lưu ý. Chọn liên kết trong bản tóm tắt để xem bản ghi gốc.</div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:col-span-7">
-              <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><div className="flex items-center gap-2 text-xs font-bold">S — Subjective{hasTriageSource && <span className="rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">[Nguồn: AI Triage]</span>}</div><div className="mt-1 text-sm whitespace-pre-wrap">{renderWithLogLinks(data.soap.subjective, patientId, staffView)}</div></div>
-              <div className="rounded-xl bg-blue-50 p-4 border border-blue-100 dark:bg-blue-950 dark:border-blue-900"><div className="text-xs font-bold text-blue-900 dark:text-blue-200">O — Objective</div><div className="mt-1 text-sm whitespace-pre-wrap">{renderWithLogLinks(data.soap.objective, patientId, staffView)}</div></div>
-              <div className="rounded-xl bg-amber-50 p-4 border border-amber-100 dark:bg-amber-950 dark:border-amber-900"><div className="text-xs font-bold">A — Assessment</div><div className="mt-1 text-sm whitespace-pre-wrap">{renderWithLogLinks(data.soap.assessment, patientId, staffView)}</div></div>
-              <div className="rounded-xl bg-emerald-50 p-4 border border-emerald-100 dark:bg-emerald-950 dark:border-emerald-900"><div className="text-xs font-bold">P — Plan</div>
+              <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><div className="flex items-center gap-2 text-xs font-bold">S — Điều bạn chia sẻ{hasTriageSource && <span className="rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">[Nguồn: AI Triage]</span>}</div><div className="mt-1 text-sm whitespace-pre-wrap">{renderWithLogLinks(data.soap.subjective, patientId, staffView)}</div></div>
+              <div className="rounded-xl bg-blue-50 p-4 border border-blue-100 dark:bg-blue-950 dark:border-blue-900"><div className="text-xs font-bold text-blue-900 dark:text-blue-200">O — Chỉ số đã ghi</div><div className="mt-1 text-sm whitespace-pre-wrap">{renderWithLogLinks(data.soap.objective, patientId, staffView)}</div></div>
+              <div className="rounded-xl bg-amber-50 p-4 border border-amber-100 dark:bg-amber-950 dark:border-amber-900"><div className="text-xs font-bold">A — Nhận định tham khảo</div><div className="mt-1 text-sm whitespace-pre-wrap">{renderWithLogLinks(data.soap.assessment, patientId, staffView)}</div></div>
+              <div className="rounded-xl bg-emerald-50 p-4 border border-emerald-100 dark:bg-emerald-950 dark:border-emerald-900"><div className="text-xs font-bold">P — Kế hoạch của bác sĩ</div>
                 {data.soap.plan? <div className="mt-1 text-sm whitespace-pre-wrap">{data.soap.plan}</div>
                 : <div className="mt-1 text-sm italic text-slate-400">Dành cho bác sĩ chỉ định</div>}
               </div>
             </div>
           </div>
-          <details className="mt-4 rounded-lg bg-slate-900 p-3 text-xs text-slate-100"><summary className="cursor-pointer text-slate-300">Dữ liệu thô (kỹ thuật)</summary><pre className="mt-2 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(data,null,2)}</pre></details>
+          {isAdmin && <details className="mt-4 rounded-lg bg-slate-900 p-3 text-xs text-slate-100"><summary className="cursor-pointer text-slate-300">Dữ liệu thô (kỹ thuật)</summary><pre className="mt-2 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(data,null,2)}</pre></details>}
         </Card>
       )}
-      {md && <Card className="p-5"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Markdown</h2><Button variant="dark" onClick={downloadMd} className="rounded-full px-4 text-xs">Tải .md</Button></div><pre className="mt-3 overflow-auto rounded-lg bg-slate-50 p-4 text-xs whitespace-pre-wrap border dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{md}</pre></Card>}
-      {!data && !md && !loading && <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300">Nhập logs ở Tracker trước rồi tạo SOAP.</div>}
+      {md && <Card className="p-5"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Bản để tải về</h2><Button variant="dark" onClick={downloadMd} className="rounded-full px-4 text-xs">Tải bản tóm tắt (.md)</Button></div><pre className="mt-3 overflow-auto rounded-lg bg-slate-50 p-4 text-xs whitespace-pre-wrap border dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{md}</pre></Card>}
+      {!data && !md && !loading && <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300">Hãy ghi chỉ số ở Sổ đường huyết, rồi chọn Tạo bản tóm tắt.</div>}
     </div>
   );
 }

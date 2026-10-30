@@ -1,7 +1,7 @@
 """Doctor triage queue (glucose-only): GET /v1/doctor/patients.
 
 Covers: 401 no-token, 403 role=user, 200 sort
-critical 280 > trend 110/125/142 distinct-day > safe 100,
+critical 300 > trend 110/125/142 distinct-day > safe 100,
 per-user fail-open, glucose-only keys, no email leak.
 """
 import os
@@ -45,7 +45,7 @@ def _seed_three(client: TestClient, make_user):
     u_crit, t_crit = make_user(role="user")
     u_trend, t_trend = make_user(role="user")
     u_safe, t_safe = make_user(role="user")
-    _push(client, {"Authorization": f"Bearer {t_crit}"}, u_crit["id"], 280, 0)
+    _push(client, {"Authorization": f"Bearer {t_crit}"}, u_crit["id"], 300, 0)
     for v, off in ((110, 2), (125, 1), (142, 0)):
         _push(client, {"Authorization": f"Bearer {t_trend}"}, u_trend["id"], v, off)
     _push(client, {"Authorization": f"Bearer {t_safe}"}, u_safe["id"], 100, 0)
@@ -53,6 +53,70 @@ def _seed_three(client: TestClient, make_user):
 
 
 class TestDoctorPatients:
+    def test_tracker_advice_waits_for_doctor_approval(self, client: TestClient, make_user, doctor_user, monkeypatch):
+        patient, token = make_user(role="user")
+        import src.chat.rag_pipeline as pipeline
+        import src.chat.router as chat_router
+
+        draft = "Bản nháp diễn giải xu hướng, chưa được bác sĩ duyệt."
+        def fake_rag(*args, **kwargs):
+            assert kwargs["defer_publication"] is True
+            return {
+                "raw_answer": {"answer": draft, "cited_sources": [1]},
+                "contexts": [{"source_id": "WHO-HEARTS-D", "file_name": "WHO_HEARTS-D_2020.pdf", "content": "Dữ liệu tham khảo", "page_numbers": [12]}],
+                "trace_id": None, "prompt_version": "test", "cache_hit": False, "timings": {},
+            }
+        monkeypatch.setattr(pipeline, "rag_chat", fake_rag)
+        monkeypatch.setattr(chat_router, "evaluate_rag", lambda *args, **kwargs: {
+            "is_low_confidence": False, "confidence": 0.9, "routed_role": "pharmacist", "failed_metrics": [],
+        })
+        patient_hdr = {"Authorization": f"Bearer {token}"}
+        doctor_hdr = {"Authorization": f"Bearer {doctor_user['token']}"}
+        response = client.post("/v1/query", json={
+            "query": "Diễn giải xu hướng đường huyết gần đây", "user_id": patient["id"],
+            "require_doctor_review": True,
+        }, headers=patient_hdr)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["status"] == "pending_review"
+        assert body["answer"] == "Bản diễn giải đang chờ bác sĩ duyệt trước khi hiển thị."
+        assert draft not in response.text
+        review_id = body["review_id"]
+        pending = client.get(f"/v1/reviews/{review_id}", headers=patient_hdr)
+        assert pending.status_code == 200
+        assert "draft_answer" not in pending.json()
+        other, other_token = make_user(role="user")
+        assert client.get(f"/v1/reviews/{review_id}", headers={"Authorization": f"Bearer {other_token}"}).status_code == 403
+        queue = client.get(f"/v1/reviews/{review_id}", headers=doctor_hdr)
+        assert queue.status_code == 200
+        assert queue.json()["routed_role"] == "doctor"
+        assert queue.json()["draft_answer"] == draft
+        pharmacist, pharmacist_token = make_user(role="pharmacist")
+        pharmacist_hdr = {"Authorization": f"Bearer {pharmacist_token}"}
+        assert client.get(f"/v1/reviews/{review_id}", headers=pharmacist_hdr).status_code == 403
+        assert client.post(f"/v1/reviews/{review_id}/decide", json={"decision": "approved"}, headers=pharmacist_hdr).status_code == 403
+        approved = client.post(f"/v1/reviews/{review_id}/decide", json={"decision": "approved"}, headers=doctor_hdr)
+        assert approved.status_code == 200
+        history = client.get("/v1/query/history", headers=patient_hdr)
+        assert next(h for h in history.json()["history"] if h.get("review_id") == review_id)["answer"] == draft
+
+        monkeypatch.setattr(chat_router, "create_review_request", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("queue unavailable")))
+        failed = client.post("/v1/query", json={
+            "query": "Diễn giải xu hướng đường huyết gần đây", "user_id": patient["id"],
+            "require_doctor_review": True,
+        }, headers=patient_hdr)
+        assert failed.status_code == 503
+        assert draft not in failed.text
+
+    def test_spike_280_is_watch_not_critical(self, client: TestClient, make_user, doctor_user, iso_glucose):
+        patient, token = make_user(role="user")
+        _push(client, {"Authorization": f"Bearer {token}"}, patient["id"], 280, 0)
+        hdr = {"Authorization": f"Bearer {doctor_user['token']}"}
+        response = client.get("/v1/doctor/patients", headers=hdr)
+        assert response.status_code == 200
+        row = next(p for p in response.json()["patients"] if p["user_id"] == patient["id"])
+        assert row["level"] == "watch"
+
     def test_401_no_token(self, client: TestClient, iso_glucose):
         # session-scoped TestClient shares its cookie jar with prior tests that
         # logged in, so clear cookies to simulate a truly unauthenticated request.

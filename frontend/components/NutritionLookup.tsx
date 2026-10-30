@@ -17,21 +17,21 @@ export default function NutritionLookup() {
     setLoading(true); setMsg(""); setRes(null);
     try {
       setRes(await lookupNutrition(q.trim(), profile, 3));
-    } catch (e: any) { setMsg(e.message); } finally { setLoading(false); }
+    } catch (e: any) { setMsg("Chưa tra cứu được món ăn. Bạn hãy thử lại sau."); } finally { setLoading(false); }
   };
   const rec = (m: any) =>
     profile === "severe" ? m.recommendation?.severe : m.recommendation?.mild;
   return (
     <Card className="p-5">
-      <h2 className="text-sm font-semibold">Tra cứu món ăn (số liệu chuẩn)</h2>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Hỏi “ăn bao nhiêu ổi” → số gram + GL + carb-choice, không qua AI diễn giải.</p>
+      <h2 className="text-sm font-semibold">Tìm hiểu món ăn</h2>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Nhập tên món để xem thông tin tham khảo. Khẩu phần phù hợp còn phụ thuộc vào kế hoạch dinh dưỡng của bác sĩ.</p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <Input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") go(); }} placeholder="vd: ổi, sầu riêng, trà sữa" className="flex-1" />
-        <select value={profile} onChange={(e) => setProfile(e.target.value as any)} className="rounded-lg border px-3 py-2 text-sm dark:bg-slate-900 dark:border-slate-700 min-h-[44px]">
+        <label className="flex-1">Tên món ăn<Input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") go(); }} placeholder="vd: ổi, sầu riêng, trà sữa" className="mt-2" /></label>
+        <label>Mức tham khảo<select value={profile} onChange={(e) => setProfile(e.target.value as any)} className="mt-2 block w-full rounded-lg border px-3 py-2 text-sm dark:bg-slate-900 dark:border-slate-700 min-h-[44px]">
           <option value="both">Cả 2 mức</option>
           <option value="mild">Kiểm soát tốt</option>
           <option value="severe">Kiểm soát kém</option>
-        </select>
+        </select></label>
         <Button onClick={go} disabled={loading} variant="success" className="px-5">{loading ? "Đang tra..." : "Tra cứu"}</Button>
       </div>
       {msg && <div className="mt-2 text-xs text-red-600">{msg}</div>}
@@ -43,11 +43,11 @@ export default function NutritionLookup() {
             <div className="text-sm font-bold">{m.vi} <span className="font-normal text-slate-500 dark:text-slate-400">({m.en})</span></div>
             <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">
               Khẩu phần chuẩn {m.serving.size_g}g ({m.serving.description}) · {m.per_100g.energy_kcal} kcal/100g ·
-              carbs {m.per_100g.total_carbohydrate_g}g (đường {m.per_100g.sugars_g}g, xơ {m.per_100g.dietary_fiber_g}g)
+              Chất bột đường {m.per_100g.total_carbohydrate_g}g (đường {m.per_100g.sugars_g}g, xơ {m.per_100g.dietary_fiber_g}g)
               {m.gi != null ? ` · GI ${m.gi} (${m.gi_tier})` : " · chưa có GI"}
             </div>
             <div className="mt-1 text-xs font-medium text-emerald-800 dark:text-emerald-200">
-              Nên ăn: {r.serving_g}g (~{r.carb_choices} carb-choice{m.gl != null ? `, GL ${r.gl}` : ""})
+              Khẩu phần tham khảo: {r.serving_g}g (~{r.carb_choices} carb-choice{m.gl != null ? `, GL ${r.gl}` : ""})
               {profile === "both" && m.recommendation?.severe && m.recommendation.severe.serving_g !== r.serving_g && (
                 <span> · Kiểm soát kém: {m.recommendation.severe.serving_g}g (~{m.recommendation.severe.carb_choices} carb-choice{m.recommendation.severe.gl != null ? `, GL ${m.recommendation.severe.gl}` : ""})</span>
               )}

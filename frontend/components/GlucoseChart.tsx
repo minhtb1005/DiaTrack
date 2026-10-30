@@ -23,11 +23,11 @@ export default function GlucoseChart({ points, yDomain, emptyHint }: {
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={points}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-        <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={40} stroke={gridStroke} />
-        <YAxis domain={yDomain || [40, 320]} tick={{ fontSize: 10 }} stroke={gridStroke} />
+        <XAxis dataKey="time" tick={{ fontSize: 14, fill: dark ? "#cbd5e1" : "#475569" }} interval="preserveStartEnd" minTickGap={40} stroke={gridStroke} />
+        <YAxis domain={yDomain || [40, 320]} tick={{ fontSize: 14, fill: dark ? "#cbd5e1" : "#475569" }} stroke={gridStroke} />
         <Tooltip contentStyle={dark ? { backgroundColor: "#0f172a", borderColor: "#334155", color: "#e2e8f0" } : undefined} />
-        <ReferenceLine y={126} stroke={warnStroke} strokeDasharray="4 4" label={{ value: "126", fontSize: 10 }} />
-        <ReferenceLine y={200} stroke={anomalyStroke} strokeDasharray="4 4" label={{ value: "200", fontSize: 10 }} />
+        <ReferenceLine y={126} stroke={warnStroke} strokeDasharray="4 4" label={{ value: "126", fontSize: 14 }} />
+        <ReferenceLine y={200} stroke={anomalyStroke} strokeDasharray="4 4" label={{ value: "200", fontSize: 14 }} />
         <ReferenceLine y={70} stroke={warnStroke} strokeDasharray="4 4" />
         <Line
           type="monotone" dataKey="value" stroke={lineStroke} strokeWidth={2}

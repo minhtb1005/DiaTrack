@@ -1,76 +1,56 @@
 # AGENTS.md — DiaTrack
 
-## Mục tiêu và quy trình
+## Phạm vi và nguồn sự thật
 
-DiaTrack là bản demo trợ lý theo dõi đường huyết: FastAPI, Next.js, RAG tài liệu y tế, tracker và tóm tắt cho bác sĩ. Đọc `README.md` và tài liệu liên quan trong `docs/` trước khi sửa. `WORKFLOW_STATE.md` là ghi chú local nếu có, không commit.
+- Chỉ đái tháo đường týp 2. Nguồn phạm vi hiện hành: `docs/project_requirements.json` (`scope_rules` và 6 project): `258-triage`, `260` (thuốc), `262` (SOAP), `264` (đường huyết tại nhà), `266` (dinh dưỡng), `258-booking`.
+- Đề 267 và 273 không nằm trong JSON hiện hành; chỉ thêm khi người dùng sửa nguồn phạm vi. Bệnh khác chỉ là bệnh đi kèm hoặc biến chứng.
+- Giữ ràng buộc an toàn: không chẩn đoán, kê đơn/đổi/ngưng liều; red-flag luôn chuyển hỗ trợ y tế; ngoài phạm vi trả câu từ chối cố định. Plan của SOAP dành cho bác sĩ.
+- Khi có `docs/TASKS.md`, dùng file này làm danh sách tác vụ, trạng thái và tiêu chí chấp nhận. Không ghi tiến độ vào README; không tự hạ tiêu chí để đạt. Tiêu chí sai/thiếu: ghi vào state và báo người dùng.
 
-1. Xác định một phạm vi nhỏ, đầu vào/đầu ra, trường hợp lỗi và tiêu chí hoàn thành. Với chức năng sức khỏe, ghi rõ đường an toàn, nguồn dẫn, ranh giới không chẩn đoán/điều trị; giữ Plan của SOAP dành cho bác sĩ như sản phẩm hiện mô tả.
-2. Kiểm tra `git status`, không ghi đè thay đổi có sẵn. Đọc code, test và hợp đồng liên quan thay vì suy ra từ README rằng mọi tính năng đã hoạt động.
-3. Chạy test gần phần sửa và bước xác minh bên dưới. Báo lệnh, kết quả, trường hợp không chạy được. Nếu thiếu dịch vụ ngoài, API key hoặc seed, ghi **chưa xác minh đầy đủ**.
-4. Bàn giao mục tiêu, file đổi, bằng chứng, rủi ro, việc còn mở và bước tiếp theo. Với việc nhiều phiên, cập nhật `WORKFLOW_STATE.md` local khi có và bàn giao ngắn trong PR; đừng phụ thuộc vào trí nhớ cuộc trò chuyện.
+## Bắt đầu phiên
 
-## WORKFLOW_STATE.md và compact
+1. Đọc file này, yêu cầu mới nhất, `docs/project_requirements.json` (đặc biệt `scope_rules`) và [README](README.md); xem [bản đồ repo](README.md#repository-map).
+2. Đọc `docs/TASKS.md` nếu có; chọn tác vụ theo thứ tự đề xuất, trừ khi người dùng giao việc khác.
+3. Đọc **Trạng thái hiện hành** và mục liên quan trong `WORKFLOW_STATE.md` local, nếu có.
+4. Đối chiếu `git status`, code, test và hợp đồng liên quan trước khi tin ghi chú; giữ nguyên thay đổi có sẵn.
 
-`WORKFLOW_STATE.md` là ghi chú local, dài và không commit lên repo. Nếu file có trong working tree, đọc `AGENTS.md`, yêu cầu mới nhất rồi đọc phần trạng thái hiện hành và các mục liên quan của `WORKFLOW_STATE.md` trước khi tiếp tục việc cũ. Kiểm tra lại bằng code và `git status`; ghi chú lịch sử không thay thế yêu cầu mới. Nếu file không có trong clone, không tự coi tác vụ đã hoàn tất: đọc PR/commit và hỏi phần trạng thái còn thiếu chỉ khi nó thực sự chặn công việc.
+Nếu thiếu tài liệu tác vụ, ghi nhận và chỉ hỏi khi thiếu thông tin thực sự chặn việc được giao. Nếu thiếu state, tra PR/commit trước, không suy ra việc đã xong.
 
-Cập nhật file local sau khi chốt phạm vi, sau mốc triển khai hoặc kiểm thử quan trọng, và trước khi dừng/chuyển phiên. Giữ rõ mục tiêu, trạng thái hiện tại, quyết định còn hiệu lực, file/PR/commit, lệnh và kết quả thực tế, blocker, bước tiếp theo. Không ghi pass cho test chưa chạy, không lưu secret hoặc dữ liệu nhạy cảm. Không tự commit hoặc ép `git add -f` file này. Khi làm ở clone khác, đưa bản bàn giao ngắn vào PR hoặc trao trực tiếp cho người dùng; không yêu cầu họ công khai nhật ký vài nghìn dòng.
+## Vòng làm việc
 
-Khi file phình lớn, các phiên lặp lại cùng bối cảnh, hoặc trước handoff dài hạn, compact **phần lịch sử đã ổn định**. Nếu môi trường agent có cave-man skill, đọc hướng dẫn skill rồi dùng nó để compact; xem diff để bảo toàn trạng thái hiện tại, quyết định, bằng chứng, blocker và bước tiếp theo. Nếu không có skill, compact thủ công theo cùng tiêu chí; không tự cài một skill không rõ nguồn. Không compact giữa một bước chưa ghi đủ bằng chứng và không biến việc chưa xong thành hoàn thành.
-
-### Bàn giao trạng thái hiện hành
-
-Trước khi dừng/chuyển phiên, cập nhật mục **"Trạng thái hiện hành"** ở đầu `WORKFLOW_STATE.md`:
-
-- Mục tiêu và tiêu chí hoàn thành đã chốt
-- Nhánh, commit HEAD; file chưa commit
-- Đã xong / đang làm / bị chặn
-- Quyết định còn hiệu lực và lý do
-- Test: lệnh, kết quả, thời điểm, trạng thái code lúc chạy
-- Bước tiếp theo đầu tiên
-
-Phiên mới đọc mục này, đối chiếu `git status` và code, rồi chạy lại kiểm tra bị ảnh hưởng trước khi dựa vào kết quả cũ.
-
-## Bản đồ repo
-
-- `src/api/main.py`: FastAPI composition root; `src/diabetes/`, `vitals/`, `triage/`, `labs/`, `monitors/`, `auth/`, `chat/`, `admin/`: domain và router; `src/shared/`: config, RAG và tiện ích chung. Đối chiếu `docs/api_contract.md`, `data_contract.md`, `architecture_diagram.md`, `evaluation.md` theo loại việc.
-- `frontend/app/`, `components/`, `lib/`: Next.js UI và API client; `frontend/e2e/`: Playwright; `tests/`: pytest; `tests/conftest.py`: fixture và helper auth.
-- `scripts/`: crawl, seed, benchmark. Các lệnh crawl/seed có thể ghi dữ liệu; đọc script và đường dẫn trước khi chạy. `data/evaluation/`: gold set và kết quả benchmark.
-
-## Khởi động trên Windows PowerShell
-
-```powershell
-$env:PYTHONIOENCODING='utf-8'
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[test]"
-.\.venv\Scripts\python.exe -m uvicorn src.api.main:app --reload --port 8000
-# Terminal khác, từ repo root:
-Set-Location frontend
-npm ci
-npm run dev
-```
-
-Backend ở http://localhost:8000, frontend ở http://localhost:3000. Bỏ bước tạo venv nếu đã có; dùng Python của `.venv` cho mọi lệnh. Chỉ cài `.[local]` khi cần embeddings/reranker local. `.env` và `frontend/.env.local` theo README và `frontend/.env.local.example`; không commit hoặc in key thật.
-
-## Docker khi người dùng yêu cầu bật/chạy
-
-Repo hiện chưa có Dockerfile hoặc Compose ở gốc. Bật Docker engine không có nghĩa có thể chạy DiaTrack bằng `docker compose up`; không tự tạo recipe cho tác vụ không yêu cầu.
-
-- Xác định WSL/Linux hay Windows PowerShell; kiểm tra `docker version`, `docker info`, `docker context show`. Nếu daemon đã chạy, dùng context hiện có.
-- Trên Windows, kiểm tra `Get-Command docker` và `Test-Path "$Env:ProgramFiles\Docker\Docker\Docker Desktop.exe"`. Nếu Docker Desktop đã cài và người dùng yêu cầu bật, chạy `Start-Process "$Env:ProgramFiles\Docker\Docker\Docker Desktop.exe"` và chờ `docker info` thành công.
-- Trong WSL, dùng Docker Desktop qua WSL integration nếu có; kiểm tra `docker info` trong distro. Nếu Docker Engine riêng đã được cấu hình có thể dùng engine đó, nhưng không giả định `systemctl` hoạt động hay chạy hai daemon. Nếu integration chưa bật, báo bước cần cấu hình.
-- Nếu yêu cầu chạy **DiaTrack trong container**, trước hết phải có tác vụ tạo và xác minh Dockerfile/Compose. Cho đến lúc đó, khởi chạy ứng dụng theo hướng dẫn local của repo.
+1. Chốt phạm vi nhỏ: đầu vào/đầu ra, lỗi, tiêu chí xong; với sức khỏe thêm nguồn dẫn và đường xử lý an toàn.
+2. Đọc tài liệu phù hợp: [API](docs/api_contract.md), [dữ liệu](docs/data_contract.md), [kiến trúc](docs/architecture_diagram.md), [đánh giá](docs/evaluation.md). Giữ hợp đồng và nguồn dẫn; sửa UI thì cập nhật test/selector.
+3. Triển khai → test liên quan → thao tác UI nếu ảnh hưởng UI → ghi bằng chứng → cập nhật state. Chỉ hoàn thành khi hành vi thực tế đạt tiêu chí và hết lỗi chặn; video demo/cảm giác hài lòng không thay kiểm thử.
+4. Nếu có `docs/TASKS.md`, cập nhật tác vụ và tiêu chí đã đạt kèm lệnh/kết quả. Bàn giao mục tiêu, file/commit/PR, bằng chứng, giới hạn, rủi ro, việc mở và bước tiếp theo.
 
 ## Xác minh
 
-| Phạm vi | Bằng chứng cần có |
+Dùng Python `.venv` trên Windows; không in/commit secret hoặc dữ liệu bệnh nhân. Cấu hình container nằm ở [Compose](docker-compose.yml), [Dockerfile backend](Dockerfile) và [Dockerfile frontend](frontend/Dockerfile); đọc cấu hình thực tế trước khi vận hành, không suy ra build đã đạt từ việc có file.
+
+| Phạm vi | Kiểm tra |
 |---|---|
-| Backend/API/DB | Chạy `.\.venv\Scripts\python.exe -m pytest tests/test_<module>.py -q` cho module sửa; chạy thêm `.\.venv\Scripts\python.exe -m pytest -q` khi môi trường cho phép. Test API nên dùng fixture `client` và auth helper trong `tests/conftest.py`. |
-| Frontend | Trong `frontend/`: `npx tsc --noEmit`, `npm run build`; chạy `npm run test:e2e -- <spec>` nếu sửa luồng UI. Playwright tự khởi chạy frontend nhưng cần backend và seed phù hợp; không coi video demo là test. |
-| RAG/chunking | Chạy test liên quan và benchmark theo `docs/benchmark.md` / `scripts/run_benchmarks.py`; ghi dataset, provider, cấu hình, metric và report. `--skip-judge` bỏ bước judge, không chứng minh chất lượng câu trả lời. |
-| Triage/labs/solvers | Chạy test module, benchmark `--services` nếu thay logic được gold set bao phủ; kiểm tra cả tình huống nguy hiểm và từ chối ngoài phạm vi. |
+| Backend/API/DB | `.\.venv\Scripts\python.exe -m pytest tests/test_<module>.py -q`; thêm toàn bộ `pytest -q` khi môi trường cho phép. Dùng fixture `client` và auth helper ở `tests/conftest.py`. |
+| Frontend | Trong `frontend/`: `npx tsc --noEmit`, `npm run build`; sửa luồng UI thì chạy `npm run test:e2e -- <spec>`. Chuẩn bị backend/seed phù hợp với spec. |
+| RAG/chunking | Test liên quan + benchmark theo [hướng dẫn](docs/benchmark.md) / `scripts/run_benchmarks.py`; ghi dataset, provider, cấu hình, metric, report. `--skip-judge` không chứng minh chất lượng câu trả lời. |
+| Triage/labs/solvers | Test module; benchmark `--services` khi đổi logic được gold set bao phủ; kiểm tra nguy hiểm và từ chối ngoài phạm vi. |
 
-`tests/conftest.py` chuyển các đường DB glucose/auth/vitals trong config sang file tạm. Không mặc định rằng mọi DB, Chroma index hoặc module đã import sẵn đều được cô lập; kiểm tra đường ghi thật trước test/eval. Benchmark có thể gọi API và ghi vào dữ liệu dev: dùng bản sao DB/index hoặc môi trường riêng, xác nhận đường dẫn trước khi chạy, dọn đúng dữ liệu thử nghiệm sau đó. Không chạy benchmark live chỉ để sửa tài liệu.
+Trước crawl/seed/test/eval, đọc script và xác nhận đường ghi. Fixture không bảo đảm mọi DB/index/module đã cô lập: dùng DB/index sao chép hoặc môi trường riêng, chỉ dọn đúng dữ liệu thử. Không chạy benchmark live chỉ để sửa tài liệu. Thiếu dịch vụ/key/seed hoặc bỏ test phải ghi **chưa xác minh đầy đủ**, nêu rõ lý do.
 
-## Quy ước hoàn thành
+### Nguồn bằng chứng kiểm thử
 
-Giữ hợp đồng API và các nguồn dẫn y tế; sửa UI thì cập nhật test/selector liên quan. Một tác vụ chỉ đạt khi hành vi theo tiêu chí và các phép kiểm tra phù hợp đã chạy thành công. Ghi rõ mọi test bị bỏ qua và lý do; kết quả test cũ trong README không phải bằng chứng của phiên hiện tại.
+- Phạm vi: <tính năng/PR>
+- Code lúc chạy: <branch, commit SHA, PR số>; nếu chưa commit, ghi file thay đổi và vị trí diff/snapshot.
+- Thời điểm: <ngày giờ và múi giờ>
+- Lệnh và kết quả: <lệnh chính xác, số pass/fail/skip>
+- Tra cứu: <URL CI run + job, PR Checks, hoặc report/log local>
+- Giới hạn: <test chưa chạy, dữ liệu/dịch vụ thiếu, thay đổi sau lúc test>
+
+Bằng chứng phải khớp code, dữ liệu, dependency và cấu hình; mới hơn không tự có hiệu lực. Ghi kết quả cũ là lịch sử/thay thế, không xóa dấu vết lỗi còn mở; không ghi pass nếu chưa chạy. Commit message có thể kèm thời gian/múi giờ, lệnh, kết quả và nơi tra cứu.
+
+## State, compact và bàn giao
+
+- Sau mỗi thay đổi/mốc triển khai/kiểm thử, sau chốt phạm vi và trước compact/dừng/chuyển phiên: cập nhật ngay **Trạng thái hiện hành** ở đầu `WORKFLOW_STATE.md`. Lịch sử mới nhất → cũ nhất; không chỉ nối cuối file.
+- Giữ đủ: mục tiêu/tiêu chí, nhánh/HEAD/file chưa commit, đã xong/đang làm/bị chặn, quyết định/lý do, lệnh/kết quả/thời điểm/code lúc test và bước tiếp theo đầu tiên.
+- State chỉ local, không commit hoặc `git add -f`; không chứa secret/dữ liệu nhạy cảm. Sang clone khác: bàn giao ngắn trong PR hoặc trực tiếp, không yêu cầu công khai nhật ký dài.
+- Khi state quá dài, lặp bối cảnh hoặc trước handoff dài hạn: chỉ compact lịch sử ổn định sau khi ghi đủ bằng chứng. Đọc và dùng skill cave-man nếu có; nếu không thì compact thủ công, không tự cài skill. Xem diff để giữ quyết định, bằng chứng, blocker và việc mở; không biến việc chưa xong thành hoàn thành.
+- Phiên tiếp theo đối chiếu state với code/git và chạy lại kiểm tra bị ảnh hưởng trước khi dùng bằng chứng cũ.
