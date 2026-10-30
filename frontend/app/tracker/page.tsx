@@ -668,7 +668,7 @@ function TrackerContent(){
     setTrend("Đang phân tích xu hướng...");
     const last=data.logs.slice(0,5).map((l:any)=>`${l.measured_at.slice(0,16)} ${l.value_mgdl}mg/dL (${l.context}, ${l.classification})`).join("; ");
     const stats=data.stats;
-    const q=`Tôi có các chỉ số đường huyết gần đây: ${last}. Trung bình 7 ngày ${stats.last_7_days_avg}mg/dL, tần suất ${stats.logs_per_week}/tuần, streak ${stats.streak_days} ngày. Hãy diễn giải xu hướng bằng tiếng Việt, dùng guideline WHO/ADA/BYT, chỉ escalate nếu critical hoặc 3 lần high liên tiếp.`;
+    const q=`Tôi có các chỉ số đường huyết gần đây: ${last}. Trung bình 7 ngày ${stats.last_7_days_avg}mg/dL, tần suất ${stats.logs_per_week}/tuần, streak ${stats.streak_days} ngày. Hãy diễn giải xu hướng bằng tiếng Việt, có trích nguồn. Không suy ra chẩn đoán từ một lần đo hoặc dải hiển thị; cảnh báo an toàn <70, >250, ≥300 mg/dL theo chính sách dự án và nhắc hỏi bác sĩ về mục tiêu cá nhân.`;
     try{
       const ans=await queryRag(q,5,effectiveId,"vi",true);
       if(ans.status==="pending_review"){

@@ -97,13 +97,13 @@ def test_a04_escalation_design_critical(client: TestClient, auth_header):
     data = client.get(f"/v1/glucose/{uid}", headers=hdr).json()
     assert data["should_escalate"] is True
 
-def test_a04_escalation_three_high(client: TestClient, auth_header):
+def test_a04_legacy_high_band_does_not_escalate(client: TestClient, auth_header):
     hdr = {"Authorization": f"Bearer {auth_header['token']}"}
     uid = auth_header["user"]["id"]
     for _ in range(3):
         client.post("/v1/glucose", json={"user_id": uid, "value_mgdl": 180, "context": "fasting"}, headers=hdr)
     data = client.get(f"/v1/glucose/{uid}", headers=hdr).json()
-    assert data["should_escalate"] is True
+    assert data["should_escalate"] is False
 
 # --- A05:2021 Security Misconfiguration — CORS wildcard ---
 def test_a05_cors_misconfiguration(client: TestClient):

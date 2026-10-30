@@ -236,9 +236,9 @@ def list_doctor_patients(
     except ImportError:
         from vitals.base_tracker import get_conn as _get_conn  # type: ignore
     try:
-        from src.diabetes.anomaly_detector import detect_spike, detect_trend
+        from src.diabetes.anomaly_detector import detect_spike
     except ImportError:
-        from diabetes.anomaly_detector import detect_spike, detect_trend  # type: ignore
+        from diabetes.anomaly_detector import detect_spike  # type: ignore
     try:
         from src.auth.db import get_user_by_id as _get_user
     except ImportError:
@@ -265,7 +265,7 @@ def list_doctor_patients(
     except Exception:
         return {"patients": [], "total": 0, "limit": limit, "offset": offset}
     # ponytail: slice 100, pagination khi >100 patients
-    _rank = {"critical": 0, "trend": 1, "watch": 2, "safe": 3}
+    _rank = {"critical": 0, "watch": 1, "safe": 2}
     out: list = []
     for _uid in _uids:
         try:
@@ -277,15 +277,12 @@ def list_doctor_patients(
                 _spike = detect_spike(float(_last.get("value_mgdl")))
             except (TypeError, ValueError):
                 _spike = {"type": "none"}
-            _trend = detect_trend(_logs)
             _esc = should_escalate_to_doctor(_uid)
             from src.shared.glucose_policy import glucose_severity, spike_direction
             _cls = glucose_severity(float(_last.get("value_mgdl")), str(_last.get("context") or "random"))
             if _cls in ("critical", "low"):
                 _level = "critical"
-            elif _trend.get("type") == "trend_cascade":
-                _level = "trend"
-            elif _spike.get("type") != "none" or _esc or _cls == "high":
+            elif _spike.get("type") != "none" or _esc:
                 _level = "watch"
             else:
                 _level = "safe"

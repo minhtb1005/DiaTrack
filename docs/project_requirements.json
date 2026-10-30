@@ -7,7 +7,7 @@
     "disease": "Đái tháo đường týp 2 (người lớn, đặc biệt người cao tuổi)",
     "out_of_scope": "Tăng huyết áp, hô hấp, tâm thần và mọi bệnh khác chỉ xuất hiện như bệnh đi kèm/biến chứng của đái tháo đường, không có module riêng.",
     "out_of_scope_reply": "Hệ thống chỉ hỗ trợ theo dõi đái tháo đường. Nội dung này nằm ngoài phạm vi an toàn của hệ thống, vui lòng hỏi bác sĩ ở lần khám tới.",
-    "unit": "mg/dL (mmol/L × 18)",
+    "unit": "mg/dL (xấp xỉ mmol/L × 18)",
     "safety_thresholds_mgdl": {
       "hypoglycemia": "< 70",
       "fasting_high": ">= 126",
@@ -15,7 +15,64 @@
       "spike_alert": "> 250",
       "critical": ">= 300"
     },
-    "hba1c_target": "< 7% (BYT QĐ5481/2020 + ADA Standards of Care 2024); mục tiêu cụ thể do bác sĩ đặt cho từng bệnh nhân",
+    "hba1c_target": "< 7% cho nhiều người lớn không mang thai theo ADA Standards of Care 2024; mục tiêu cụ thể do bác sĩ đặt cho từng bệnh nhân. Chưa đối chiếu trực tiếp mốc này trong BYT QĐ5481/2020.",
+    "threshold_evidence": {
+      "reviewed_on": "2026-10-30",
+      "interpretation_note": "Các giá trị safety_thresholds_mgdl là quy tắc sản phẩm hiện hành, không đồng nhất với tiêu chuẩn chẩn đoán hay chỉ định cấp cứu từ một số đo tại nhà. Không dùng các mốc chẩn đoán để tự chẩn đoán; mục tiêu điều trị và quyết định xử trí do nhân viên y tế cá thể hóa.",
+      "unit": {
+        "status": "verified_approximation",
+        "context": "mg/dL ≈ mmol/L × 18; hệ số làm tròn, không phải dấu bằng chính xác.",
+        "source": "ADA Standards of Care in Diabetes—2024, Section 2, Table 2.1; 7.0 mmol/L = 126 mg/dL và 11.1 mmol/L = 200 mg/dL",
+        "url": "https://diabetesjournals.org/care/article/47/Supplement_1/S20/153954/2-Diagnosis-and-Classification-of-Diabetes"
+      },
+      "hypoglycemia": {
+        "status": "verified_threshold_context_differs",
+        "context": "ADA gọi <70 mg/dL là hạ đường huyết mức 1/cần chú ý; mức 2 là <54 mg/dL. Chỉ riêng một số đo <70 không đồng nghĩa hạ đường huyết nặng hay bắt buộc gọi cấp cứu; cảnh báo khẩn của app là quy tắc an toàn thận trọng.",
+        "source": "ADA Standards of Care in Diabetes—2024, Section 6, Hypoglycemia Classification",
+        "url": "https://diabetesjournals.org/care/article/47/Supplement_1/S111/153951/"
+      },
+      "fasting_high": {
+        "status": "verified_diagnostic_only",
+        "context": "≥126 mg/dL là tiêu chuẩn glucose huyết tương lúc đói trong phòng xét nghiệm để chẩn đoán, thường cần xác nhận; không phải ngưỡng cảnh báo cao phổ quát cho số đo mao mạch tại nhà hay mục tiêu điều trị.",
+        "source": "ADA Standards of Care in Diabetes—2024, Section 2, Table 2.1",
+        "url": "https://diabetesjournals.org/care/article/47/Supplement_1/S20/153954/2-Diagnosis-and-Classification-of-Diabetes"
+      },
+      "post_meal_2h_high": {
+        "status": "not_verified_for_post_meal_monitoring",
+        "context": "≥200 mg/dL được ADA xác nhận cho glucose huyết tương 2 giờ sau nghiệm pháp uống 75 g glucose (OGTT), không phải cùng phép đo với 2 giờ sau bữa ăn thường. ADA Section 6 nêu mục tiêu đỉnh sau ăn <180 mg/dL cho nhiều người lớn, cần cá thể hóa; mốc 200 của app chưa có nguồn gốc phù hợp với nhãn post_meal_2h_high.",
+        "sources": [
+          {"source": "ADA Standards of Care in Diabetes—2024, Section 2, Table 2.1 (OGTT)", "url": "https://diabetesjournals.org/care/article/47/Supplement_1/S20/153954/2-Diagnosis-and-Classification-of-Diabetes"},
+          {"source": "ADA Standards of Care in Diabetes—2024, Section 6, Table 6.3 (individualized postprandial target)", "url": "https://diabetesjournals.org/care/article/47/Supplement_1/S111/153951/"}
+        ]
+      },
+      "spike_alert": {
+        "status": "partially_supported_context_differs",
+        "context": "ADA Section 6 dùng >250 mg/dL cho time-above-range mức 2 của CGM, không khẳng định một lần đo >250 là 'spike'. CDC khuyến nghị kiểm tra ketone khi đang ốm hoặc glucose ≥250 mg/dL. Dấu > của quy tắc app khác dấu ≥ của CDC và không là ngưỡng DKA chẩn đoán.",
+        "sources": [
+          {"source": "ADA Standards of Care in Diabetes—2024, Section 6, Table 6.2 (CGM TAR level 2)", "url": "https://diabetesjournals.org/care/article/47/Supplement_1/S111/153951/"},
+          {"source": "CDC, Diabetic Ketoacidosis, 2024, Testing for Ketones", "url": "https://www.cdc.gov/diabetes/about/diabetic-ketoacidosis.html"}
+        ]
+      },
+      "critical": {
+        "status": "partially_supported_persistence_required",
+        "context": "CDC khuyến nghị cấp cứu khi glucose duy trì ở ≥300 mg/dL hoặc có dấu hiệu DKA khác; không xác nhận một số đo đơn lẻ ≥300 luôn phải gọi cấp cứu. Quy tắc app cảnh báo ngay từ một số đo là lựa chọn an toàn thận trọng, không phải chẩn đoán DKA.",
+        "source": "CDC, Diabetic Ketoacidosis, 2024, Emergency signs",
+        "url": "https://www.cdc.gov/diabetes/about/diabetic-ketoacidosis.html"
+      },
+      "hba1c_target": {
+        "status": "verified_for_many_adults_not_universal",
+        "context": "ADA khuyến nghị A1c <7% cho nhiều người lớn không mang thai nếu không gây hạ đường huyết đáng kể; mục tiêu cần cá thể hóa, đặc biệt người cao tuổi hoặc sức khỏe phức tạp. Chưa đối chiếu trực tiếp nội dung Quyết định 5481/QĐ-BYT cho mốc này.",
+        "sources": [
+          {"source": "ADA Standards of Care in Diabetes—2024, Section 6, Recommendation 6.5a", "url": "https://diabetesjournals.org/care/article/47/Supplement_1/S111/153951/"},
+          {"source": "ADA Standards of Care in Diabetes—2024, Section 13, Older Adults", "url": "https://diabetesjournals.org/care/article/47/Supplement_1/S244/153944/"}
+        ]
+      },
+      "legacy_display_bands": {
+        "status": "unverified_for_home_monitoring",
+        "context": "Code cũ còn dùng các dải 100/125 mg/dL lúc đói, 140/199 mg/dL sau bữa ăn và 140/200 mg/dL đo bất kỳ để đặt nhãn hiển thị normal/elevated/high. Chưa có nguồn xác minh các dải này cho theo dõi bệnh nhân týp 2 tại nhà; không được dùng nhãn đó để tự động chuyển ca hay kết luận đạt mục tiêu.",
+        "source": "src/shared/glucose_policy.py (legacy demo values; clinical source unverified)"
+      }
+    },
     "rag_sources": [
       "WHO Classification of Diabetes 2019",
       "WHO HEARTS-D 2020",

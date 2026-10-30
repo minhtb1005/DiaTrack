@@ -28,7 +28,7 @@ Luồng 5 hộp (học thuộc lòng luồng này là đủ onboard):
 - Patient nhập chỉ số → `POST /v1/glucose` kiểm tra spike >250/<70 và trend 3 ngày.
 - Hỏi đáp → `POST /v1/query` chạy RAG (cache → hybrid BM25+vector → rerank → LLM `gpt-4o-mini` demo).
 - Memory 3 tầng (`src/shared/memory/`): short 500 tokens + episodic 300 tokens + long-term 3 facts; cuối tuần gom thành 1 fact/tuần.
-- Doctor xem `previsit`: sparkline 90 ngày chấm đỏ anomaly (30%) + SOAP text (70%), mỗi nhận định có `[Xem log #id]`; bác sĩ còn có hàng đợi `/expert/patients` sort triage critical → trend → watch → safe.
+- Doctor xem `previsit`: sparkline 90 ngày chấm đỏ anomaly (30%) + SOAP text (70%), mỗi nhận định có `[Xem log #id]`; bác sĩ còn có hàng đợi `/expert/patients` ưu tiên critical → watch → safe. Heuristic xu hướng demo không tự nâng mức chuyển ca.
 - Kiến trúc module hóa đa chỉ số (BP/HR/SpO2) nhưng MVP tập trung sâu Glucose làm POC.
 
 <details>

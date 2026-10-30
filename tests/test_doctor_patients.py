@@ -1,7 +1,7 @@
 """Doctor triage queue (glucose-only): GET /v1/doctor/patients.
 
-Covers: 401 no-token, 403 role=user, 200 sort
-critical 300 > trend 110/125/142 distinct-day > safe 100,
+Covers: 401 no-token, 403 role=user, 200 sort;
+critical 300 > safe, with demo trend 110/125/142 not escalated,
 per-user fail-open, glucose-only keys, no email leak.
 """
 import os
@@ -117,6 +117,15 @@ class TestDoctorPatients:
         row = next(p for p in response.json()["patients"] if p["user_id"] == patient["id"])
         assert row["level"] == "watch"
 
+    def test_legacy_high_display_band_is_not_watch(self, client: TestClient, make_user, doctor_user, iso_glucose):
+        patient, token = make_user(role="user")
+        _push(client, {"Authorization": f"Bearer {token}"}, patient["id"], 130, 0)
+        hdr = {"Authorization": f"Bearer {doctor_user['token']}"}
+        response = client.get("/v1/doctor/patients", headers=hdr)
+        assert response.status_code == 200
+        row = next(p for p in response.json()["patients"] if p["user_id"] == patient["id"])
+        assert row["level"] == "safe"
+
     def test_401_no_token(self, client: TestClient, iso_glucose):
         # session-scoped TestClient shares its cookie jar with prior tests that
         # logged in, so clear cookies to simulate a truly unauthenticated request.
@@ -129,14 +138,15 @@ class TestDoctorPatients:
         r = client.get("/v1/doctor/patients", headers={"Authorization": f"Bearer {tok}"})
         assert r.status_code == 403, r.text
 
-    def test_sort_critical_trend_safe(self, client: TestClient, make_user, doctor_user, iso_glucose):
+    def test_demo_trend_does_not_raise_queue_priority(self, client: TestClient, make_user, doctor_user, iso_glucose):
         u_crit, u_trend, u_safe = _seed_three(client, make_user)
         hdr = {"Authorization": f"Bearer {doctor_user['token']}"}
         r = client.get("/v1/doctor/patients", headers=hdr)
         assert r.status_code == 200, r.text
         patients = r.json()["patients"]
-        assert [p["user_id"] for p in patients] == [u_crit["id"], u_trend["id"], u_safe["id"]]
-        assert [p["level"] for p in patients] == ["critical", "trend", "safe"]
+        levels = {p["user_id"]: p["level"] for p in patients}
+        assert levels == {u_crit["id"]: "critical", u_trend["id"]: "safe", u_safe["id"]: "safe"}
+        assert patients[0]["user_id"] == u_crit["id"]
 
     def test_fail_open_one_user_broken(self, client: TestClient, make_user, doctor_user, iso_glucose, monkeypatch):
         u_crit, u_trend, u_safe = _seed_three(client, make_user)

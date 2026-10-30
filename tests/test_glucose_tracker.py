@@ -75,10 +75,15 @@ class TestGlucoseStatsAndEscalation:
         add_log(temp_user, 350, context="random")
         assert should_escalate_to_doctor(temp_user) is True
 
-    def test_escalation_three_high(self, temp_user):
+    def test_legacy_high_band_does_not_escalate(self, temp_user):
         for _ in range(3):
             add_log(temp_user, 180, context="fasting")
-        assert should_escalate_to_doctor(temp_user) is True
+        assert should_escalate_to_doctor(temp_user) is False
+
+    def test_post_meal_message_does_not_apply_ogtt_diagnosis(self):
+        _, message = classify_glucose(210, "post_meal_2h")
+        assert "OGTT" in message
+        assert "không dùng để chẩn đoán" in message
 
     def test_no_escalation_when_normal(self, temp_user):
         add_log(temp_user, 90, context="fasting")

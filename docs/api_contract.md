@@ -43,7 +43,7 @@ Tất cả cần login; user thường chỉ được thao tác trên `user_id` 
 ### 5.1 Diabetes — Glucose
 
 - `POST /v1/glucose`: `{"user_id": "...", "value_mgdl": 145, "context": "fasting"}` (`value 20..800`, context: fasting/pre_meal/post_meal_2h/bedtime/random). Trả thêm `classification` (low/normal/elevated/high/critical), `message`, `anomaly {spike|trend|none}`, `follow_up_questions[]`.
-- Ngưỡng (`config.py:97`): low <70, critical ≥300, fasting cao ≥126, sau ăn ≥200. Spike >250/<70 luôn cảnh báo an toàn trước.
+- Ngưỡng cảnh báo sản phẩm: <70 cần liên hệ y tế, >250 cần liên hệ bác sĩ, ≥300 cần liên hệ y tế ngay; dấu hiệu nặng gọi 115. Mốc xét nghiệm lúc đói ≥126 và OGTT 2 giờ ≥200 là tiêu chuẩn chẩn đoán trong phòng xét nghiệm, không dùng để chẩn đoán từ một lần đo tại nhà. Xem nguồn và giới hạn từng mốc ở `docs/project_requirements.json#scope_rules.threshold_evidence`.
 - `GET /v1/glucose/{user_id}?limit=50&days=14`: trả `logs[]` + `stats` (trung bình, streak) + `should_escalate` (critical 1 lần hoặc ≥3 high).
 
 ### 5.2 Hypertension — BP

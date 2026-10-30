@@ -2,9 +2,9 @@
 Hướng A — Trợ lý tuân thủ tự theo dõi đường huyết.
 
 - Lưu log vào SQLite (metadata/glucose_logs.db — legacy) / vitals.db via BaseTracker helpers
-- Phân loại ngưỡng WHO/ADA (fasting, postprandial)
+- Dải phân loại hiển thị legacy (chưa xác minh lâm sàng cho đo tại nhà)
 - Thống kê, streak, logs_per_week (KPI: ≥3 lần/tuần)
-- Gợi ý RAG: chỉ escalate khi critical / 3 lần high liên tiếp
+- Cảnh báo khẩn theo <70 / ≥300; dải hiển thị cũ không quyết định escalation
 """
 
 from __future__ import annotations
@@ -63,36 +63,34 @@ def classify_glucose(value_mgdl: float, context: str) -> Tuple[str, str]:
         return severity, f"Đường huyết rất cao (≥{t['random_critical_high']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
     if context == "fasting":
         if severity == "normal":
-            return "normal", "Bình thường lúc đói."
+            return "normal", "Chưa có cảnh báo theo ngưỡng an toàn; mục tiêu lúc đói do bác sĩ cá thể hóa."
         elif severity == "elevated":
-            return "elevated", "Chỉ số lúc đói tăng so với ngưỡng tham khảo; trao đổi với bác sĩ."
+            return "elevated", "Ghi nhận số đo lúc đói; đối chiếu với mục tiêu bác sĩ đã đặt."
         else:
-            return "high", "Chỉ số lúc đói cao so với ngưỡng tham khảo; trao đổi với bác sĩ."
+            return "high", "Chỉ số lúc đói cần trao đổi với bác sĩ; không tự kết luận từ một lần đo."
     elif context == "post_meal_2h":
         if severity == "normal":
-            return "normal", "Bình thường sau ăn 2h."
+            return "normal", "Chưa có cảnh báo theo ngưỡng an toàn; mục tiêu sau ăn do bác sĩ cá thể hóa."
         elif severity == "elevated":
-            return "elevated", "Chỉ số sau ăn 2 giờ tăng so với ngưỡng tham khảo; trao đổi với bác sĩ."
+            return "elevated", "Ghi nhận số đo sau ăn; đối chiếu với mục tiêu bác sĩ đã đặt."
         else:
-            return "high", "Cao sau ăn 2h (≥200) — vượt ngưỡng."
+            return "high", "Chỉ số sau ăn cần trao đổi với bác sĩ; mốc 200 mg/dL của OGTT không dùng để chẩn đoán từ bữa ăn thường."
     else:
         # random / pre_meal / bedtime: dùng ngưỡng chung
         if severity == "normal":
-            return "normal", "Trong ngưỡng tham chiếu."
+            return "normal", "Chưa có cảnh báo theo ngưỡng an toàn; đối chiếu với mục tiêu bác sĩ đã đặt."
         elif severity == "elevated":
-            return "elevated", "Tăng nhẹ — theo dõi thêm."
+            return "elevated", "Ghi nhận số đo; đối chiếu với mục tiêu bác sĩ đã đặt."
         else:
-            return "high", "Cao — cần chú ý."
+            return "high", "Chỉ số cần trao đổi với bác sĩ; không tự kết luận từ một lần đo."
 
 
 def should_escalate_to_doctor(user_id: str, lookback: int = 3) -> bool:
-    """Escalate nếu 1 critical hoặc `lookback` lần high liên tiếp gần nhất."""
+    """Escalate urgent readings only; legacy display bands are not care thresholds."""
     logs = get_logs(user_id, limit=lookback)
     if not logs:
         return False
     if any(l["classification"] == "critical" or l["classification"] == "low" for l in logs):
-        return True
-    if len(logs) >= lookback and all(l["classification"] == "high" for l in logs[:lookback]):
         return True
     return False
 
@@ -183,7 +181,7 @@ def needs_attention_summary(user_id: str) -> str:
     base = f"Lần đo gần nhất: {last['value_mgdl']} mg/dL ({last['classification']}) lúc {last['measured_at'][:16]} [{last['context']}]. "
     base += f"Trung bình 7 ngày: {stats['last_7_days_avg'] or '—'} mg/dL. Tần suất: {stats['logs_per_week']}/tuần. "
     if escalate:
-        base += "⚠️ Khuyến nghị liên hệ bác sĩ (vượt ngưỡng critical hoặc 3 lần high liên tiếp)."
+        base += "⚠️ Khuyến nghị liên hệ nhân viên y tế vì có số đo dưới 70 hoặc từ 300 mg/dL."
     elif stats["logs_per_week"] < 3:
         base += "Gợi ý demo ≥3 lần/tuần, chưa được duyệt lâm sàng; theo lịch bác sĩ hướng dẫn."
     return base
