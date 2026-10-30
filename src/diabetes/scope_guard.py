@@ -54,3 +54,10 @@ def is_out_of_scope(text: str) -> bool:
 def safeguard_response(text: str, topic: str | None = None) -> str:
     """Render the exact canned safeguard template."""
     return SAFEGUARD_TEMPLATE
+
+
+def is_type2_patient(user: dict | None) -> bool:
+    """Self-reported profile gate; not a verified clinical diagnosis."""
+    return bool(user and user.get("role") != "user") or bool(
+        user and user.get("diabetes_type") == "type2"
+    )

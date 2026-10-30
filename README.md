@@ -72,7 +72,7 @@ The pre-visit view is 30% chart + 70% text: a **90-day sparkline** with red dots
 **3-click scenario (under 2 minutes):**
 1. **Log a high reading** (e.g. 260 mg/dL) in the tracker - see the anomaly banner + follow-up questions.
 2. **Open the pre-visit page** - see the 90-day sparkline with red dots.
-3. **Read the SOAP note** - check the Assessment ("meets / does not meet HbA1c <7% target"), confirm the Plan is empty and greyed out, click a **[View log #id]** link to verify the source.
+3. **Read the SOAP draft** - check that observations link to their source logs, that missing HbA1c is marked as missing, and that the Plan awaits the clinician.
 
 Video demo: [docs/demo/demo.webm](docs/demo/demo.webm) (~1 min, PC1→PC4). Full lời thoại + checklist quay: [docs/demo/script.md](docs/demo/script.md).
 
@@ -81,8 +81,9 @@ Video demo: [docs/demo/demo.webm](docs/demo/demo.webm) (~1 min, PC1→PC4). Full
 ## 4. Safety by design - why an employer can trust this with health data
 
 - **Hard safety thresholds, always on:** low below 70, critical 300+, fasting high 126+, post-meal high 200+ mg/dL. Spikes above 250 / below 70 always warn before anything else.
+- **Demo heuristics:** the three-day 10–15% trend rule and three-logs-per-week target are prototype choices, **not clinically approved**. Follow the individual monitoring schedule set by a clinician. Numeric safety boundaries come from `docs/project_requirements.json#scope_rules`; legacy display bands 100/125/140/199 mg/dL have no verified clinical provenance in the current requirements.
 - **Out-of-scope questions get a fixed refusal - before any medical lookup:** e.g. a question about antibiotics returns the fixed Vietnamese response in `scope_rules.out_of_scope_reply` The RAG lookup (RAG - Retrieval-Augmented Generation: answers grounded in WHO/Ministry-of-Health guidelines with citations) is never called for these.
-- **Assessment is narrow and honest:** it only states whether readings align with the **HbA1c <7% target** per Vietnam's QD 5481/QD-BYT 2020 (Type 2 diabetes) + ADA Standards of Care 2024. Note: QD 3192 covers **hypertension, not diabetes** - it is never used for diabetes assessment. The system never makes a new diagnosis.
+- **Assessment is narrow:** self-recorded glucose readings do not establish HbA1c or a diagnosis. An actual HbA1c lab result may be compared with the clinician's individual target; `scope_rules` lists <7% only as a reference. The clinician reviews all clinical conclusions.
 - **Plan stays empty + every claim is auditable:** the Plan section returns empty with a greyed-out "for the doctor to decide" placeholder, and every Subjective/Objective/Assessment line carries a **[View log #id]** link to the raw entry.
 - **Fails safe:** if the anomaly check crashes, the glucose log itself still saves (anomaly = none) - the safety layer can never break core data.
 
@@ -113,7 +114,7 @@ flowchart TD
 
 - **RAG** (Retrieval-Augmented Generation) = answers grounded in WHO/Ministry-of-Health guidelines with citations, so nothing is invented.
 - **FQG** (Follow-up Questions) = short clarifying questions that gather context (food, medication) before escalating to a doctor; full multi-turn conversation is future work.
-- **SOAP** (Subjective / Objective / Assessment / Plan) = the standard doctor note format; here Assessment covers only the HbA1c target and Plan stays empty.
+- **SOAP** (Subjective / Objective / Assessment / Plan) = the standard doctor note format; self-recorded glucose must not be converted into an HbA1c result, and Plan is reserved for the clinician.
 - Memory reuses the existing 3-layer store; each weekend, episodic notes roll up into **one fact per week** (e.g. "week of Mar 3: frequent late-night sweets").
 
 ---

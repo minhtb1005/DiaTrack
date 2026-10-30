@@ -27,38 +27,31 @@ except ImportError:
 router = APIRouter(prefix=API_PREFIX, tags=["chat"])
 
 
+def _scope_answer(query: str, current_user: dict | None) -> str | None:
+    from src.diabetes.scope_guard import is_out_of_scope, is_type2_patient, safeguard_response
+    from src.triage.red_flag import check_red_flag
+    red_flag = check_red_flag(query)
+    if red_flag.get("emergency"):
+        return str(red_flag.get("message") or "Liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115.")
+    if is_out_of_scope(query) or not is_type2_patient(current_user):
+        return safeguard_response(query)
+    return None
+
+
 @router.post("/query")
 def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noqa: C901
     if not req.query or not req.query.strip():
         raise HTTPException(status_code=422, detail="query must be non-empty")
-    # Safeguard gate (diabetes scope): hard early-return BEFORE any RAG/LLM call.
-    try:
-        try:
-            from src.diabetes.scope_guard import is_out_of_scope, safeguard_response
-        except ImportError:
-            from diabetes.scope_guard import is_out_of_scope, safeguard_response  # type: ignore
-        if req.query and is_out_of_scope(req.query):
-            _safeguard = safeguard_response(req.query)
-            return {
-                "answer": _safeguard,
-                "cited_sources": [],
-                "contexts": [],
-                "audit": None,
-                "langsmith": None,
-                "cache_hit": False,
-                "timings": {},
-                "status": "answered",
-                "review_id": None,
-                "evaluation": None,
-                "is_low_confidence": False,
-                "effective_user_id": (current_user["id"] if AUTH_ENABLED and current_user else req.user_id),
-                "trace_id": None,
-                "safeguard": True,
-            }
-    except HTTPException:
-        raise
-    except Exception:
-        pass
+    scoped_answer = _scope_answer(req.query, current_user)
+    if scoped_answer is not None:
+        return {
+            "answer": scoped_answer, "cited_sources": [], "contexts": [],
+            "audit": None, "langsmith": None, "cache_hit": False,
+            "timings": {}, "status": "answered", "review_id": None,
+            "evaluation": None, "is_low_confidence": False,
+            "effective_user_id": current_user["id"], "trace_id": None,
+            "safeguard": True,
+        }
     """
     Truy vấn RAG với audit trail + HILT.
     - Retrieval hybrid BM25 + vector
@@ -221,6 +214,12 @@ def rag_query_stream(req: QueryRequest, current_user=Depends(get_current_user)):
             raise HTTPException(status_code=403, detail="user_id mismatch with authenticated user")
     if not req.query or not req.query.strip():
         raise HTTPException(status_code=422, detail="query must be non-empty")
+    scoped_answer = _scope_answer(req.query, current_user)
+    if scoped_answer is not None:
+        def scoped_events():
+            data = _json.dumps({"answer": scoped_answer, "cited_sources": [], "status": "answered", "safeguard": True}, ensure_ascii=False)
+            yield f"event: done\ndata: {data}\n\n"
+        return StreamingResponse(scoped_events(), media_type="text/event-stream")
     try:
         from src.chat.rag_pipeline import rag_chat_stream  # type: ignore
     except ImportError:

@@ -17,11 +17,11 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List
 
-from src.shared.config import GLUCOSE_THRESHOLDS_MGDL
+from src.shared.glucose_policy import THRESHOLDS, spike_direction, glucose_severity
 
 
-SPIKE_HIGH = 250
-SPIKE_LOW = 70
+SPIKE_HIGH = THRESHOLDS["spike_high"].value
+SPIKE_LOW = THRESHOLDS["hypoglycemia"].value
 
 # Follow-up questions (FQG templates, phrasing may be refined by gpt-4o-mini;
 # full multi-turn FQG is future-work — see README).
@@ -48,8 +48,9 @@ def detect_spike(value_mgdl: float) -> Dict[str, Any]:
         v = float(value_mgdl)
     except (TypeError, ValueError):
         return {"type": "none", "reason": ""}
-    if v > SPIKE_HIGH:
-        urgent = v >= GLUCOSE_THRESHOLDS_MGDL["random_critical_high"]
+    direction = spike_direction(v)
+    if direction == "high":
+        urgent = glucose_severity(v) == "critical"
         return {
             "type": "spike_high",
             "reason": (
@@ -58,7 +59,7 @@ def detect_spike(value_mgdl: float) -> Dict[str, Any]:
                 f"Chỉ số {v:g} mg/dL vượt ngưỡng cảnh báo {SPIKE_HIGH} mg/dL — liên hệ bác sĩ để được hướng dẫn; không tự đổi liều thuốc hoặc insulin."
             ),
         }
-    if v < SPIKE_LOW:
+    if direction == "low":
         return {
             "type": "spike_low",
             "reason": f"Chỉ số {v:g} mg/dL dưới {SPIKE_LOW} mg/dL — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115. Không tự đổi liều thuốc hoặc insulin.",

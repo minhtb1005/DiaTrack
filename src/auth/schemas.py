@@ -11,6 +11,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=100)
     full_name: Optional[str] = None
     role: Optional[Role] = Field(None, description="Chỉ admin được tạo expert/admin; user thường mặc định user")
+    diabetes_type: Literal["type1", "type2", "unknown"] = "unknown"
 
 class LoginRequest(BaseModel):
     username: str
@@ -28,12 +29,14 @@ class UserOut(BaseModel):
     email: Optional[str] = None
     full_name: Optional[str] = None
     role: str
+    diabetes_type: Literal["type1", "type2", "unknown"] = "unknown"
     is_active: bool
     is_verified: bool
     created_at: str
     last_login: Optional[str] = None
 
 class UserUpdateRequest(BaseModel):
+    diabetes_type: Optional[Literal["type1", "type2", "unknown"]] = None
     email: Optional[str] = None
     full_name: Optional[str] = None
     role: Optional[Role] = None

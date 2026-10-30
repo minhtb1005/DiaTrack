@@ -118,15 +118,18 @@ GUIDELINE_SOURCE_DIRS = {
 # ==============================
 #  Vitals tracking — Diabetes (A) + Hypertension / Respiratory / Mental (2B) — unified DB
 # ==============================
+from src.shared.glucose_policy import THRESHOLDS as _GLUCOSE_POLICY
+
+# Compatibility projection for modules not yet migrated; values live only in glucose_policy.
 GLUCOSE_THRESHOLDS_MGDL = {
-    "fasting_normal_max": 100,
-    "fasting_prediabetes_max": 125,
-    "fasting_diabetes": 126,
-    "postprandial_normal_max": 140,
-    "postprandial_prediabetes_max": 199,
-    "postprandial_diabetes": 200,
-    "random_critical_high": 300,
-    "hypoglycemia": 70,
+    "fasting_normal_max": _GLUCOSE_POLICY["fasting_normal_max"].value,
+    "fasting_prediabetes_max": _GLUCOSE_POLICY["fasting_prediabetes_max"].value,
+    "fasting_diabetes": _GLUCOSE_POLICY["fasting_diabetes"].value,
+    "postprandial_normal_max": _GLUCOSE_POLICY["postprandial_normal_max"].value,
+    "postprandial_prediabetes_max": _GLUCOSE_POLICY["postprandial_prediabetes_max"].value,
+    "postprandial_diabetes": _GLUCOSE_POLICY["postprandial_diabetes"].value,
+    "random_critical_high": _GLUCOSE_POLICY["critical_high"].value,
+    "hypoglycemia": _GLUCOSE_POLICY["hypoglycemia"].value,
 }
 # AHA/ACC 2025 Hypertension thresholds (mmHg)
 BP_THRESHOLDS_MMHG = {

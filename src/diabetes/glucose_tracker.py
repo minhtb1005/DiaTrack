@@ -13,6 +13,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
+from src.shared.glucose_policy import glucose_severity
 
 try:
     from src.shared.config import GLUCOSE_THRESHOLDS_MGDL
@@ -55,29 +56,30 @@ def classify_glucose(value_mgdl: float, context: str) -> Tuple[str, str]:
     classification in: low | normal | elevated | high | critical
     """
     t = GLUCOSE_THRESHOLDS_MGDL
-    if value_mgdl < t["hypoglycemia"]:
-        return "low", f"Hạ đường huyết (<{t['hypoglycemia']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
-    if value_mgdl >= t["random_critical_high"]:
-        return "critical", f"Đường huyết rất cao (≥{t['random_critical_high']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
+    severity = glucose_severity(value_mgdl, context)
+    if severity == "low":
+        return severity, f"Hạ đường huyết (<{t['hypoglycemia']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
+    if severity == "critical":
+        return severity, f"Đường huyết rất cao (≥{t['random_critical_high']} mg/dL) — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."
     if context == "fasting":
-        if value_mgdl < t["fasting_normal_max"]:
+        if severity == "normal":
             return "normal", "Bình thường lúc đói."
-        elif value_mgdl <= t["fasting_prediabetes_max"]:
+        elif severity == "elevated":
             return "elevated", "Chỉ số lúc đói tăng so với ngưỡng tham khảo; trao đổi với bác sĩ."
         else:
             return "high", "Chỉ số lúc đói cao so với ngưỡng tham khảo; trao đổi với bác sĩ."
     elif context == "post_meal_2h":
-        if value_mgdl < t["postprandial_normal_max"]:
+        if severity == "normal":
             return "normal", "Bình thường sau ăn 2h."
-        elif value_mgdl <= t["postprandial_prediabetes_max"]:
+        elif severity == "elevated":
             return "elevated", "Chỉ số sau ăn 2 giờ tăng so với ngưỡng tham khảo; trao đổi với bác sĩ."
         else:
             return "high", "Cao sau ăn 2h (≥200) — vượt ngưỡng."
     else:
         # random / pre_meal / bedtime: dùng ngưỡng chung
-        if value_mgdl < 140:
+        if severity == "normal":
             return "normal", "Trong ngưỡng tham chiếu."
-        elif value_mgdl < 200:
+        elif severity == "elevated":
             return "elevated", "Tăng nhẹ — theo dõi thêm."
         else:
             return "high", "Cao — cần chú ý."
@@ -183,5 +185,5 @@ def needs_attention_summary(user_id: str) -> str:
     if escalate:
         base += "⚠️ Khuyến nghị liên hệ bác sĩ (vượt ngưỡng critical hoặc 3 lần high liên tiếp)."
     elif stats["logs_per_week"] < 3:
-        base += "Gợi ý: duy trì ≥3 lần/tuần để theo dõi sát (KPI Hướng A)."
+        base += "Gợi ý demo ≥3 lần/tuần, chưa được duyệt lâm sàng; theo lịch bác sĩ hướng dẫn."
     return base

@@ -2,7 +2,8 @@
 from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List
+from typing import Optional, List, Literal
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Response, Request, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -36,6 +37,7 @@ def _to_user_out(u: dict) -> dict:
         "email": u.get("email"),
         "full_name": u.get("full_name"),
         "role": u["role"],
+        "diabetes_type": u.get("diabetes_type", "unknown"),
         "is_active": bool(u.get("is_active", 1)),
         "is_verified": bool(u.get("is_verified", 1)),
         "created_at": u.get("created_at"),
@@ -128,6 +130,7 @@ def register(payload: RegisterRequest, request: Request, current_user: Optional[
         full_name=payload.full_name,
         role=desired_role,
         is_verified=is_verified,
+        diabetes_type=payload.diabetes_type if desired_role == "user" else "unknown",
     )
     # If expert unverified, notify admins
     if not is_verified:
@@ -209,6 +212,17 @@ def logout(request: Request, response: Response, current_user=Depends(get_curren
 def me(current_user=Depends(get_current_user)):
     return _to_user_out(current_user)
 
+
+class DiabetesTypeUpdate(BaseModel):
+    diabetes_type: Literal["type1", "type2", "unknown"]
+
+
+@router.patch("/me/diabetes-type", response_model=UserOut)
+def update_my_diabetes_type(payload: DiabetesTypeUpdate, current_user=Depends(get_current_user)):
+    if current_user["role"] != "user":
+        raise HTTPException(status_code=403, detail="Patient profile only")
+    return _to_user_out(update_user(current_user["id"], diabetes_type=payload.diabetes_type))
+
 # ---------- Admin user mgmt ----------
 @router.get("/users", dependencies=[Depends(require_admin)])
 def admin_list_users(limit: int = 100, offset: int = 0, role: Optional[str] = None):
@@ -240,6 +254,8 @@ def admin_update_user(user_id: str, payload: UserUpdateRequest):
         updates["is_active"] = 1 if payload.is_active else 0
     if payload.is_verified is not None:
         updates["is_verified"] = 1 if payload.is_verified else 0
+    if payload.diabetes_type is not None:
+        updates["diabetes_type"] = payload.diabetes_type
     if updates:
         u = update_user(user_id, **updates)
     # if verifying expert, notify

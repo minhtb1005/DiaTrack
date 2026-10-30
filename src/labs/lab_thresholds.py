@@ -10,14 +10,17 @@ Muc tieu ĐTĐ: HbA1c < 7% (BYT QD5481 + ADA 2024).
 Panic examples CHI dung gia tri IN-PANEL (khong Kali/Na+ ngoai panel).
 """
 from __future__ import annotations
+from src.shared.glucose_policy import THRESHOLDS, glucose_severity
 
 PANEL: dict = {
     "hba1c": {"loinc": "4548-4", "name": "HbA1c", "unit": "%",
               "ref_low": 4.0, "ref_high": 5.6,
               "panic_low": None, "panic_high": 12.0},
     "fpg": {"loinc": "1558-6", "name": "Glucose doi", "unit": "mg/dL",
-            "ref_low": 70.0, "ref_high": 100.0,
-            "panic_low": 50.0, "panic_high": 300.0},
+            "ref_low": THRESHOLDS["hypoglycemia"].value,
+            "ref_high": THRESHOLDS["fasting_normal_max"].value,
+            "panic_low": THRESHOLDS["hypoglycemia"].value,
+            "panic_high": THRESHOLDS["critical_high"].value},
     "tg": {"loinc": "2571-8", "name": "Triglyceride", "unit": "mg/dL",
            "ref_low": 0.0, "ref_high": 150.0,
            "panic_low": None, "panic_high": 1000.0},
@@ -65,6 +68,8 @@ def flag_value(key_or_loinc: str, value: float) -> str:
 def is_panic(key_or_loinc: str, value: float) -> bool:
     """True khi vuot nguong panic (fail-safe: miss khong chap nhan)."""
     key = LOINC_TO_KEY.get(key_or_loinc, key_or_loinc)
+    if key == "fpg":
+        return glucose_severity(value, "fasting") in ("low", "critical")
     spec = PANEL[key]
     if spec["panic_low"] is not None and value < spec["panic_low"]:
         return True

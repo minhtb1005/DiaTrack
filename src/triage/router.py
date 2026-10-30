@@ -71,6 +71,9 @@ def triage_endpoint(payload: TriageRequest, current_user=Depends(get_current_use
             message=rf.get("message"),
             recommended_doctors=[],
         )
+    from src.diabetes.scope_guard import is_type2_patient, is_out_of_scope, safeguard_response
+    if (current_user is not None and not is_type2_patient(current_user)) or is_out_of_scope(payload.message or ""):
+        return TriageResponse(emergency=False, message=safeguard_response(payload.message or ""))
     # Step 2+ — non-emergency only (lazy imports keep the emergency path clean).
     try:
         try:
@@ -219,9 +222,9 @@ def list_doctor_patients(
     except ImportError:
         from vitals.base_tracker import get_conn as _get_conn  # type: ignore
     try:
-        from src.diabetes.anomaly_detector import detect_spike, detect_trend, SPIKE_HIGH, SPIKE_LOW
+        from src.diabetes.anomaly_detector import detect_spike, detect_trend
     except ImportError:
-        from diabetes.anomaly_detector import detect_spike, detect_trend, SPIKE_HIGH, SPIKE_LOW  # type: ignore
+        from diabetes.anomaly_detector import detect_spike, detect_trend  # type: ignore
     try:
         from src.auth.db import get_user_by_id as _get_user
     except ImportError:
@@ -262,7 +265,8 @@ def list_doctor_patients(
                 _spike = {"type": "none"}
             _trend = detect_trend(_logs)
             _esc = should_escalate_to_doctor(_uid)
-            _cls = str(_last.get("classification") or "")
+            from src.shared.glucose_policy import glucose_severity, spike_direction
+            _cls = glucose_severity(float(_last.get("value_mgdl")), str(_last.get("context") or "random"))
             if _cls in ("critical", "low"):
                 _level = "critical"
             elif _trend.get("type") == "trend_cascade":
@@ -287,7 +291,7 @@ def list_doctor_patients(
                     _vv = float(_l.get("value_mgdl"))
                 except (TypeError, ValueError):
                     continue
-                if _vv > SPIKE_HIGH or _vv < SPIKE_LOW:
+                if spike_direction(_vv) is not None:
                     _acount += 1
             out.append({"user_id": _uid, "username": _uname, "last_value": _last.get("value_mgdl"), "last_classification": _cls, "last_measured_at": _last.get("measured_at"), "level": _level, "should_escalate": bool(_esc), "anomaly_count": _acount})
         except Exception:

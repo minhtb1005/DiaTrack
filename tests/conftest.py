@@ -128,7 +128,7 @@ def make_user(client):
             username = f"u_{uuid.uuid4().hex[:6]}"
         # register (admin creation for expert needs admin token, but we allow self-register for test user)
         # For expert roles, caller should use admin fixture
-        resp = client.post("/v1/auth/register", json={"username": username, "password": password, "role": role if role=="user" else None})
+        resp = client.post("/v1/auth/register", json={"username": username, "password": password, "role": role if role=="user" else None, "diabetes_type": "type2" if role=="user" else "unknown"})
         # If expert, the register above will create unverified expert; for tests we need verified, so create via admin
         if resp.status_code not in (200,201):
             # try with plain

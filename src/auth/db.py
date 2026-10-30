@@ -40,9 +40,12 @@ def init_auth_db():
             is_active INTEGER DEFAULT 1,
             is_verified INTEGER DEFAULT 1,
             created_at TEXT NOT NULL,
-            last_login TEXT
+            last_login TEXT,
+            diabetes_type TEXT NOT NULL DEFAULT 'unknown' CHECK(diabetes_type IN ('type2','type1','unknown'))
         )
     """)
+    if "diabetes_type" not in {r[1] for r in conn.execute("PRAGMA table_info(users)")}:
+        conn.execute("ALTER TABLE users ADD COLUMN diabetes_type TEXT NOT NULL DEFAULT 'unknown'")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
     # refresh_tokens
@@ -141,14 +144,16 @@ def list_users(limit: int = 100, offset: int = 0, role: Optional[str] = None) ->
     conn.close()
     return [dict(r) for r in rows]
 
-def create_user(username: str, email: Optional[str], hashed_password: str, full_name: Optional[str], role: str, is_verified: bool = True) -> Dict[str, Any]:
+def create_user(username: str, email: Optional[str], hashed_password: str, full_name: Optional[str], role: str, is_verified: bool = True, diabetes_type: str = "unknown") -> Dict[str, Any]:
+    if diabetes_type not in ("type1", "type2", "unknown"):
+        raise ValueError("invalid diabetes_type")
     uid = uuid.uuid4().hex
     now = datetime.now(timezone.utc).isoformat()
     # expert created by admin defaults to unverified if caller wants
     conn = _get_conn()
     conn.execute(
-        "INSERT INTO users (id, username, email, hashed_password, full_name, role, is_active, is_verified, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-        (uid, username, email, hashed_password, full_name, role, 1, 1 if is_verified else 0, now)
+        "INSERT INTO users (id, username, email, hashed_password, full_name, role, is_active, is_verified, created_at, diabetes_type) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (uid, username, email, hashed_password, full_name, role, 1, 1 if is_verified else 0, now, diabetes_type)
     )
     conn.commit()
     conn.close()
@@ -157,7 +162,9 @@ def create_user(username: str, email: Optional[str], hashed_password: str, full_
 def update_user(user_id: str, **fields) -> Optional[Dict[str, Any]]:
     if not fields:
         return get_user_by_id(user_id)
-    allowed = {"email", "full_name", "role", "is_active", "is_verified", "hashed_password", "last_login"}
+    allowed = {"email", "full_name", "role", "is_active", "is_verified", "hashed_password", "last_login", "diabetes_type"}
+    if "diabetes_type" in fields and fields["diabetes_type"] not in ("type1", "type2", "unknown"):
+        raise ValueError("invalid diabetes_type")
     sets = []
     params: List[Any] = []
     for k, v in fields.items():

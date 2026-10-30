@@ -9,6 +9,7 @@ export type User = {
   email?: string;
   full_name?: string;
   role: string;
+  diabetes_type: "type1" | "type2" | "unknown";
   is_active: boolean;
   is_verified: boolean;
 };
@@ -17,7 +18,7 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (data: { username: string; email?: string; password: string; full_name?: string }) => Promise<void>;
+  register: (data: { username: string; email?: string; password: string; full_name?: string; diabetes_type: "type1" | "type2" | "unknown" }) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   isAdmin: boolean;
@@ -69,11 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   };
 
-  const register = async (data: { username: string; email?: string; password: string; full_name?: string }) => {
+  const register = async (data: { username: string; email?: string; password: string; full_name?: string; diabetes_type: "type1" | "type2" | "unknown" }) => {
     const res = await fetch(`${API}/v1/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: data.username, email: data.email, password: data.password, full_name: data.full_name }),
+      body: JSON.stringify({ username: data.username, email: data.email, password: data.password, full_name: data.full_name, diabetes_type: data.diabetes_type }),
       credentials: "include", signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {

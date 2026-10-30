@@ -52,6 +52,7 @@ const EntryAlert = (p: any) => {
           <Alert className="border-amber-200 bg-amber-50 text-xs text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-100">
             <div className="font-bold flex items-center gap-1.5"><TrendingUp size={14} aria-hidden /> {anomaly.type === "spike" ? "Cảnh báo chỉ số" : "Cảnh báo chuỗi tăng"}</div>
             <div className="mt-1">{anomaly.reason}</div>
+            {anomaly.type === "trend" && <p className="mt-2 font-semibold">Quy tắc xu hướng 3 ngày là tính năng demo, chưa được duyệt lâm sàng.</p>}
           </Alert>
         )}
         <Alert className="bg-blue-50 text-xs text-blue-800 border-blue-100 dark:bg-blue-950 dark:text-blue-100 dark:border-blue-900">Mục tiêu đường huyết cần được bác sĩ xác định cho bạn. Một lần đo không đủ để tự kết luận bệnh hoặc thay đổi thuốc.</Alert>
@@ -524,7 +525,7 @@ const MyTracker = (p: any) => {
           <Kpi label="Số lần ghi" value={data.stats.total_logs} />
           <Kpi label="Trung bình" value={data.stats.avg_mgdl? `${data.stats.avg_mgdl} mg/dL`:"—"} />
           <Kpi label="7 ngày" value={data.stats.last_7_days_avg? `${data.stats.last_7_days_avg} mg/dL`:"—"} />
-          <Kpi label="Số lần ghi mỗi tuần" value={`${data.stats.logs_per_week}`} sub="Đo theo lịch bác sĩ đã hướng dẫn" />
+          <Kpi label="Số lần ghi mỗi tuần" value={`${data.stats.logs_per_week}`} sub="Mốc 3 lần/tuần là demo, chưa được duyệt lâm sàng. Theo lịch bác sĩ." />
         </div>
       )}
       <Card className="p-5">
