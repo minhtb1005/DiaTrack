@@ -25,7 +25,7 @@ function mockGlucoseGet(page: any) {
   });
 }
 
-function mockSoapJson(page: any, soap: any) {
+function mockSoapJson(page: any, soap: any, followup?: any) {
   return page.route('**/v1/soap/generate', async (route: any) => {
     if (route.request().url().includes('/markdown')) {
       await route.continue();
@@ -38,6 +38,7 @@ function mockSoapJson(page: any, soap: any) {
         generated_at: new Date().toISOString(),
         period: '14 ngày',
         soap,
+        followup,
         stats: { user_id: ME.id, total_logs: 1, avg_mgdl: 130, last_7_days_avg: 130, streak_days: 1, logs_per_week: 1, classification_counts: { high: 1 } },
       }),
     });
@@ -57,8 +58,12 @@ test.describe('Pre-visit B — SOAP Generation', () => {
     await mockSoapJson(page, {
       subjective: 'Người bệnh ghi nhận ăn ngọt [Xem log #1]',
       objective: 'Trung bình 130 mg/dL [Xem log #1]',
-      assessment: 'Chưa đạt mục tiêu HbA1c<7% [Xem log #1]',
+      assessment: 'Chưa có xét nghiệm HbA1c; không thể kết luận đạt hay chưa đạt mục tiêu [Xem log #1]',
       plan: '',
+    }, {
+      period_start: '2026-09-05', period_end: '2026-09-07',
+      missing_dates: ['2026-09-07'], recorded_days: 2,
+      trend_projection: { direction: 'insufficient_data', basis_log_ids: [1], limitation: 'Không suy HbA1c hoặc thay thế đánh giá bác sĩ.' },
     });
 
     await page.goto('/previsit');
@@ -70,6 +75,8 @@ test.describe('Pre-visit B — SOAP Generation', () => {
     await expect(page.getByText('Dành cho bác sĩ chỉ định')).toBeVisible();
     await expect(page.getByTestId('log-link').first()).toBeVisible();
     await expect(page.locator('a[href*="/tracker?highlight="]').first()).toBeVisible();
+    await expect(page.getByText(/1 ngày trong kỳ/)).toBeVisible();
+    await expect(page.getByText(/Không suy HbA1c hoặc thay thế đánh giá bác sĩ/)).toBeVisible();
   });
 
   test('generate markdown and download', async ({ page }) => {

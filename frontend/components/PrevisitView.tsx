@@ -75,6 +75,19 @@ export default function PrevisitView({ patientId, patientName, title, subtitle }
       {data && (
         <Card className="p-5">
           <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Bản tóm tắt — {data.period}</h2><div className="text-[11px] text-slate-500 dark:text-slate-400">{new Date(data.generated_at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</div></div>
+          {data.followup && <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+              <h3 className="font-semibold">Ngày chưa có bản ghi</h3>
+              <p className="mt-1">{data.followup.missing_dates?.length || 0} ngày trong kỳ {data.followup.period_start} đến {data.followup.period_end}. Đây là ngày chưa ghi chỉ số, không tự suy ra người bệnh bỏ đo.</p>
+              {!!data.followup.missing_dates?.length && <p className="mt-2 break-words">{data.followup.missing_dates.slice(0, 10).join(", ")}{data.followup.missing_dates.length > 10 ? "…" : ""}</p>}
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+              <h3 className="font-semibold">Xu hướng tham khảo</h3>
+              <p className="mt-1">{({up:"Tăng",down:"Giảm",flat:"Không đổi",mixed:"Dao động",insufficient_data:"Chưa đủ dữ liệu"} as Record<string,string>)[data.followup.trend_projection?.direction] || "Chưa đủ dữ liệu"} theo các ngày gần nhất có bản ghi.</p>
+              <p className="mt-2">{data.followup.trend_projection?.limitation}</p>
+              {!!data.followup.trend_projection?.basis_log_ids?.length && <p className="mt-2">Nguồn: {renderWithLogLinks(data.followup.trend_projection.basis_log_ids.map((id: number) => `[Xem log #${id}]`).join(" "), patientId, staffView)}</p>}
+            </div>
+          </div>}
           <div className="mt-3 grid gap-4 lg:grid-cols-10 max-w-6xl">
             <div className="rounded-xl border bg-white p-4 shadow-sm lg:col-span-3 dark:bg-slate-900 dark:border-slate-700">
               <div className="text-xs font-bold">Biểu đồ {days} ngày</div>

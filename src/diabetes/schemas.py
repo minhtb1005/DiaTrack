@@ -59,6 +59,7 @@ class SoapResponse(BaseModel):
     stats: Dict[str, Any]  # GlucoseStats | BpStats | RespiratoryStats | MoodStats (generic)
     pdf_url: Optional[str] = None  # nếu có export
     disease: str = "diabetes"
+    followup: Optional[Dict[str, Any]] = None
 
 
 class NutritionLookupRequest(BaseModel):

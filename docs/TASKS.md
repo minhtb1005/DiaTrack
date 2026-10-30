@@ -1,5 +1,7 @@
 # TASKS — DiaTrack týp 2
 
+> Cập nhật tác vụ 5: 30/10/2026 08:51 +07, `main` tại `4130934d586535782248c21f5d30049840acaeff` với diff tác vụ 5 chưa commit. Kiểm tra lại trên code này: backend 11 pass, TypeScript exit 0, frontend build exit 0, previsit Playwright 4 pass. Bằng chứng các tác vụ 1–4 bên dưới là lịch sử trên snapshot cũ.
+
 > Bằng chứng triển khai cập nhật 29/10/2026, khoảng 21:12 Asia/Saigon, `main` tại `99da3ca4232273259be00070649304f9e778c41d`, working tree chưa commit. Diff hiện hành: `git diff` của các file tác vụ 1–4 ghi bên dưới và file mới `tests/test_scope_guard.py`; log ở `test-results/` (local). Các thay đổi sau thời điểm kiểm thử cần chạy lại kiểm tra liên quan.
 
 > Kế hoạch 29/10/2026, trên working tree chưa commit của main 99da3ca. Trạng thái dựa trên code/test đã đọc; `partial` không khẳng định test hiện hành pass. Người dùng đã xác nhận `docs/project_requirements.json` là nguồn phạm vi hiện hành gồm 6 project.
@@ -47,14 +49,14 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test an toàn: API bệnh nhân không trả bản nháp pending; chỉ bác sĩ/admin được duyệt diễn giải theo workflow; hàng đợi lỗi trả 503 và không lộ bản nháp; câu trả lời cần duyệt không ghi cache/bộ nhớ trước duyệt. `tests/test_triage.py` → 27 pass, `test-results/task-4-triage.log`, red-flag vẫn cảnh báo ngay. Không có đường tự đổi mục tiêu/thuốc trong tác vụ này; `npx tsc --noEmit` và `git diff --check` exit 0. Giới hạn: UI dùng mock API; chưa chạy full RAG/benchmark.
 
 ## Tác vụ 5: Dữ liệu thiếu, dự báo và báo cáo tái khám (Project 264, Nâng cao)
-- Trạng thái: partial
-- Hiện trạng: src/diabetes/soap_summary.py và frontend/app/previsit/page.tsx; thiếu dự báo có giới hạn và xử lý dữ liệu thiếu
+- Trạng thái: done
+- Hiện trạng: src/diabetes/followup_report.py, src/diabetes/soap_summary.py, src/diabetes/schemas.py, src/diabetes/router.py và frontend/components/PrevisitView.tsx; tests/test_264_followup.py, tests/test_soap_summary.py, frontend/e2e/previsit.spec.ts. Báo cáo liệt kê ngày chưa có bản ghi, xu hướng mô tả có nguồn log và giới hạn; API thật trả trường followup.
 - Việc cần làm: Hoàn thiện và kiểm chứng dữ liệu thiếu, dự báo và báo cáo tái khám.
 - Phụ thuộc: 3
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_264_followup.py -q --basetemp=test-results/tmp-task-5 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Thiếu ngày đo được đánh dấu; báo cáo liên kết log và nêu giới hạn dự báo.
-  - [ ] Test an toàn: Không bịa giá trị thiếu; mục tiêu do bác sĩ duyệt; không chẩn đoán biến chứng.
+  - [x] `.\.venv\Scripts\python.exe -m pytest tests/test_264_followup.py tests/test_soap_summary.py -q --basetemp=test-results/tmp-task-5-current -o cache_dir=test-results/pytest-cache` → 11 pass, 0 fail, 0 skip, exit 0 (30/10/2026 ~08:50 +07, main 4130934 và diff task 5 chưa commit); có một cảnh báo không ghi được pytest cache trong `test-results`.
+  - [x] Test chức năng: ngày không có bản ghi được liệt kê, ngày đo tính theo giờ Việt Nam, xu hướng từ ba ngày liên tiếp có `basis_log_ids`; SOAP JSON API trả `followup` và Markdown có link log. `npx playwright test previsit.spec.ts --workers=1 --reporter=list` → 4 pass, exit 0; `npx tsc --noEmit` và `npm run build` exit 0 (30/10/2026 ~08:51 +07).
+  - [x] Test an toàn: không điền giá trị cho ngày thiếu; khi thiếu dữ liệu, xu hướng trả `insufficient_data`; báo cáo không suy HbA1c/không tuyên bố đạt mục tiêu từ đường huyết tự đo, Plan để trống cho bác sĩ. `git diff --check` exit 0. Giới hạn: xu hướng chỉ là mô tả chiều từ dữ liệu có sẵn, không dự báo số đo hoặc gửi thông báo ngoài app; UI test dùng mock API; chưa chạy full RAG/benchmark.
 
 ## Tác vụ 6: Hỏi triệu chứng có cấu trúc và phân mức (Project 258-triage, Cơ bản)
 - Trạng thái: partial

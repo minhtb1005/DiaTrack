@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover
 
 SOAP_SYSTEM_PROMPT = """Bạn là trợ lý y tế tạo bản tóm tắt trước tái khám theo cấu trúc SOAP,
 dựa trên QĐ 5481/QĐ-BYT 2020 (ĐTĐ type 2 VN) và ADA Standards of Care 2024,
-mục tiêu HbA1c < 7%.
+tham khảo mục tiêu HbA1c < 7% nhưng mục tiêu cá nhân do bác sĩ đặt.
 
 YÊU CẦU BẮT BUỘC:
 - Chỉ dùng dữ liệu được cung cấp (logs, profile). Không bịa thêm chỉ số.
@@ -37,7 +37,7 @@ YÊU CẦU BẮT BUỘC:
 - Mỗi phần 2-4 bullet, tiếng Việt, kèm disclaimer.
 - Nếu thiếu dữ liệu, ghi rõ "chưa có dữ liệu".
 - Mỗi nhận định ở S/O/A phải kèm audit link dạng [Xem log #<id>] trỏ về log thô.
-- Phần A CHỈ được nói đạt/không đạt mục tiêu HbA1c < 7% theo BYT5481/ADA2024.
+- Phần A mô tả dữ liệu đã ghi. Không suy HbA1c hoặc kết luận đạt/chưa đạt mục tiêu từ đường huyết tự đo.
   TUYỆT ĐỐI KHÔNG đưa ra nhận định mới về bệnh (không dùng các cụm từ chẩn đoán mới).
 - Phần plan LUÔN để chuỗi rỗng "" — bác sĩ là người duy nhất chỉ định.
   Không ghi gợi ý điều trị, không ghi liều thuốc, không ghi "cần điều chỉnh".
@@ -119,12 +119,16 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
     else:
         logs_r = get_logs(user_id, limit=200, days=days)
         stats_r = get_stats(user_id)
+    followup = None
+    if disease == "diabetes":
+        from src.diabetes.followup_report import summarize_followup
+        followup = summarize_followup(logs_r, days)
     context = _build_soap_context(user_id, days, disease=disease)
     logs = logs_r
     stats = stats_r
 
     # Rule-based fallback (không cần LLM) — disease-aware
-    # Diabetes path: S/O/A có audit link [Xem log #id]; A chỉ HbA1c<7%; P="".
+    # Diabetes path: S/O/A có audit link [Xem log #id]; không suy HbA1c; P="".
     def _log_link(l: Dict[str, Any]) -> str:
         try:
             return f"[Xem log #{int(l.get('id'))}]"
@@ -143,7 +147,7 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
 
     def rule_based():
         subj = f"- Người bệnh ghi nhận {len(logs)} lần đo trong {days} ngày (trung bình 4 tuần gần nhất {stats.get('logs_per_week',0)}/tuần). "
-        if stats.get("logs_per_week", 0) < 3:
+        if disease != "diabetes" and stats.get("logs_per_week", 0) < 3:
             subj += "Tần suất chưa đạt KPI ≥3 lần/tuần (Hướng A). "
         if not logs:
             subj += "Chưa có dữ liệu."
@@ -209,20 +213,14 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
                 else:
                     assess += "Chưa ghi nhận mức nghiêm trọng kéo dài."
         else:
-            # Diabetes A: ONLY HbA1c<7% target check per BYT5481/ADA2024. No new diagnoses.
-            cc = stats.get("classification_counts", {})
+            # Self-monitoring logs cannot establish a laboratory HbA1c result.
             _links_a = " ".join(_log_link(l) for l in logs[:3] if _log_link(l))
-            assess = "- Đối chiếu mục tiêu HbA1c < 7% theo QĐ 5481/QĐ-BYT 2020 và ADA 2024 (proxy từ dữ liệu tự đo, không thay thế xét nghiệm HbA1c tại lab): "
-            n_high = int(cc.get("high", 0) or 0) + int(cc.get("critical", 0) or 0)
+            assess = "- Nhật ký tự đo chỉ hỗ trợ bác sĩ xem lại xu hướng; chưa có kết quả xét nghiệm HbA1c trong nguồn dữ liệu này nên không thể kết luận đạt hay chưa đạt mục tiêu HbA1c. Mục tiêu cá nhân do bác sĩ xác định. "
             if not logs:
-                assess += "chưa có dữ liệu để đối chiếu. "
-            elif n_high >= 3 or cc.get("critical"):
-                assess += "chưa đạt mục tiêu (ghi nhận tăng đường huyết lặp lại trong kỳ theo dõi). "
-            elif (stats.get("avg_mgdl") or 0) and stats["avg_mgdl"] >= 154:
-                assess += "chưa đạt mục tiêu (trung bình ước tính tương đương HbA1c ≥ 7%). "
+                assess += "Chưa có chỉ số tự đo trong kỳ. "
             else:
-                assess += "đạt mục tiêu trong kỳ theo dõi (không ghi nhận chuỗi bất thường kéo dài). "
-            assess += "(Tóm tắt AI hỗ trợ, không thay thế chỉ định bác sĩ.)"
+                assess += f"Có {len(logs)} bản ghi để bác sĩ đối chiếu. "
+            assess += "(Tóm tắt AI hỗ trợ, không thay thế đánh giá của bác sĩ.)"
             if _links_a:
                 assess += f" Nguồn: {_links_a}."
         # P is ALWAYS empty — the doctor decides. Frontend renders the muted placeholder.
@@ -242,7 +240,7 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
             "subjective, objective, assessment, plan. "
             "Mỗi nhận định ở subjective/objective/assessment phải kèm audit link [Xem log #<id>] "
             "(lấy id từ dữ liệu logs). "
-            "Assessment CHỈ được nói đạt/không đạt mục tiêu HbA1c < 7% theo BYT5481/ADA2024, "
+            "Assessment chỉ mô tả dữ liệu đã có; không suy HbA1c hoặc kết luận đạt/chưa đạt mục tiêu, "
             "không đưa ra nhận định mới về bệnh. "
             'Plan LUÔN là chuỗi rỗng "".'
         )
@@ -286,11 +284,8 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
                 for k in ("subjective", "objective", "assessment"):
                     if "[Xem log #" not in (soap.get(k) or ""):
                         soap[k] = (soap[k] + f" Nguồn: {_src_links}.").strip()
-                if "HbA1c" not in (soap.get("assessment") or ""):
-                    soap["assessment"] = (
-                        soap["assessment"]
-                        + " Đối chiếu mục tiêu HbA1c < 7% theo QĐ 5481/QĐ-BYT 2020 và ADA 2024."
-                    ).strip()
+        if disease == "diabetes":
+            soap["assessment"] = rule_based()["assessment"]
         return {
             "user_id": user_id,
             "generated_at": datetime.now(timezone.utc),
@@ -298,6 +293,7 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
             "soap": soap,
             "stats": stats,
             "disease": disease,
+            "followup": followup,
         }
     except Exception as e:
         # fallback rule-based
@@ -309,6 +305,7 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
             "soap": rb,
             "stats": stats,
             "disease": disease,
+            "followup": followup,
             "_fallback_reason": str(e)[:200],
         }
 
@@ -321,7 +318,16 @@ def soap_to_markdown(soap_data: Dict[str, Any]) -> str:
     md += f"_Tạo lúc: {soap_data['generated_at'].isoformat()[:19]}Z | Khoảng: {soap_data['period']}_\n\n"
     # Generic stats line
     if disease == "diabetes":
-        md += f"**Thống kê:** {stats.get('total_logs',0)} logs, avg {stats.get('avg_mgdl')} mg/dL, 7d {stats.get('last_7_days_avg')} mg/dL, {stats.get('logs_per_week')}/tuần, streak {stats.get('streak_days')} ngày\n\n"
+        md += f"**Thống kê:** {stats.get('total_logs',0)} bản ghi, trung bình {stats.get('avg_mgdl') if stats.get('avg_mgdl') is not None else '—'} mg/dL, 7 ngày {stats.get('last_7_days_avg') if stats.get('last_7_days_avg') is not None else '—'} mg/dL\n\n"
+        followup = soap_data.get("followup") or {}
+        if followup:
+            missing = followup.get("missing_dates") or []
+            md += f"**Ngày chưa có bản ghi:** {len(missing)} trong kỳ; " + (", ".join(missing[:10]) + ("…" if len(missing) > 10 else "") if missing else "không có") + "\n\n"
+            projection = followup.get("trend_projection") or {}
+            direction_label = {"up": "tăng", "down": "giảm", "flat": "không đổi", "mixed": "dao động", "insufficient_data": "chưa đủ dữ liệu"}
+            ids = projection.get("basis_log_ids") or []
+            links = " ".join(f"[Xem log #{int(log_id)}]" for log_id in ids)
+            md += f"**Xu hướng mô tả:** {direction_label.get(projection.get('direction'), 'chưa đủ dữ liệu')}. {projection.get('limitation', '')} {links}\n\n"
     elif disease == "hypertension":
         md += f"**Thống kê:** {stats.get('total_logs',0)} logs, avg {stats.get('avg_sys')}/{stats.get('avg_dia')} mmHg, at_target {stats.get('at_target_rate')}, {stats.get('logs_per_week')}/tuần\n\n"
     elif disease == "respiratory":

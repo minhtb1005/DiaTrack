@@ -163,7 +163,7 @@ def generate_soap_endpoint(req: SoapGenerateRequest, current_user=Depends(get_cu
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
     soap = data["soap"]
-    return SoapResponse(user_id=data["user_id"], generated_at=data["generated_at"], period=data["period"], soap=SoapSection(**soap), stats=data["stats"], disease=req.disease)
+    return SoapResponse(user_id=data["user_id"], generated_at=data["generated_at"], period=data["period"], soap=SoapSection(**soap), stats=data["stats"], disease=req.disease, followup=data.get("followup"))
 
 @router.post("/soap/generate/markdown", response_class=PlainTextResponse)
 def generate_soap_markdown(req: SoapGenerateRequest, current_user=Depends(get_current_user)):

@@ -28,11 +28,11 @@ class TestSoapSummary:
         assert "[Xem log #" in data["soap"]["assessment"]
         assert data["soap"]["plan"] == ""
 
-    def test_soap_contains_kpi(self, temp_user, mock_openai):
+    def test_soap_does_not_impose_unapproved_measurement_kpi(self, temp_user, mock_openai):
         add_log(temp_user, 95, context="fasting")
         data = generate_soap(temp_user, days=7, language="vi")
-        # rule-based mentions KPI when <3/week
-        assert "KPI" in data["soap"]["subjective"] or "KPI" in data["soap"]["assessment"]
+        assert "KPI" not in data["soap"]["subjective"]
+        assert "không thể kết luận đạt hay chưa đạt" in data["soap"]["assessment"]
 
     def test_soap_no_logs(self, temp_user, mock_openai):
         data = generate_soap(temp_user, days=14, language="vi")
