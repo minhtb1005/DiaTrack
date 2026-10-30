@@ -194,6 +194,37 @@ class TestSlots:
 
 
 class TestEndpoint:
+    def test_structured_questions_and_review_only_proposal(self, client, iso_triage):
+        body = {"message": "tê chân, mắt mờ", "structured": True}
+        first = client.post("/v1/triage", json=body)
+        assert first.status_code == 200
+        assert "đường huyết" in first.json()["followup_question"]
+        assert first.json()["recommended_doctors"] == []
+        body["latest_glucose_mgdl"] = 180
+        second = client.post("/v1/triage", json=body)
+        assert "bắt đầu" in second.json()["followup_question"]
+        body["symptom_onset"] = "hai ngày trước"
+        final = client.post("/v1/triage", json=body)
+        data = final.json()
+        assert data["proposed_priority"] == "soon"
+        assert data["review_status"] == "pending_clinician_review"
+        assert data["recommended_doctors"] == []
+        assert "project_requirements.json#scope_rules" in data["source"]
+        assert "không phải chẩn đoán" in data["rationale"]
+
+    def test_structured_critical_glucose_alerts_immediately(self, client, iso_triage):
+        r = client.post("/v1/triage", json={"message": "khát nhiều", "structured": True,
+                                            "latest_glucose_mgdl": 300, "symptom_onset": "hôm nay"})
+        assert r.status_code == 200
+        assert r.json()["emergency"] is True
+        assert r.json()["proposed_priority"] == "emergency"
+        assert "115" in r.json()["message"]
+        assert r.json()["recommended_doctors"] == []
+        missing_symptoms = client.post("/v1/triage", json={"message": "xin chào", "structured": True,
+                                                          "latest_glucose_mgdl": 69})
+        assert missing_symptoms.json()["emergency"] is True
+        assert "115" in missing_symptoms.json()["message"]
+
     def test_complication_acceptance(self, client, iso_triage):
         r = _post(client, "Tê rần 10 đầu ngón chân, mắt mờ 2 hôm")
         assert r.status_code == 200, r.text

@@ -59,14 +59,14 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test an toàn: không điền giá trị cho ngày thiếu; khi thiếu dữ liệu, xu hướng trả `insufficient_data`; báo cáo không suy HbA1c/không tuyên bố đạt mục tiêu từ đường huyết tự đo, Plan để trống cho bác sĩ. `git diff --check` exit 0. Giới hạn: xu hướng chỉ là mô tả chiều từ dữ liệu có sẵn, không dự báo số đo hoặc gửi thông báo ngoài app; UI test dùng mock API; chưa chạy full RAG/benchmark.
 
 ## Tác vụ 6: Hỏi triệu chứng có cấu trúc và phân mức (Project 258-triage, Cơ bản)
-- Trạng thái: partial
-- Hiện trạng: src/triage/triage_nlu.py, src/triage/router.py; tests/test_triage.py; thiếu luồng câu hỏi làm rõ đầy đủ
+- Trạng thái: done
+- Hiện trạng: `src/triage/structured_assessment.py`, `src/triage/router.py`, `src/triage/schemas.py`, `tests/test_triage.py`; API `structured=true` hỏi số đo/thời điểm thiếu, phân mức đề xuất và giữ hướng xử trí thường chờ duyệt. Nguồn là protocol mô phỏng từ `docs/project_requirements.json`, chưa phải guideline lâm sàng đã kiểm chứng.
 - Việc cần làm: Hoàn thiện và kiểm chứng hỏi triệu chứng có cấu trúc và phân mức.
 - Phụ thuộc: 1, 2
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-6 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Mô tả triệu chứng + đường huyết gần nhất tạo câu hỏi và đề xuất mức ưu tiên.
-  - [ ] Test an toàn: Đề xuất không là chẩn đoán; không gửi hướng xử trí thường trước duyệt; nguồn protocol hoặc log.
+  - [x] `.\.venv\Scripts\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-6-final -o cache_dir=test-results/pytest-cache` → 29 pass, 0 fail, 0 skip, exit 0 (30/10/2026 ~10:33 +07; main 20fec547 + diff tác vụ 6). Một cảnh báo pytest cache không ghi được.
+  - [x] Test chức năng: Mô tả triệu chứng + đường huyết gần nhất tạo câu hỏi cho số đo/thời điểm thiếu, sau đó đề xuất `routine|soon|emergency`; `tests/test_triage.py::TestEndpoint::test_structured_questions_and_review_only_proposal`.
+  - [x] Test an toàn: Đề xuất ghi rõ không phải chẩn đoán; trường hợp thường không trả lịch/hướng xử trí trước duyệt; nguồn protocol mô phỏng và ngưỡng trong `docs/project_requirements.json`. Glucose 69/300 cảnh báo 115 ngay cả khi thiếu triệu chứng. Giới hạn: chưa có hàng đợi duyệt thật (tác vụ 8), chưa benchmark chất lượng phân mức với gold set; UI chưa dùng `structured=true`.
 
 ## Tác vụ 7: Bốn nhóm red-flag và từ chối ngoài phạm vi (Project 258-triage, Cơ bản)
 - Trạng thái: partial

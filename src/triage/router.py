@@ -88,6 +88,20 @@ def triage_endpoint(payload: TriageRequest, current_user=Depends(get_current_use
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"triage NLU error: {e}") from e
     symptoms = nlu.get("symptoms") or []
+    if payload.structured:
+        from src.triage.structured_assessment import assess
+        proposal = assess(symptoms, payload.latest_glucose_mgdl, payload.symptom_onset)
+        if proposal.get("proposed_priority") == "emergency":
+            from src.triage.red_flag import EMERGENCY_MESSAGE
+            return TriageResponse(
+                emergency=True, message=EMERGENCY_MESSAGE,
+                symptoms=symptoms, recommended_doctors=[], **proposal,
+            )
+        return TriageResponse(
+            emergency=False, symptoms=symptoms, recommended_doctors=[],
+            message="Đề xuất phân luồng đang chờ nhân viên y tế duyệt. Không tự đổi thuốc hoặc insulin.",
+            **proposal,
+        )
     intents = nlu.get("intents") or []
     tc = nlu.get("time_constraints") or {}
     excluded = set(tc.get("excluded_weekdays") or [])

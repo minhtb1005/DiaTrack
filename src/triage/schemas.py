@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field
 class TriageRequest(BaseModel):
     user_id: Optional[str] = Field(None, description="Optional; anonymous when omitted (response-only, zero DB writes)")
     message: str = Field(..., description="Tin nhắn tự nhiên của bệnh nhân (VI, có/không dấu)")
+    structured: bool = False
+    latest_glucose_mgdl: Optional[float] = Field(None, ge=20, le=1000)
+    symptom_onset: Optional[str] = Field(None, max_length=120)
 
 
 class TriageResponse(BaseModel):
@@ -20,6 +23,10 @@ class TriageResponse(BaseModel):
     recommended_doctors: List[Dict[str, Any]] = Field(default_factory=list)
     previsit_notes: Optional[str] = None
     followup_question: Optional[str] = None
+    proposed_priority: Optional[str] = None
+    review_status: Optional[str] = None
+    rationale: Optional[str] = None
+    source: Optional[str] = None
     # Dynamic Solver Routing (backward-compatible: all Optional, old fields intact)
     solver_used: Optional[str] = Field(None, description="greedy | dfs | ga")
     routing_reason: Optional[str] = Field(None, description="Why this solver (VI, echoes constraints)")
