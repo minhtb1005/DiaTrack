@@ -73,14 +73,14 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test an toàn: Đề xuất ghi rõ không phải chẩn đoán; trường hợp thường không trả lịch/hướng xử trí trước duyệt; nguồn protocol mô phỏng và ngưỡng trong `docs/project_requirements.json`. Glucose 69/300 cảnh báo 115 ngay cả khi thiếu triệu chứng. Giới hạn: chưa có hàng đợi duyệt thật (tác vụ 8), chưa benchmark chất lượng phân mức với gold set; UI chưa dùng `structured=true`.
 
 ## Tác vụ 7: Bốn nhóm red-flag và từ chối ngoài phạm vi (Project 258-triage, Cơ bản)
-- Trạng thái: partial
-- Hiện trạng: src/triage/red_flag.py, src/diabetes/scope_guard.py; tests/test_triage.py; cần xác minh tích hợp UI
+- Trạng thái: done
+- Hiện trạng: `src/triage/red_flag.py`, `src/triage/router.py`, `src/diabetes/scope_guard.py`, `frontend/app/tracker/page.tsx`; bốn nhóm riêng, số đo khẩn ưu tiên trước scope, UI hiển thị câu từ chối cố định.
 - Việc cần làm: Hoàn thiện và kiểm chứng bốn nhóm red-flag và từ chối ngoài phạm vi.
 - Phụ thuộc: 2, 6
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-7 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Có dấu/không dấu cho hạ đường huyết nặng, nghi DKA, bàn chân, tim/đột quỵ đều khẩn; câu bình thường không báo nhầm.
-  - [ ] Test an toàn: Red-flag luôn gọi 115/đến cơ sở y tế; ngoài phạm vi trả đúng scope_rules.out_of_scope_reply; không chẩn đoán.
+  - [x] `.\.venv\Scripts\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-7 -o cache_dir=test-results/pytest-cache` → 34 pass, 0 fail, 0 skip, exit 0 (30/10/2026 ~16:13 +07, `main` d9a806f + diff tác vụ 7); 1 cảnh báo cache WinError 5. Env: `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`, `MONITOR_SCHEDULER_DISABLE=true`.
+  - [x] Test chức năng: Có dấu/không dấu cho hạ đường huyết, nghi tăng đường huyết nguy hiểm, bàn chân, tim/đột quỵ; câu bình thường không báo nhầm. `tests/test_triage.py::TestRedFlag`.
+  - [x] Test an toàn: Red-flag và số đo <70/≥300 luôn trả 115/đến cơ sở y tế trước scope; ngoài phạm vi trả đúng câu cố định, không chẩn đoán. Playwright `npx playwright test e2e/triage-safety.spec.ts --workers=1 --reporter=list` → 1 pass, exit 0, ~16:12 +07 (mock API); `npx tsc --noEmit` và `npm run build` exit 0. Giới hạn: UI dùng mock API, chưa benchmark gold set, chưa xác minh toàn bộ RAG/API khác.
 
 ## Tác vụ 8: Hàng đợi điều dưỡng duyệt/điều chỉnh (Project 258-triage, Nâng cao)
 - Trạng thái: partial

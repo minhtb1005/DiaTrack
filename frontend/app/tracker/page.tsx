@@ -448,6 +448,7 @@ const TriageWidget = (p: any) => {
         return;
       }
       const bits: string[] = [];
+      if (data?.message) bits.push(data.message);
       if (data?.suggested_specialty) bits.push(`Chuyên khoa gợi ý: ${SPECIALTY_VI[data.suggested_specialty] || data.suggested_specialty}`);
       (data?.recommended_doctors || []).slice(0, 3).forEach((d: any) => {
         const s = (d.slots || []).slice(0, 3).map((x: any) => `${x.weekday} ${x.date?.slice(5)} ${x.time}`).join("; ");

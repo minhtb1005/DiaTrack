@@ -37,16 +37,24 @@ except ImportError:  # pragma: no cover
             )
 
 
-# 3 diabetes red-flag groups: (keywords matched against lowered raw text
+# 4 diabetes red-flag groups: (keywords matched against lowered raw text
 # AND unaccented text; multi-word unaccented keys avoid "mu"-style noise).
 _GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "hypo_severe",
         (
             "lơ mơ", "lo mo", "vã mồ hôi", "va mo hoi",
-            "hơi thở mùi", "hoi tho mui", "xeton", "acetone", "cetone",
             "bất tỉnh", "bat tinh", "hôn mê", "hon me", "li bì", "li bi",
             "co giật", "co giat",
+        ),
+    ),
+    (
+        "hyperglycemia_danger",
+        (
+            "hơi thở mùi xeton", "hoi tho mui xeton", "hơi thở mùi trái cây",
+            "hoi tho mui trai cay", "thở nhanh", "tho nhanh", "thở sâu",
+            "tho sau", "nôn liên tục", "non lien tuc", "không giữ được nước",
+            "khong giu duoc nuoc",
         ),
     ),
     (

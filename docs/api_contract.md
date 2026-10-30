@@ -75,6 +75,8 @@ Tất cả cần login; user thường chỉ được thao tác trên `user_id` 
 
 Gửi `{"message":"tê chân, mắt mờ", "structured":true, "latest_glucose_mgdl":180, "symptom_onset":"hai ngày trước"}`. Nếu thiếu triệu chứng, số đo hoặc thời điểm bắt đầu, API trả `followup_question` và `review_status=collecting`. Khi đủ dữ kiện, API trả `proposed_priority` (`routine|soon|emergency`), `rationale`, `source` và `review_status=pending_clinician_review`; không trả lịch/hướng xử trí thường trước duyệt. Dấu hiệu red-flag hoặc số đo <70/≥300 mg/dL trả cảnh báo 115 ngay. `source` trỏ tới protocol mô phỏng trong `docs/project_requirements.json`, không phải trích dẫn guideline lâm sàng đã kiểm chứng.
 
+Red-flag được kiểm trước từ chối ngoài phạm vi, gồm `hypo_severe`, `hyperglycemia_danger`, `foot_infection`, `cardio_stroke`; API trả `emergency=true`, `red_flag_type`, `message` có 115 và danh sách bác sĩ rỗng. Số đo khẩn trong `latest_glucose_mgdl` cũng đi đường cảnh báo này. Nếu không có red-flag mà câu hỏi ngoài phạm vi, `message` là đúng `scope_rules.out_of_scope_reply` và không gợi ý lịch.
+
 Dành cho bác sĩ/dược sĩ duyệt câu trả lời điểm thấp: `GET /v1/reviews?status=pending` lọc, `GET /v1/reviews/{id}` xem kèm vitals, `POST /v1/reviews/{id}/decide` với `{decision: approved|rejected|revised}`. User thường xem yêu cầu của mình ở `/v1/reviews/my`.
 
 ## 8. Monitors — `src/monitors/router.py` (13 routes)

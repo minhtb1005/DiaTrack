@@ -57,6 +57,7 @@ def _post(client, message, user_id=None):
 class TestRedFlag:
     @pytest.mark.parametrize("msg,group", [
         ("Chóng mặt vã mồ hôi, lơ mơ, hơi thở mùi xeton", "hypo_severe"),
+        ("Tôi thở nhanh, hơi thở mùi xeton", "hyperglycemia_danger"),
         ("Bàn chân sưng đỏ, chảy mủ, có chỗ hoại tử, sốt cao", "foot_infection"),
         ("Đau ngực dữ dội, méo miệng, yếu nửa người", "cardio_stroke"),
     ])
@@ -71,6 +72,7 @@ class TestRedFlag:
 
     @pytest.mark.parametrize("msg,group", [
         ("va mo hoi, lo mo, hoi tho mui xeton", "hypo_severe"),
+        ("toi tho nhanh, hoi tho mui xeton", "hyperglycemia_danger"),
         ("ban chan sung do, chay mu, hoai tu, sot cao", "foot_infection"),
         ("dau nguc du doi, meo mieng, yeu nua nguoi", "cardio_stroke"),
     ])
@@ -83,10 +85,28 @@ class TestRedFlag:
 
     def test_no_false_positive(self, client, iso_triage):
         for msg in ["đường huyết 140 lúc đói có ổn không",
-                    "Tê rần 10 đầu ngón chân, mắt mờ 2 hôm"]:
+                    "Tê rần 10 đầu ngón chân, mắt mờ 2 hôm",
+                    "khát nhiều, tiểu nhiều, muốn khám"]:
             r = _post(client, msg)
             assert r.status_code == 200, r.text
             assert r.json()["emergency"] is False, msg
+
+    @pytest.mark.parametrize("value,group", [(69, "hypo_severe"), (300, "hyperglycemia_danger")])
+    def test_structured_number_alert_before_scope(self, client, iso_triage, value, group):
+        r = client.post("/v1/triage", json={"message": "hỏi về huyết áp", "structured": True,
+                                            "latest_glucose_mgdl": value})
+        assert r.status_code == 200
+        assert r.json()["emergency"] is True
+        assert r.json()["red_flag_type"] == group
+        assert "115" in r.json()["message"]
+
+    def test_out_of_scope_exact_reply(self, client, iso_triage):
+        from src.diabetes.scope_guard import SAFEGUARD_TEMPLATE
+        r = _post(client, "Tôi muốn hỏi về điều trị tăng huyết áp")
+        assert r.status_code == 200
+        assert r.json()["emergency"] is False
+        assert r.json()["message"] == SAFEGUARD_TEMPLATE
+        assert r.json()["recommended_doctors"] == []
 
     def test_lone_co_mu_fires_muon_kham_safe(self, client, iso_triage):
         for msg in ["vết thương có mủ", "vet thuong co mu"]:

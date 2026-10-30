@@ -39,12 +39,18 @@ def triage_endpoint(payload: TriageRequest, current_user=Depends(get_current_use
     # Step 1 — red-flag FIRST (only import allowed on the emergency path).
     try:
         try:
-            from src.triage.red_flag import check_red_flag, append_red_flag_audit
+            from src.triage.red_flag import check_red_flag, append_red_flag_audit, EMERGENCY_MESSAGE
         except ImportError:
-            from triage.red_flag import check_red_flag, append_red_flag_audit  # type: ignore
+            from triage.red_flag import check_red_flag, append_red_flag_audit, EMERGENCY_MESSAGE  # type: ignore
         rf = check_red_flag(payload.message or "")
     except Exception:
         rf = {"emergency": False, "red_flag_type": None, "message": ""}
+    if not rf.get("emergency") and payload.latest_glucose_mgdl is not None:
+        from src.shared.glucose_policy import THRESHOLDS
+        if payload.latest_glucose_mgdl < THRESHOLDS["hypoglycemia"].value:
+            rf = {"emergency": True, "red_flag_type": "hypo_severe", "message": EMERGENCY_MESSAGE}
+        elif payload.latest_glucose_mgdl >= THRESHOLDS["critical_high"].value:
+            rf = {"emergency": True, "red_flag_type": "hyperglycemia_danger", "message": EMERGENCY_MESSAGE}
     if rf.get("emergency"):
         try:
             append_red_flag_audit(
@@ -65,11 +71,13 @@ def triage_endpoint(payload: TriageRequest, current_user=Depends(get_current_use
             )
         except Exception:
             pass
+        numeric_priority = {"proposed_priority": "emergency", "review_status": "pending_clinician_review"} if payload.structured else {}
         return TriageResponse(
             emergency=True,
             red_flag_type=rf.get("red_flag_type"),
             message=rf.get("message"),
             recommended_doctors=[],
+            **numeric_priority,
         )
     from src.diabetes.scope_guard import is_type2_patient, is_out_of_scope, safeguard_response
     if (current_user is not None and not is_type2_patient(current_user)) or is_out_of_scope(payload.message or ""):
