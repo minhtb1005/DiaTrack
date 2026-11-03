@@ -15,6 +15,8 @@ def client():
     import app — đúng pattern module-namespace patchable của repo.
     """
     import src.shared.config as cfg
+    original_secret_key = cfg.SECRET_KEY
+    cfg.SECRET_KEY = "test-only-secret-key-with-enough-entropy"
     tmp_glucose = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
     tmp_glucose.close()
     tmp_auth = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
@@ -101,6 +103,7 @@ def client():
         yield c
     for attr, val in original_cfg.items():
         setattr(cfg, attr, val)
+    cfg.SECRET_KEY = original_secret_key
     for mod, attr, val in patched:
         if val is not None:
             setattr(mod, attr, val)
@@ -116,7 +119,11 @@ def temp_user():
 
 @pytest.fixture
 def mock_openai(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     yield
 
 # ---------- auth helpers ----------

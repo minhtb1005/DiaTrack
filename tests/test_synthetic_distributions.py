@@ -25,7 +25,11 @@ def iso_env(monkeypatch, tmp_path):
     import src.diabetes.glucose_tracker as gt
     monkeypatch.setattr(gt, "GLUCOSE_DB_PATH", tmp_path / "dist.db")
     monkeypatch.setenv("SYNTHETIC_SIDECAR_DIR", str(tmp_path / "meta"))
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     gt.init_glucose_db()
     return tmp_path
 

@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { logGlucose, getGlucose, queryRag, saveGlucoseFollowup, getDoctorPatients, fmtDT } from "@/lib/api";
+import { logGlucose, getGlucose, queryRag, saveGlucoseFollowup, getDoctorPatients, getTriageReview, fmtDT } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -428,6 +428,27 @@ const TriageWidget = (p: any) => {
   const [msgs, setMsgs] = useState<any[]>([]);
   const [sending, setSending] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [glucose, setGlucose] = useState("");
+  const [onset, setOnset] = useState("");
+  const [caseId, setCaseId] = useState<string | null>(null);
+  useEffect(() => {
+    if (effectiveId) setCaseId(sessionStorage.getItem(`triage_case_${effectiveId}`));
+  }, [effectiveId]);
+  useEffect(() => {
+    if (!caseId) return;
+    const timer = setInterval(async () => {
+      try {
+        const result = await getTriageReview(caseId);
+        if (result.status !== "pending") {
+          setMsgs(previous => [...previous, { role: result.priority === "emergency" ? "emg" : "ai", text: result.message }]);
+          if (result.priority === "emergency") setLocked(true);
+          sessionStorage.removeItem(`triage_case_${effectiveId}`);
+          setCaseId(null);
+        }
+      } catch { /* retry at next poll */ }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [caseId, effectiveId]);
   const send = async () => {
     const text = input.trim();
     if (!text || sending) return;
@@ -439,13 +460,19 @@ const TriageWidget = (p: any) => {
         method: "POST",
         credentials: "include" as const,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: effectiveId || undefined, message: text }),
+        body: JSON.stringify({ user_id: effectiveId || undefined, message: text, structured: true,
+          latest_glucose_mgdl: glucose === "" ? undefined : Number(glucose), symptom_onset: onset || undefined }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
       if (data?.emergency) {
         setLocked(true);
         setMsgs((prev) => [...prev, { role: "emg", text: data.message || "Gọi 115 ngay." }]);
         return;
+      }
+      if (data?.case_id) {
+        sessionStorage.setItem(`triage_case_${effectiveId}`, data.case_id);
+        setCaseId(data.case_id);
       }
       const bits: string[] = [];
       if (data?.message) bits.push(data.message);
@@ -455,6 +482,9 @@ const TriageWidget = (p: any) => {
         bits.push(`${d.name} (${d.specialty}) — ${s || "hết slot tuần này"}`);
       });
       if (data?.followup_question) bits.push(`Hỏi thêm: ${data.followup_question}`);
+      if (data?.proposed_priority) bits.push(`Mức đề xuất: ${data.proposed_priority}`);
+      if (data?.rationale) bits.push(data.rationale);
+      if (data?.source) bits.push(`Nguồn: ${data.source}`);
       if (data?.solver_used) bits.push(`Bộ giải: ${data.solver_used}${SOLVER_VI[data.solver_used] ? ` (${SOLVER_VI[data.solver_used]})` : ""}${data?.routing_reason ? ` — ${data.routing_reason}` : ""}`);
       if (data?.handoff_tier) bits.push(`Mức bàn giao: ${TIER_VI[data.handoff_tier] || data.handoff_tier}${data?.what_happens_next ? ` — ${data.what_happens_next}` : ""}`);
       if (data?.panic) bits.push(`Lab nguy hiểm: ${data?.message || "Gọi 115 ngay."}`);
@@ -469,7 +499,7 @@ const TriageWidget = (p: any) => {
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold flex items-center gap-1.5"><CalendarPlus size={15} aria-hidden /> Hỗ trợ đặt lịch khám</h3>
+        <h3 className="text-sm font-semibold flex items-center gap-1.5"><CalendarPlus size={15} aria-hidden /> Phân luồng triệu chứng</h3>
         <Button variant="accent" onClick={() => setOpen((o) => !o)} className="rounded-full px-4 text-xs">{open ? "Thu gọn" : "Mở"}</Button>
       </div>
       {locked && (
@@ -488,8 +518,12 @@ const TriageWidget = (p: any) => {
               <div key={i} className={`rounded-lg p-2 text-xs leading-relaxed whitespace-pre-wrap ${m.role === "user" ? "ml-8 border border-emerald-100 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-100" : m.role === "emg" ? "border border-red-300 bg-red-50 text-red-800 font-bold dark:bg-red-950 dark:border-red-800 dark:text-red-100" : "mr-8 border border-violet-100 bg-violet-50 text-violet-900 dark:bg-violet-950 dark:border-violet-800 dark:text-violet-100"}`}>{m.text}</div>
             )) : <div className="p-2 text-xs text-slate-500 dark:text-slate-400">Mô tả triệu chứng + thời gian muốn khám, vd: “tê chân, mắt mờ, tuần sau trừ T4”.</div>}
           </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Input aria-label="Đường huyết gần nhất mg/dL" type="number" min="20" max="1000" value={glucose} onChange={e => setGlucose(e.target.value)} placeholder="Đường huyết gần nhất (mg/dL)" />
+            <Input aria-label="Triệu chứng bắt đầu từ khi nào" value={onset} onChange={e => setOnset(e.target.value)} placeholder="Triệu chứng bắt đầu khi nào?" />
+          </div>
           <div className="mt-2 flex gap-2">
-            <Input aria-label="Triệu chứng và thời gian muốn khám" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="vd: tê chân, mắt mờ, tuần sau trừ T4" />
+            <Input aria-label="Triệu chứng và thời gian muốn khám" value={input} onChange={(e) => { setInput(e.target.value); }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Mô tả triệu chứng đang gặp" />
             <Button variant="accent" onClick={send} disabled={sending} className="px-4 shrink-0">{sending ? "..." : "Gửi"}</Button>
           </div>
         </>
@@ -566,7 +600,8 @@ const MyTracker = (p: any) => {
         </div>
         <div className="sr-only"><p>{trendSummary}</p><table><tbody>{points.map((x: any, i: number)=><tr key={i}><td>{x.time}</td><td>{x.value} mg/dL{x.anomaly ? " (bất thường)" : ""}</td></tr>)}</tbody></table></div>
         {data?.should_escalate && <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-100 flex items-center gap-1.5"><TriangleAlert size={14} aria-hidden /> Khuyến nghị liên hệ bác sĩ</div>}
-        {trend && <div className="mt-4 rounded-lg border bg-slate-50 p-4 text-sm leading-relaxed dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"><p className="whitespace-pre-wrap">{trend}</p>{trendSources.length > 0 && <div className="mt-3 border-t pt-3 dark:border-slate-700"><strong>Nguồn tham khảo</strong><ul className="mt-1 list-disc pl-5">{trendSources.map((source: string, i: number) => <li key={`${source}-${i}`}>{source}</li>)}</ul></div>}{data?.logs?.length > 0 && <div className="mt-3 border-t pt-3 dark:border-slate-700"><strong>Chỉ số gốc</strong><div className="mt-1 flex flex-wrap gap-3">{data.logs.slice(0, 5).map((log: any) => <a key={log.id} href={`#log-${log.id}`} className="font-medium text-blue-700 underline dark:text-blue-300">Bản ghi #{log.id}</a>)}</div></div>}</div>}
+        {data?.logs?.length > 0 && <div className="mt-3 text-sm"><strong>Chỉ số gốc của xu hướng</strong><div className="mt-1 flex flex-wrap gap-3">{data.logs.slice(0, 5).map((log: any) => <a key={log.id} href={`#log-${log.id}`} className="font-medium text-blue-700 underline dark:text-blue-300">Bản ghi #{log.id}</a>)}</div></div>}
+        {trend && <div className="mt-4 rounded-lg border bg-slate-50 p-4 text-sm leading-relaxed dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"><p className="whitespace-pre-wrap">{trend}</p>{trendSources.length > 0 && <div className="mt-3 border-t pt-3 dark:border-slate-700"><strong>Nguồn tham khảo</strong><ul className="mt-1 list-disc pl-5">{trendSources.map((source: string, i: number) => <li key={`${source}-${i}`}>{source}</li>)}</ul></div>}</div>}
       </Card>
       <Card className="p-5">
         <h3 className="text-sm font-semibold">Lịch sử</h3>
@@ -621,7 +656,7 @@ function TrackerReminders({ userId }: { userId: string }) {
 
   return <Card className="p-5">
     <h2 className="text-lg font-semibold">Lịch nhắc của tôi</h2>
-    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Ghi lại lịch đo và ngày tái khám đã được nhân viên y tế hướng dẫn. Nhắc việc sẽ hiện khi bạn mở trang này.</p>
+    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Ghi lại lịch đo và ngày tái khám đã được nhân viên y tế hướng dẫn. Lịch chỉ lưu trên thiết bị này và nhắc khi bạn mở trang; backend không gửi thông báo.</p>
     <div className="mt-4 grid gap-4 sm:grid-cols-2">
       <label className="text-sm font-medium">Lần đo tiếp theo<Input aria-label="Lần đo tiếp theo" type="datetime-local" value={measureAt} onChange={e => { setMeasureAt(e.target.value); setSaved(false); }} className="mt-1" /></label>
       <label className="text-sm font-medium">Lần tái khám tiếp theo<Input aria-label="Lần tái khám tiếp theo" type="datetime-local" value={visitAt} onChange={e => { setVisitAt(e.target.value); setSaved(false); }} className="mt-1" /></label>
@@ -672,7 +707,14 @@ function TrackerContent(){
   const hasServerIds = Array.isArray(data?.anomaly_ids);
   const refresh = async ()=>{
     if(!fetchId) return;
-    try{ const d=await getGlucose(fetchId,50,14); setData(d);}catch(e:any){ setMsg(e.message); }finally{ setLoaded(true); }
+    try{
+      const d=await getGlucose(fetchId,50,14);
+      setData(d);
+      if (!readOnly && d.logs?.length) {
+        setMsg(d.logs[0].message || "");
+        setCriticalReading(["low", "critical"].includes(d.logs[0].classification));
+      }
+    }catch(e:any){ setMsg(e.message); }finally{ setLoaded(true); }
   };
   useEffect(()=>{ if(fetchId) refresh(); },[fetchId]);
   // Load selected voice persona once (feeds daily-check greeting + FqgChat TTS).
@@ -706,7 +748,7 @@ function TrackerContent(){
         setTrendSources([]);
       }else{
         const sources: string[] = Array.isArray(ans.contexts) ? ans.contexts
-          .filter((c: any) => c && (c.file_name || c.source_id))
+          .filter((c: any) => c && (c.file_name || c.source_id) && Array.isArray(c.page_numbers) && c.page_numbers.some((page: any) => Number.isInteger(page) && page > 0))
           .map((c: any) => `${c.file_name || c.source_id}${Array.isArray(c.page_numbers) && c.page_numbers.length ? `, trang ${c.page_numbers.join(", ")}` : ""}`) : [];
         setTrendSources([...new Set<string>(sources)]);
         setTrend(sources.length ? (ans.answer || "Chưa có diễn giải có nguồn. Hãy trao đổi với bác sĩ.") : "Chưa có diễn giải kèm nguồn để hiển thị. Hãy trao đổi với bác sĩ.");

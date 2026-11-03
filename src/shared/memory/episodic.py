@@ -49,11 +49,11 @@ class ConversationSummarizer:
                 model=model_name,
                 device=0  # Use GPU if available
             )
-            self.sentence_model = None  # lazy: chỉ load khi cần extractive fallback
-        except:
-            # Fallback to simple extractive summarization
+            self.sentence_model = None  # lazy: ch? load khi c?n extractive fallback
+        except Exception:
+            # Both optional models unavailable (e.g. offline) -> extractive only.
             self.summarizer = None
-            self.sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
+            self.sentence_model = None
         
         self.tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
         self.fact_extractor = MedicalFactExtractor()
@@ -336,13 +336,18 @@ class EpisodicMemory:
         return memory
 
 
-# Global instance for easy access
-episodic_memory = None  # Initialize only when this memory is requested.
+# Legacy ownerless state is deliberately never adopted by an authenticated user.
+episodic_memory = None
+_owner_memories = {}
+from threading import RLock
+_owner_lock = RLock()
 
 
-def get_episodic_memory() -> EpisodicMemory:
-    """Get the global episodic memory instance."""
-    global episodic_memory
-    if episodic_memory is None:
-        episodic_memory = EpisodicMemory()
-    return episodic_memory
+def get_episodic_memory(user_id: str | None = None) -> EpisodicMemory:
+    """Return only the requested owner's memory; anonymous calls are ephemeral."""
+    if not user_id or user_id == "default_user":
+        return EpisodicMemory()
+    with _owner_lock:
+        if user_id not in _owner_memories:
+            _owner_memories[user_id] = EpisodicMemory()
+        return _owner_memories[user_id]

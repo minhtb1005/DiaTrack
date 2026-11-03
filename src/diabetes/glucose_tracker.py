@@ -103,9 +103,9 @@ def add_log(user_id: str, value_mgdl: float, measured_at: Optional[datetime] = N
 def get_logs(user_id: str, limit: int = 50, days: Optional[int] = None) -> List[Dict[str, Any]]:
     init_glucose_db()
     rows = fetch_logs(GLUCOSE_DB_PATH, "glucose_logs", user_id, limit, days)
-    # Keep original projection for backward compat (tests expect these 7 keys)
     out = []
     for r in rows:
+        classification, message = classify_glucose(r["value_mgdl"], r["context"])
         out.append({
             "id": r["id"],
             "user_id": r["user_id"],
@@ -114,7 +114,8 @@ def get_logs(user_id: str, limit: int = 50, days: Optional[int] = None) -> List[
             "context": r["context"],
             "notes": r["notes"],
             # Stored legacy labels are not clinical evidence; re-evaluate on read.
-            "classification": glucose_severity(r["value_mgdl"], r["context"]),
+            "classification": classification,
+            "message": message,
         })
     return out
 

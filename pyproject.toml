@@ -43,7 +43,7 @@ where = ["src", "."]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not live_provider'"
 filterwarnings = [
   # Third-party deprecations only (repo-owned datetime.utcnow() migrated to
   # datetime.now(timezone.utc), so nothing we own is silenced here):
@@ -55,6 +55,7 @@ markers = [
     "legacy: legacy generic evaluation (non-diabetes)",
     "security: OWASP Top 10 security tests",
     "e2e: end-to-end tests",
+    "live_provider: requires external provider credentials and network",
 ]
 
 [project.optional-dependencies]

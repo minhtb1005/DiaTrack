@@ -1,15 +1,29 @@
 """Unit tests for Track B — soap_summary (diabetes pre-visit)."""
 
+import logging
+from types import SimpleNamespace
+
 import pytest
 from src.diabetes.soap_summary import generate_soap, soap_to_markdown
 from src.diabetes.glucose_tracker import add_log
 
 
+@pytest.fixture(autouse=True)
+def isolated_glucose(tmp_path, monkeypatch):
+    from src.diabetes import glucose_tracker
+    monkeypatch.setattr(glucose_tracker, "GLUCOSE_DB_PATH", tmp_path / "glucose.db")
+    glucose_tracker.init_glucose_db()
+    from types import SimpleNamespace
+    from src.diabetes import soap_summary
+    monkeypatch.setattr(soap_summary, "get_long_term_memory", lambda owner: SimpleNamespace(get_user_profile=lambda: {}))
+
+
 class TestSoapSummary:
-    def test_rule_based_fallback_no_openai(self, temp_user, mock_openai):
+    def test_rule_based_fallback_no_openai(self, temp_user, mock_openai, caplog):
         add_log(temp_user, 130, context="fasting")
         add_log(temp_user, 180, context="post_meal_2h")
-        data = generate_soap(temp_user, days=14, language="vi")
+        with caplog.at_level(logging.WARNING, logger="src.diabetes.soap_summary"):
+            data = generate_soap(temp_user, days=14, language="vi")
         assert "soap" in data
         for key in ("subjective", "objective", "assessment"):
             assert key in data["soap"]
@@ -17,6 +31,26 @@ class TestSoapSummary:
             assert len(data["soap"][key]) > 0
         # P is ALWAYS empty — the doctor decides (placeholder rendered by UI)
         assert data["soap"]["plan"] == ""
+        assert "soap_generation mode=fallback reason=RuntimeError" in caplog.text
+
+    def test_logs_llm_mode_without_payload(self, temp_user, monkeypatch, caplog):
+        from src.diabetes import soap_summary
+        from src.shared import nvidia
+
+        add_log(temp_user, 130, context="fasting")
+        response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=(
+            '{"subjective":"S","objective":"O","assessment":"A","plan":""}'
+        )))])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: response)))
+        monkeypatch.setattr(nvidia, "llm_client", lambda: client)
+
+        with caplog.at_level(logging.INFO, logger="src.diabetes.soap_summary"):
+            data = soap_summary.generate_soap(temp_user, days=7)
+
+        assert data.get("_fallback_reason") is None
+        assert "soap_generation mode=llm" in caplog.text
+        assert temp_user not in caplog.text
+        assert "130" not in caplog.text
 
     def test_soap_audit_links_and_hba1c(self, temp_user, mock_openai):
         add_log(temp_user, 130, context="fasting", notes="khát nước nhiều")

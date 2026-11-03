@@ -27,6 +27,7 @@ class TriageResponse(BaseModel):
     review_status: Optional[str] = None
     rationale: Optional[str] = None
     source: Optional[str] = None
+    case_id: Optional[str] = None
     # Dynamic Solver Routing (backward-compatible: all Optional, old fields intact)
     solver_used: Optional[str] = Field(None, description="greedy | dfs | ga")
     routing_reason: Optional[str] = Field(None, description="Why this solver (VI, echoes constraints)")

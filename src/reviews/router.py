@@ -17,9 +17,9 @@ router = APIRouter(prefix="/v1", tags=["reviews"])
 
 def _patient_review(review: dict) -> dict:
     """Patients receive the approved result, never an unpublished draft."""
-    visible = dict(review)
-    visible.pop("draft_answer", None)
-    visible.pop("contexts_json", None)
+    fields = ("id", "query", "status", "requester_id", "routed_role", "created_at", "reviewed_at")
+    visible = {key: review.get(key) for key in fields}
+    visible["final_answer"] = review.get("final_answer") if review.get("status") in ("approved", "revised", "rejected") else None
     return visible
 
 
@@ -41,6 +41,8 @@ def get_reviews(
     if role == "user":
         reviews = list_reviews(status=status, requester_id=current_user["id"], limit=limit, offset=offset)
         return {"reviews": [_patient_review(r) for r in reviews], "total": len(reviews)}
+    if role not in ("doctor", "pharmacist", "specialist", "admin"):
+        raise HTTPException(status_code=403, detail="Expert role required")
     # expert: see pending routed to them + all if admin, or mine
     if role in ("doctor", "pharmacist", "specialist"):
         if mine:
@@ -79,7 +81,7 @@ def get_my_reviews(limit: int = Query(50, ge=1, le=200), current_user=Depends(ge
 
 @router.get("/reviews/{review_id}")
 def get_review_detail(review_id: str, current_user=Depends(get_current_user)):
-    rev = get_review_with_vitals(review_id)
+    rev = get_review(review_id)
     if not rev:
         raise HTTPException(status_code=404, detail="Review not found")
     role = current_user["role"]
@@ -88,6 +90,8 @@ def get_review_detail(review_id: str, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
     if role == "user":
         return _patient_review(rev)
+    if role not in ("doctor", "pharmacist", "specialist", "admin"):
+        raise HTTPException(status_code=403, detail="Expert role required")
     if (rev.get("evaluation") or {}).get("review_required_by_workflow") and role not in ("doctor", "admin"):
         raise HTTPException(status_code=403, detail="Doctor approval required")
     # expert can see pending for their role or all if admin
@@ -95,7 +99,7 @@ def get_review_detail(review_id: str, current_user=Depends(get_current_user)):
         # allow if pending and routed to their role, or if they are assigned, or if admin fallback
         # For simplicity allow any pending to any expert (queue shared) — strict version would check routed_role==role
         pass
-    return rev
+    return get_review_with_vitals(review_id)
 
 @router.post("/reviews/{review_id}/decision")
 def post_decision(

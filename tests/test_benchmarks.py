@@ -17,7 +17,11 @@ import scripts.run_benchmarks as rb
 
 
 def _no_key(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     monkeypatch.delenv("DEMO_BUSY", raising=False)
     monkeypatch.setitem(sys.modules, "openai", None)
     monkeypatch.setitem(sys.modules, "src.chat.rag_pipeline", None)
@@ -77,14 +81,14 @@ class TestCiScrubDotenv:
         import os
         _no_key(monkeypatch)
         # Simulate a key present via .env / env, then runner scrub + dotenv reload.
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-fake")
+        monkeypatch.setenv("NVDIA_API_KEY", "nvapi-fake")
         import scripts.run_benchmarks as rb2  # noqa: F401 (scrub logic below mirrors run_services_mode)
-        os.environ["OPENAI_API_KEY"] = ""
+        os.environ["NVDIA_API_KEY"] = ""
         from dotenv import load_dotenv
         load_dotenv()  # override=False: "" must survive
-        assert not os.getenv("OPENAI_API_KEY")
+        assert not os.getenv("NVDIA_API_KEY")
         # Prove no LLM branch is taken: _parse_llm early-returns None on falsy key
-        # (parse_triage still calls it, but it never reaches OpenAI client).
+        # (parse_triage still calls it, but it never reaches the NVIDIA client).
         from src.triage import triage_nlu as _nlu
         assert _nlu._parse_llm("dat lich kham thu 4") is None
         baseline = rb.run_b8()

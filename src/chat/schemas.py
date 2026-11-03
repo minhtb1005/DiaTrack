@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class QueryRequest(BaseModel):
-    query: str = Field(..., description="Câu hỏi y tế của người dùng", examples=["Dấu hiệu đái tháo đường type 2 là gì?"])
+    query: str = Field(..., max_length=3000, description="Câu hỏi y tế của người dùng", examples=["Dấu hiệu đái tháo đường type 2 là gì?"])
     top_k: int = Field(5, ge=1, le=20, description="Số chunk truy vấn")
     tone: Optional[Literal["strict", "friendly", "balanced"]] = Field(None, description="Tone trả lời; auto nếu None")
     user_id: str = Field("default_user", description="ID người dùng cho memory")

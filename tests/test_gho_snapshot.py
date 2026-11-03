@@ -65,6 +65,8 @@ def test_intent_keywords():
     assert g.looks_like_stats_question("Tỷ lệ tiểu đường ở Việt Nam hiện nay?")
     assert g.looks_like_stats_question("Tăng bao nhiêu phần trăm so với 10 năm trước?")
     assert not g.looks_like_stats_question("Triệu chứng của hạ đường huyết là gì?")
+    assert not g.looks_like_stats_question("Glucose lúc đói bao nhiêu thì chẩn đoán đái tháo đường?")
+    assert not g.looks_like_stats_question("Hãy giải thích xu hướng đường huyết cá nhân của tôi")
 
 
 def test_ssrf_allows_gho_rejects_private():

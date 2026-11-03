@@ -44,12 +44,11 @@ export default function MyReviewsPage() {
           <h2 className="text-sm font-semibold">Review requests ({data?.reviews?.length||0})</h2>
           <div className="mt-3 space-y-2 max-h-[500px] overflow-auto">
             {(data?.reviews||[]).map((r:any)=>(
-              <div key={r.id} className="rounded-xl border p-3 bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
+              <div key={r.id} data-testid={`review-${r.id}`} className="rounded-xl border p-3 bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
                 <div className="text-xs font-mono">{r.status} · routed {r.routed_role} · {fmtDT(r.created_at)}</div>
                 <div className="text-sm font-medium">{r.query}</div>
-                <div className="text-xs">Draft: {r.draft_answer?.slice(0,150)}</div>
-                {r.final_answer && <div className="text-xs bg-emerald-50 border border-emerald-200 rounded p-2 mt-1 dark:bg-emerald-950 dark:border-emerald-800"><b>Final:</b> {r.final_answer.slice(0,300)}</div>}
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">Failed: {JSON.stringify(r.evaluation?.failed_metrics || r.failed_metrics)}</div>
+                {r.status === "pending" && <p className="text-sm">Đang chờ bác sĩ duyệt; bản nháp chưa được công bố.</p>}
+                {r.final_answer && <div className="text-sm whitespace-pre-wrap bg-emerald-50 border border-emerald-200 rounded p-2 mt-1 dark:bg-emerald-950 dark:border-emerald-800"><b>Final:</b> {r.final_answer}</div>}
               </div>
             ))}
             {!data?.reviews?.length && <div className="text-xs text-slate-500 dark:text-slate-400">Chưa có review</div>}
@@ -62,7 +61,7 @@ export default function MyReviewsPage() {
               <div key={h.id} className={`rounded-xl border p-3 ${h.status==="pending_review"? "bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800":"bg-white dark:bg-slate-900 dark:border-slate-700"}`}>
                 <div className="text-xs font-mono">{h.status} · {fmtDT(h.created_at)} {h.confidence!==null? `conf ${h.confidence}`:""}</div>
                 <div className="text-sm">{h.query}</div>
-                <div className="text-xs text-slate-600 dark:text-slate-300 line-clamp-3">{h.answer?.slice(0,300)}</div>
+                <div className="text-sm whitespace-pre-wrap text-slate-600 dark:text-slate-300">{h.answer}</div>
                 {h.review_id && <div className="text-[11px] text-slate-500 dark:text-slate-400">review {h.review_id.slice(0,8)}</div>}
               </div>
             ))}

@@ -3,7 +3,7 @@
 Safety ordering (D7): STT transcript runs check_red_flag BEFORE confirm/save
 (even when the number is not parsed yet); numeric panic still flows through
 POST /v1/glucose anomaly on save, like manual entry. Keys server-side only
-(grep OPENAI_API_KEY in frontend/ must be 0).
+(grep any API key in frontend/ must be 0).
 Transcript-only (D6): audio hits tmp + deleted immediately, never persisted,
 never logged. No duplicate write path: save goes via POST /v1/glucose.
 """

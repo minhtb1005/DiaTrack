@@ -1,9 +1,23 @@
 """Integration tests for diabetes API (Tracks A/B/C) — with Auth."""
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
 class TestDiabetesAPI:
-    def test_query_diabetes_returns_citation(self, client: TestClient, auth_header):
+    def test_query_diabetes_returns_citation(self, client: TestClient, auth_header, monkeypatch):
+        import src.chat.rag_pipeline as rag_pipeline
+        import src.chat.router as chat_router
+        monkeypatch.setattr(rag_pipeline, "rag_chat", lambda *args, **kwargs: {
+            "raw_answer": {"answer": "WHO guidance [Source 1]", "cited_sources": [1]},
+            "formatted_answer": "WHO guidance [Source 1]",
+            "contexts": [{"source_id": "test-who", "content": "Synthetic WHO guidance", "score": 1.0}],
+            "trace_id": "test-diabetes-api", "prompt_version": "test",
+            "cache_hit": False, "timings": {},
+        })
+        monkeypatch.setattr(chat_router, "evaluate_rag", lambda *args, **kwargs: {
+            "is_low_confidence": False, "confidence": 1.0, "routed_role": "doctor",
+        })
         hdr = {"Authorization": f"Bearer {auth_header['token']}"}
         resp = client.post("/v1/query", json={"query": "What are WHO diagnostic thresholds for diabetes fasting and 2-hour?", "top_k": 3, "user_id": auth_header["user"]["id"]}, headers=hdr)
         assert resp.status_code == 200, resp.text
@@ -40,26 +54,50 @@ class TestDiabetesAPI:
         assert "logs_per_week" in r2.json()["stats"]
 
     def test_glucose_110_roundtrip_and_ownership(self, client: TestClient, make_user):
+        from src.diabetes import glucose_tracker
+
         first, first_token = make_user(role="user")
         second, second_token = make_user(role="user")
         h1 = {"Authorization": f"Bearer {first_token}"}
         h2 = {"Authorization": f"Bearer {second_token}"}
-        payload = {"user_id": first["id"], "value_mgdl": 110, "context": "fasting"}
+        measured_at = "2026-11-03T07:15:00+07:00"
+        payload = {"user_id": first["id"], "value_mgdl": 110, "measured_at": measured_at, "context": "fasting"}
         posted = client.post("/v1/glucose", json=payload, headers=h1)
         assert posted.status_code == 200, posted.text
         record = posted.json()
         assert record["user_id"] == first["id"]
         assert record["value_mgdl"] == 110
+        assert record["measured_at"] == measured_at
         assert record["context"] == "fasting"
-        assert record["measured_at"]
         assert "chẩn đoán" not in record["message"].lower()
         own = client.get(f"/v1/glucose/{first['id']}", headers=h1)
         assert own.status_code == 200
-        assert any(row["id"] == record["id"] and row["value_mgdl"] == 110 for row in own.json()["logs"])
+        assert any(
+            row["id"] == record["id"]
+            and row["value_mgdl"] == 110
+            and row["measured_at"] == measured_at
+            for row in own.json()["logs"]
+        )
+        with sqlite3.connect(glucose_tracker.GLUCOSE_DB_PATH) as db:
+            stored = db.execute(
+                "SELECT user_id, value_mgdl, measured_at, context FROM glucose_logs WHERE id = ?",
+                (record["id"],),
+            ).fetchone()
+            before_rejected_requests = db.execute("SELECT COUNT(*) FROM glucose_logs").fetchone()[0]
+        assert stored == (first["id"], 110.0, measured_at, "fasting")
+
         assert client.get(f"/v1/glucose/{first['id']}", headers=h2).status_code == 403
         assert client.post("/v1/glucose", json=payload, headers=h2).status_code == 403
         for invalid in ({"user_id": first["id"], "context": "fasting"}, {**payload, "value_mgdl": "not-a-number"}):
             assert client.post("/v1/glucose", json=invalid, headers=h1).status_code == 422
+        with sqlite3.connect(glucose_tracker.GLUCOSE_DB_PATH) as db:
+            after_rejected_requests = db.execute("SELECT COUNT(*) FROM glucose_logs").fetchone()[0]
+            unchanged = db.execute(
+                "SELECT user_id, value_mgdl, measured_at, context FROM glucose_logs WHERE id = ?",
+                (record["id"],),
+            ).fetchone()
+        assert after_rejected_requests == before_rejected_requests
+        assert unchanged == stored
 
     def test_glucose_validation_rejects_out_of_range(self, client: TestClient, auth_header):
         hdr = {"Authorization": f"Bearer {auth_header['token']}"}
@@ -102,7 +140,7 @@ class TestDiabetesAPI:
     def test_glucose_urgent_boundaries(self, client: TestClient, auth_header):
         hdr = {"Authorization": f"Bearer {auth_header['token']}"}
         uid = auth_header["user"]["id"]
-        for value, classification, urgent in ((69, "low", True), (110, "no_alert", False), (250, "no_alert", False), (280, "alert_high", False), (300, "critical", True)):
+        for value, classification, urgent in ((69, "low", True), (70, "no_alert", False), (250, "no_alert", False), (251, "alert_high", False), (299, "alert_high", False), (300, "critical", True)):
             response = client.post("/v1/glucose", json={"user_id": uid, "value_mgdl": value, "context": "fasting"}, headers=hdr)
             assert response.status_code == 200, response.text
             data = response.json()
@@ -113,6 +151,15 @@ class TestDiabetesAPI:
             else:
                 assert "liên hệ cơ sở y tế ngay" not in data["message"]
                 assert "liên hệ cơ sở y tế ngay" not in data["anomaly"]["reason"]
+            if classification == "alert_high":
+                assert "liên hệ bác sĩ" in data["message"]
+            assert "không tự đổi liều" in data["message"] or "đổi liều" not in data["message"]
+
+        reloaded = client.get(f"/v1/glucose/{uid}", headers=hdr).json()["logs"]
+        for value, classification in ((69, "low"), (70, "no_alert"), (250, "no_alert"), (251, "alert_high"), (299, "alert_high"), (300, "critical")):
+            log = next(row for row in reloaded if row["value_mgdl"] == value)
+            assert log["classification"] == classification
+            assert "không tự đổi liều" in log["message"] or "đổi liều" not in log["message"]
 
     def test_safeguard_out_of_scope_no_rag(self, client: TestClient, auth_header, monkeypatch):
         import src.api.main as api_main

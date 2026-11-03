@@ -87,7 +87,7 @@ class TestDemoScenarios:
         assert f.status_code == 200, f.text
         assert f.json()["saved"] is True
         from src.shared.memory.episodic import get_episodic_memory
-        buf = get_episodic_memory().conversation_buffer
+        buf = get_episodic_memory(user["id"]).conversation_buffer
         assert any("banh ngot" in (m.get("content") or "") for m in buf)
         g = client.get(f"/v1/glucose/{user['id']}", headers=hdr)
         note = next(l for l in g.json()["logs"] if l["id"] == ids[-1])["notes"]

@@ -136,6 +136,10 @@ try:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        from src.shared.config import validate_secret_key
+        from src.shared.corpus_provenance import validate_serving_index
+        validate_secret_key()
+        validate_serving_index()
         # Dev: background thread for guideline/safety checks
         thread = None
         try:
@@ -210,7 +214,8 @@ def health():
     total, _ = _count_pdfs()
     legacy_ready = (BASE_DIR / "embeddings" / "pdf_db" / DEFAULT_CHUNK_STRATEGY).exists()
     openai_ready = (BASE_DIR / "embeddings" / "pdf_db_openai" / DEFAULT_CHUNK_STRATEGY).exists()
-    nvidia_ready = (BASE_DIR / "embeddings" / "pdf_db_nvidia" / DEFAULT_CHUNK_STRATEGY).exists()
+    from src.shared.config import NVIDIA_PDF_DB_DIR
+    nvidia_ready = (NVIDIA_PDF_DB_DIR / DEFAULT_CHUNK_STRATEGY).exists()
     if EMBEDDING_PROVIDER == "openai":
         vector_ready = openai_ready or legacy_ready
     elif EMBEDDING_PROVIDER == "nvidia":

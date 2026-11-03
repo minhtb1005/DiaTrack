@@ -143,17 +143,19 @@ def decide_review(review_id: str, decision: str, expert_id: str, final_answer: O
     if decision == "approved":
         final = rev["draft_answer"]
     elif decision == "revised":
-        if not final_answer:
+        if not final_answer or not final_answer.strip():
             raise ValueError("final_answer required for revised")
         final = final_answer
     else:  # rejected
         final = final_answer or "Câu hỏi đã bị từ chối bởi chuyên gia. Vui lòng cung cấp thêm thông tin hoặc liên hệ trực tiếp."
     now = datetime.now(timezone.utc).isoformat()
     conn = _get_conn()
-    conn.execute("UPDATE review_requests SET status=?, assigned_expert_id=?, final_answer=?, expert_notes=?, reviewed_at=? WHERE id=?",
+    updated = conn.execute("UPDATE review_requests SET status=?, assigned_expert_id=?, final_answer=?, expert_notes=?, reviewed_at=? WHERE id=? AND status='pending'",
                  (decision if decision != "approved" else "approved", expert_id, final, expert_notes, now, review_id))
     conn.commit()
     conn.close()
+    if updated.rowcount != 1:
+        raise ValueError("Review already decided")
     # update query_history
     update_query_history_answer(review_id, final)
     # notifications
@@ -198,7 +200,8 @@ def get_review_with_vitals(review_id: str) -> Optional[Dict[str, Any]]:
     # also fetch user info
     try:
         from src.auth.db import get_user_by_id
-        rev["requester"] = get_user_by_id(requester_id)
+        requester = get_user_by_id(requester_id) or {}
+        rev["requester"] = {key: requester.get(key) for key in ("id", "username", "role")}
     except Exception:
         rev["requester"] = None
     return rev

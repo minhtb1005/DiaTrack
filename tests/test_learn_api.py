@@ -17,7 +17,11 @@ VN = timezone(timedelta(hours=7))
 def iso_learn(monkeypatch, tmp_path):
     import src.learn.store as st
     monkeypatch.setattr(st, "LEARN_DB_PATH", tmp_path / "learn.db")
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     return tmp_path
 
 

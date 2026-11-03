@@ -286,6 +286,15 @@ export async function getDoctorPatients(limit = 100, offset = 0) {
 export async function adminListTriageEvents(params: { page?: number; limit?: number; specialty?: string; emergency?: boolean; q?: string } = {}) {
   return apiGet("/v1/admin/triage/events", params, "triage events");
 }
+export async function listPendingTriageReviews() {
+  return apiGet("/v1/triage/reviews/pending", undefined, "pending triage reviews");
+}
+export async function decideTriageReview(id: string, body: { decision: "approved" | "revised" | "rejected"; priority?: string; message?: string; notes?: string }) {
+  return apiPost(`/v1/triage/reviews/${encodeURIComponent(id)}/decide`, body, "triage decision");
+}
+export async function getTriageReview(id: string) {
+  return apiGet(`/v1/triage/reviews/${encodeURIComponent(id)}`, undefined, "triage review");
+}
 export const API_BASE = API;
 
 // Micro-curriculum (learn): lessons + quiz + adaptive + 7-day today.

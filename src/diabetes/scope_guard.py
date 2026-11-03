@@ -22,7 +22,7 @@ _OUT_OF_SCOPE_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("ung thư", ("ung thư", "ung thu", "cancer", "khối u", "khoi u", "hóa trị", "hoa tri", "xạ trị", "xa tri")),
     ("thận", ("suy thận", "suy than", "chạy thận", "chay than", "lọc máu", "loc mau", "nephro")),
     ("gan", ("viêm gan", "viem gan", "xơ gan", "xo gan", "hepatitis", "men gan")),
-    ("phổi/hô hấp", ("hen suyễn", "hen suyen", "copd", "phổi", "phoi", "lao phổi", "lao phoi", "asthma")),
+    ("phổi/hô hấp", ("hen suyễn", "hen suyen", "hen phế quản", "hen phe quan", "copd", "phổi", "phoi", "lao phổi", "lao phoi", "asthma")),
     ("thai sản", ("mang thai", "thai kỳ", "thai ky", "sinh con", "pregnancy", "cho con bú", "cho con bu")),
     ("tâm thần", ("trầm cảm", "tram cam", "tự tử", "tu tu", "suicide", "tâm thần", "tam than", "lo âu nặng", "rối loạn tâm", "roi loan tam")),
     ("xương khớp", ("gãy xương", "gay xuong", "thoái hóa khớp", "thoai hoa khop", "gout", "viêm khớp", "viem khop")),

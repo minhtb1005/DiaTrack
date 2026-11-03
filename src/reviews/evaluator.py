@@ -2,7 +2,6 @@
 from __future__ import annotations
 import json
 import re
-import os
 from typing import Dict, Any, List
 
 try:
@@ -39,53 +38,29 @@ Return strictly JSON:
 """
 
 def _call_llm_eval(prompt: str) -> Dict[str, Any]:
-    # Provider-aware: OpenAI key đã chết -> dùng client theo LLM_PROVIDER
-    # (NVIDIA xoay key + model JUDGE sạch JSON, không thinking-spill).
+    # NVIDIA xoay key + model JUDGE sạch JSON (không thinking-spill).
     try:
-        from src.shared.config import LLM_PROVIDER as _PROV
+        from src.shared.nvidia import llm_client
     except ImportError:
-        from shared.config import LLM_PROVIDER as _PROV  # type: ignore
-    if _PROV == "nvidia":
-        try:
-            from src.shared.nvidia import RotatingNvidiaClient
-        except ImportError:
-            from shared.nvidia import RotatingNvidiaClient  # type: ignore
-        try:
-            from src.shared.config import NVIDIA_JUDGE_MODEL as _JM
-        except ImportError:
-            from shared.config import NVIDIA_JUDGE_MODEL as _JM  # type: ignore
-        client = RotatingNvidiaClient()
-        resp = client.chat.completions.create(
-            model=_JM,
-            messages=[
-                {"role": "system", "content": "You are a strict RAG evaluator. Output only JSON."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0,
-            max_tokens=800,
-        )
-        return json.loads(resp.choices[0].message.content.strip())
-    from openai import OpenAI
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("No OPENAI_API_KEY")
+        from shared.nvidia import llm_client  # type: ignore
     try:
-        client = OpenAI(api_key=api_key, base_url=os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1")
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
-            messages=[
-                {"role": "system", "content": "You are a strict RAG evaluator. Output only JSON."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.1,
-            max_tokens=800,
-            response_format={"type": "json_object"},
-        )
-        txt = resp.choices[0].message.content.strip()
-        return json.loads(txt)
-    except Exception as e:
-        # fallback: heuristically score based on citations etc will be handled outside
-        raise e
+        from src.shared.config import NVIDIA_JUDGE_MODEL as _JM
+    except ImportError:
+        from shared.config import NVIDIA_JUDGE_MODEL as _JM  # type: ignore
+    client = llm_client()
+    if client is None:
+        raise RuntimeError("Không có NVIDIA key")
+    resp = client.chat.completions.create(
+        model=_JM,
+        messages=[
+            {"role": "system", "content": "You are a strict RAG evaluator. Output only JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
+        max_tokens=800,
+    )
+    return json.loads(resp.choices[0].message.content.strip())
+
 
 def evaluate_rag(question: str, answer: str, contexts: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
@@ -99,6 +74,8 @@ def evaluate_rag(question: str, answer: str, contexts: List[Dict[str, Any]]) -> 
       routed_role: str
     }
     """
+    from src.shared.privacy import sanitize, redact_text, PrivacyError
+    question, answer, contexts = sanitize([question, answer, contexts])
     context_text = "\n\n".join([f"[Source {c.get('source_id','?')}] {c.get('content','')[:800]}" for c in contexts]) if contexts else "NO CONTEXTS"
     prompt = EVAL_PROMPT.format(question=question, answer=answer, context_text=context_text[:6000])
 
@@ -126,6 +103,8 @@ def evaluate_rag(question: str, answer: str, contexts: List[Dict[str, Any]]) -> 
             "context_recall": str(_pick("Contextual_Recall_comment", "context_recall_comment") or ""),
             "answer_relevance": str(_pick("Answer_Relevance_comment", "answer_relevance_comment") or ""),
         }
+    except PrivacyError:
+        raise
     except Exception as e:
         # Heuristic fallback when LLM not available
         # faithfulness: if answer has "Tôi chưa tìm thấy" / "I'm not sure" → 0 else 2.5
@@ -141,12 +120,12 @@ def evaluate_rag(question: str, answer: str, contexts: List[Dict[str, Any]]) -> 
             "answer_relevance": 3.0,
         }
         comments = {
-            "faithfulness": f"heuristic fallback (has_fallback={has_fallback}, has_citation={has_citation}, err={str(e)[:100]})",
+            "faithfulness": f"heuristic fallback (has_fallback={has_fallback}, has_citation={has_citation}, err={type(e).__name__})",
             "context_precision": "heuristic fallback",
             "context_recall": "heuristic fallback",
             "answer_relevance": "heuristic fallback",
         }
-        raw = {"_fallback": True, "_error": str(e)[:500]}
+        raw = {"_fallback": True, "_error": type(e).__name__}
 
     # Determine failed metrics vs thresholds
     failed: List[str] = []

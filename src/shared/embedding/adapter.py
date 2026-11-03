@@ -2,21 +2,11 @@ from typing import List, Optional
 import numpy as np
 
 
-def get_openai_embeddings(model: Optional[str] = None):
-    """Factory cho OpenAI embeddings — dùng key từ .env."""
-    try:
-        from langchain_openai import OpenAIEmbeddings
-    except ImportError as e:
-        raise ImportError("langchain-openai chưa cài: pip install langchain-openai") from e
-    import os
-    kwargs = {}
-    if model:
-        kwargs["model"] = model
-    else:
-        # config.OPENAI_EMBEDDING_MODEL sẽ được resolve ở nơi gọi
-        pass
-    # OpenAIEmbeddings tự đọc OPENAI_API_KEY từ env
-    return OpenAIEmbeddings(**kwargs)
+
+
+def get_openai_embeddings(model: Optional[str] = None):  # noqa: D401 - đã gỡ
+    """ĐÃ BỎ: embedding chỉ dùng NVIDIA (xem src/shared/nvidia.py::NvidiaEmbeddings)."""
+    raise RuntimeError("OpenAI embeddings đã bị gỡ; dùng NvidiaEmbeddings trong src/shared/nvidia.py")
 
 
 class EmbeddingAdapter:

@@ -215,6 +215,22 @@ test.describe('Tracker A — Guided UI', () => {
     await expect(page.getByRole('link', { name: 'Bản ghi #1' })).toHaveAttribute('href', '#log-1');
   });
 
+  test('trend explanation hides answers whose source has no valid page metadata', async ({ page }) => {
+    await mockSession(page);
+    await mockGlucoseGet(page, [
+      { id: 7, user_id: ME.id, value_mgdl: 130, measured_at: dayIso(), context: 'fasting', notes: null, classification: 'no_alert' },
+    ]);
+    await page.route('**/v1/query', route => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ answer: 'Lời khuyên không đủ metadata không được hiện.', contexts: [{ source_id: 'WHO-HEARTS-D' }] }),
+    }));
+
+    await page.goto('/tracker');
+    await page.getByRole('button', { name: /Giúp tôi hiểu biểu đồ/ }).click();
+    await expect(page.getByText('Chưa có diễn giải kèm nguồn để hiển thị. Hãy trao đổi với bác sĩ.')).toBeVisible();
+    await expect(page.getByText('Lời khuyên không đủ metadata không được hiện.')).toBeHidden();
+  });
+
   test('tracker hides draft while doctor review is pending', async ({ page }) => {
     await mockSession(page);
     await mockGlucoseGet(page, [
@@ -235,7 +251,12 @@ test.describe('Tracker A — Guided UI', () => {
   test('due reminders persist and appear when tracker opens', async ({ page }) => {
     await mockSession(page);
     await mockGlucoseGet(page, []);
+    const reminderWrites: string[] = [];
+    page.on('request', request => {
+      if (request.method() !== 'GET') reminderWrites.push(request.url());
+    });
     await page.goto('/tracker');
+    await expect(page.getByText(/Lịch chỉ lưu trên thiết bị này.*backend không gửi thông báo/)).toBeVisible();
     await page.getByLabel('Lần đo tiếp theo').fill('2020-01-01T08:00');
     await page.getByLabel('Lần tái khám tiếp theo').fill('2020-01-02T08:00');
     await page.getByRole('button', { name: 'Lưu lịch nhắc' }).click();
@@ -248,6 +269,7 @@ test.describe('Tracker A — Guided UI', () => {
     await expect(page.getByText(/Đã tới lịch tái khám/)).toBeHidden();
     await page.reload();
     await expect(page.getByLabel('Lần đo tiếp theo')).toHaveValue('');
+    expect(reminderWrites).toEqual([]);
   });
 
   test('voice mic transcribes ambiguous then auto-sends via existing path', async ({ page }) => {

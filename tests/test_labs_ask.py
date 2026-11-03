@@ -1,7 +1,7 @@
 """Labs Q&A B2: POST /v1/labs/ask — grounded, panic, citations, auth, zero-writes.
 
 Isolation: monkeypatch module-namespace src.labs.store.LAB_DB_PATH + tmp_path
-(precedent test_lab_seed); delenv OPENAI_API_KEY for determinism.
+(precedent test_lab_seed); delenv NVIDIA keys for determinism.
 Read-only: every ask must leave lab_reports/lab_observations counts unchanged.
 Labs carve-out: NEVER scope_guard on this path (kidney/liver are legit lab Qs).
 """
@@ -26,7 +26,11 @@ def iso_labs(monkeypatch, tmp_path):
     monkeypatch.setattr(ls, "LAB_DB_PATH", tmp_db)
     monkeypatch.setenv("TRIAGE_AUDIT_PATH", str(tmp_path / "audit.jsonl"))
     monkeypatch.setenv("TRIAGE_EVENTS_PATH", str(tmp_path / "events.jsonl"))
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     monkeypatch.delenv("DEMO_BUSY", raising=False)
     seed.seed_all(seed=42, reset=True, patient_ids=PIDS)
     return tmp_path
@@ -154,7 +158,11 @@ class TestPanic:
 class TestDeterminismAuthWrites:
     def test_no_key_double_post_equal(self, client, iso_labs, monkeypatch):
         _anon(client)
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        for _k in (
+            "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+            "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+        ):
+            monkeypatch.delenv(_k, raising=False)
         monkeypatch.setitem(sys.modules, "openai", None)
         body = {"user_id": PIDS[0], "question": "Phiếu này nói gì về mỡ máu?"}
         r1, r2 = _ask(client, body), _ask(client, body)

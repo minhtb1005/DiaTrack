@@ -140,3 +140,65 @@ def test_pharmacist_routing(client: TestClient, make_user):
     assert role == "pharmacist"
     role2 = route_role(["faithfulness"], "What is diabetes threshold?")
     assert role2 == "doctor"
+
+
+@pytest.mark.parametrize("decision", ["approved", "revised"])
+def test_review_publication_permissions_and_db(client, make_user, doctor_user, decision):
+    from src.reviews.service import create_review_request
+    from src.auth import db
+    import sqlite3
+
+    patient, token = make_user()
+    _, other_token = make_user()
+    draft = "PRIVATE_DRAFT"
+    rev = create_review_request("Diabetes follow-up", draft, [], {
+        "routed_role": "doctor", "review_required_by_workflow": True,
+        "comments": {"internal": draft}, "confidence": 0.5,
+    }, patient["id"])
+    rid = rev["id"]
+    headers = lambda tok: {"Authorization": f"Bearer {tok}"}
+    # Every patient read surface must exclude internal draft/evaluation data.
+    for path in ("/v1/reviews", "/v1/reviews/me", f"/v1/reviews/{rid}", "/v1/query/history"):
+        response = client.get(path, headers=headers(token))
+        assert response.status_code == 200
+        assert draft not in response.text
+    for denied in (token, other_token):
+        for endpoint in ("decide", "decision?decision=approved"):
+            response = client.post(f"/v1/reviews/{rid}/{endpoint}", headers=headers(denied), json={"decision": "approved"})
+            assert response.status_code == 403
+    assert client.get(f"/v1/reviews/{rid}", headers=headers(other_token)).status_code == 403
+    # Verified but wrong-role accounts cannot read or decide doctor-only cases.
+    from src.auth.security import create_access_token, hash_password
+    import uuid
+    for role in ("nurse", "pharmacist", "specialist"):
+        account = db.create_user(f"wrong_{uuid.uuid4().hex[:8]}", None, hash_password("Test@123"), None, role, is_verified=True)
+        wrong_headers = headers(create_access_token({"sub": account["id"], "role": role}))
+        assert client.get(f"/v1/reviews/{rid}", headers=wrong_headers).status_code == 403
+        assert client.post(f"/v1/reviews/{rid}/decide", headers=wrong_headers, json={"decision": "approved"}).status_code == 403
+        queue = client.get("/v1/reviews?status=pending", headers=wrong_headers)
+        if role == "nurse":
+            assert queue.status_code == 403
+        else:
+            assert queue.status_code == 200
+            assert rid not in [r["id"] for r in queue.json()["reviews"]]
+    unverified = db.create_user(f"unverified_{uuid.uuid4().hex[:8]}", None, hash_password("Test@123"), None, "doctor", is_verified=False)
+    uh = headers(create_access_token({"sub": unverified["id"], "role": "doctor"}))
+    assert client.post(f"/v1/reviews/{rid}/decide", headers=uh, json={"decision": "approved"}).status_code == 403
+    dh = headers(doctor_user["token"])
+    detail = client.get(f"/v1/reviews/{rid}", headers=dh)
+    assert detail.status_code == 200
+    assert set(detail.json()["requester"]) == {"id", "username", "role"}
+    invalid = client.post(f"/v1/reviews/{rid}/decide", headers=dh, json={"decision": "revised", "final_answer": "   "})
+    assert invalid.status_code == 400
+    final = "Final answer. " * 30 if decision == "revised" else draft
+    result = client.post(f"/v1/reviews/{rid}/decide", headers=dh, json={"decision": decision, "final_answer": final})
+    assert result.status_code == 200, result.text
+    assert client.post(f"/v1/reviews/{rid}/decide", headers=dh, json={"decision": "approved"}).status_code == 400
+    visible = client.get(f"/v1/reviews/{rid}", headers=headers(token)).json()
+    assert visible["final_answer"] == final and visible["status"] == decision
+    assert "draft_answer" not in visible
+    with sqlite3.connect(db.AUTH_DB_PATH) as conn:
+        row = conn.execute("SELECT status, final_answer, assigned_expert_id FROM review_requests WHERE id=?", (rid,)).fetchone()
+        history = conn.execute("SELECT status, answer FROM query_history WHERE review_id=?", (rid,)).fetchone()
+    assert row == (decision, final, doctor_user["user"]["id"])
+    assert history == ("approved", final)

@@ -41,8 +41,8 @@ SEX_LABEL = {"SEX_BTSX": "cả hai giới", "SEX_MLE": "nam", "SEX_FMLE": "nữ"
 STATS_KEYWORDS = [
     "tỷ lệ", "ty le", "phần trăm", "phan tram", "%", "tăng bao nhiêu", "tang bao nhieu",
     "giảm bao nhiêu", "giam bao nhieu", "so với", "so voi", "so sánh", "so sanh",
-    "prevalence", "coverage", "bao nhiêu", "bao nhieu", "thống kê", "thong ke",
-    "tình hình", "tinh hinh", "xu hướng", "xu huong",
+    "prevalence", "coverage", "thống kê", "thong ke",
+    "tình hình", "tinh hinh",
 ]
 
 

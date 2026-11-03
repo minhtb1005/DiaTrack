@@ -233,7 +233,7 @@ def run_b4(dataset, n):
         "retrieval_only": retrieval_stats,
         "e2e_fresh": fresh_stats,
         "e2e_cache_hit": hit_stats,
-        "note": "E2E includes Groq/OpenAI LLM call; measured on CPU client.",
+        "note": "E2E includes NVIDIA LLM call; measured on CPU client.",
     }
 
 
@@ -279,7 +279,7 @@ def run_b5(dataset, max_questions=None):
         from shared.config import LLM_PROVIDER as _BENCH_PROV, NVIDIA_JUDGE_MODEL as _JUDGE
         from shared.nvidia import select_chat_model as _select
     except ImportError:
-        _BENCH_PROV, _JUDGE, _select = "openai", None, None
+        _BENCH_PROV, _JUDGE, _select = "nvidia", None, None
 
     def _ans_model(q):
         if _BENCH_PROV == "nvidia" and _select:
@@ -792,7 +792,7 @@ def _git_sha():
 
 def run_services_mode(args):
     """Opt-in B6-B8 run. Returns process exit code (D6: safety only)."""
-    os.environ["OPENAI_API_KEY"] = ""  # "" survives lazy load_dotenv (override=False) + falsy -> _parse_llm early-None; 0 LLM calls
+    os.environ["NVDIA_API_KEY"] = ""  # "" survives lazy load_dotenv (override=False) + falsy -> _parse_llm early-None; 0 LLM calls
     selected = [s.strip().lower() for s in (args.services or "").split(",")
                 if s.strip().lower() in SERVICES]
     if not selected:

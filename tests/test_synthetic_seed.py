@@ -25,7 +25,11 @@ def iso_env(monkeypatch, tmp_path):
     tmp_db = tmp_path / "syn.db"
     monkeypatch.setattr(gt, "GLUCOSE_DB_PATH", tmp_db)
     monkeypatch.setenv("SYNTHETIC_SIDECAR_DIR", str(tmp_path / "meta"))
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     gt.init_glucose_db()
     return tmp_path
 
@@ -104,7 +108,11 @@ class TestSyntheticSeed:
     def test_deterministic_fallback_no_openai(self, iso_env, fake_episodic, monkeypatch):
         # retune 2026-09-22: B4 notes kept as >0 (exact-count pin dropped — engine
         # meds annotations + B4 both write notes now).
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        for _k in (
+            "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+            "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+        ):
+            monkeypatch.delenv(_k, raising=False)
         monkeypatch.setitem(sys.modules, "openai", None)  # any import attempt fails -> template path
         r = seed.seed_all(seed=7, days=14, end_offset=3, reset=True,
                           use_llm=True, episodic=None)

@@ -19,7 +19,11 @@ def iso_lab(monkeypatch, tmp_path):
     import src.labs.store as ls
     tmp_db = tmp_path / "labs.db"
     monkeypatch.setattr(ls, "LAB_DB_PATH", tmp_db)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     return tmp_path
 
 
@@ -67,7 +71,11 @@ class TestLabSeed:
         assert not th.is_panic("4548-4", 6.0)
 
     def test_no_key_deterministic(self, iso_lab, monkeypatch):
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        for _k in (
+            "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+            "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+        ):
+            monkeypatch.delenv(_k, raising=False)
         monkeypatch.setitem(sys.modules, "openai", None)
         p1 = seed.build_lab_plan(PIDS, 42)
         p2 = seed.build_lab_plan(PIDS, 42)

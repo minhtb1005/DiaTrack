@@ -27,6 +27,32 @@ except ImportError:
 router = APIRouter(prefix=API_PREFIX, tags=["chat"])
 
 
+def _review_safe_events(events):
+    buffered_tokens = []
+    for evt in events:
+        ev = evt.get("event", "message")
+        data = evt.get("data", {})
+        if ev == "token":
+            buffered_tokens.append(data)
+            continue
+        if ev == "done":
+            if data.get("status") == "pending_review":
+                data = dict(data)
+                data["answer"] = "Bản diễn giải đang chờ bác sĩ duyệt trước khi hiển thị."
+                data["formatted_answer"] = data["answer"]
+                data.pop("evaluation", None)
+            else:
+                for token_data in buffered_tokens:
+                    yield f"event: token\ndata: {_json.dumps(token_data, ensure_ascii=False)}\n\n"
+        yield f"event: {ev}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _identity_events(events, current_user):
+    from src.shared.privacy import identity_scope
+    with identity_scope(current_user.get("id"), current_user.get("username"), current_user.get("full_name")):
+        yield from events
+
+
 def _scope_answer(query: str, current_user: dict | None) -> str | None:
     from src.diabetes.scope_guard import is_out_of_scope, is_type2_patient, safeguard_response
     from src.triage.red_flag import check_red_flag
@@ -75,9 +101,14 @@ def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noq
     try:
         # pass username for tracing
         username = current_user.get("username") if isinstance(current_user, dict) else None
-        result = rag_chat(req.query, top_k=req.top_k, user_id=effective_user_id, username=username, language=req.language, defer_publication=req.require_doctor_review)
+        from src.shared.privacy import identity_scope
+        with identity_scope(effective_user_id, username, current_user.get("full_name")):
+            result = rag_chat(req.query, top_k=req.top_k, user_id=effective_user_id, username=username, language=req.language, defer_publication=req.require_doctor_review)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"RAG error: {e}") from e
+        from src.shared.privacy import PrivacyError
+        if isinstance(e, PrivacyError):
+            raise HTTPException(status_code=422, detail=str(e)) from None
+        raise HTTPException(status_code=500, detail="RAG request failed; remove identifying information and retry") from e
     raw = result.get("raw_answer", {})
     answer = raw.get("answer") if isinstance(raw, dict) else result.get("formatted_answer", "")
     contexts = result.get("contexts", [])
@@ -89,9 +120,13 @@ def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noq
     is_low = False
     if AUTH_ENABLED:
         try:
-            evaluation = evaluate_rag(req.query, answer, contexts)
             if req.require_doctor_review:
-                evaluation = {**evaluation, "routed_role": "doctor", "review_required_by_workflow": True}
+                # Mandatory clinician review does not need a second AI judge.
+                evaluation = {"routed_role": "doctor", "review_required_by_workflow": True,
+                              "is_low_confidence": True, "failed_metrics": []}
+            else:
+                with identity_scope(effective_user_id, username, current_user.get("full_name")):
+                    evaluation = evaluate_rag(req.query, answer, contexts)
             is_low = bool(evaluation.get("is_low_confidence", False) or req.require_doctor_review)
             if is_low:
                 # create review request
@@ -134,6 +169,9 @@ def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noq
                 except Exception:
                     pass
         except Exception as e:
+            from src.shared.privacy import PrivacyError
+            if isinstance(e, PrivacyError):
+                raise HTTPException(status_code=422, detail=str(e)) from None
             # Clinician review requests fail closed when the review queue is unavailable.
             if req.require_doctor_review:
                 raise HTTPException(status_code=503, detail="Doctor review is unavailable") from e
@@ -190,7 +228,7 @@ def rag_query(req: QueryRequest, current_user=Depends(get_current_user)):  # noq
     out = resp.model_dump()
     out["status"] = status_str
     out["review_id"] = review_id
-    out["evaluation"] = evaluation
+    out["evaluation"] = None if status_str == "pending_review" else evaluation
     out["is_low_confidence"] = is_low
     out["effective_user_id"] = effective_user_id
     out["trace_id"] = result.get("trace_id")
@@ -220,6 +258,14 @@ def rag_query_stream(req: QueryRequest, current_user=Depends(get_current_user)):
             data = _json.dumps({"answer": scoped_answer, "cited_sources": [], "status": "answered", "safeguard": True}, ensure_ascii=False)
             yield f"event: done\ndata: {data}\n\n"
         return StreamingResponse(scoped_events(), media_type="text/event-stream")
+    if req.require_doctor_review:
+        result = rag_query(req, current_user)
+        data = result.model_dump() if hasattr(result, "model_dump") else result
+
+        def review_events():
+            yield f"event: done\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+        return StreamingResponse(review_events(), media_type="text/event-stream")
     try:
         from src.chat.rag_pipeline import rag_chat_stream  # type: ignore
     except ImportError:
@@ -229,13 +275,10 @@ def rag_query_stream(req: QueryRequest, current_user=Depends(get_current_user)):
 
     def event_generator():
         try:
-            for evt in rag_chat_stream(req.query, top_k=req.top_k, user_id=effective_user_id, username=username, language=req.language):
-                ev = evt.get("event", "message")
-                data = evt.get("data", {})
-                # SSE wire format
-                yield f"event: {ev}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+            events = rag_chat_stream(req.query, top_k=req.top_k, user_id=effective_user_id, username=username, language=req.language)
+            yield from _review_safe_events(_identity_events(events, current_user))
         except Exception as e:
-            err = _json.dumps({"error": str(e)}, ensure_ascii=False)
+            err = _json.dumps({"error": "RAG request failed"}, ensure_ascii=False)
             yield f"event: error\ndata: {err}\n\n"
 
     return StreamingResponse(

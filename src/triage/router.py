@@ -4,18 +4,19 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 try:
     from src.shared.config import API_PREFIX
     from src.triage.schemas import TriageRequest, TriageResponse
     from src.diabetes.glucose_tracker import should_escalate_to_doctor
-    from src.auth.dependencies import get_current_user_optional, require_expert, require_admin
+    from src.auth.dependencies import get_current_user, get_current_user_optional, require_expert, require_admin
     AUTH_ENABLED = True
 except ImportError:
     from shared.config import API_PREFIX  # type: ignore
     from triage.schemas import TriageRequest, TriageResponse  # type: ignore
     from diabetes.glucose_tracker import should_escalate_to_doctor  # type: ignore
-    from auth.dependencies import get_current_user_optional, require_expert, require_admin  # type: ignore
+    from auth.dependencies import get_current_user, get_current_user_optional, require_expert, require_admin  # type: ignore
     AUTH_ENABLED = True
 
 try:
@@ -24,6 +25,11 @@ except ImportError:  # pragma: no cover
     from api.deps import _resolve_user_id  # type: ignore
 
 router = APIRouter(prefix=API_PREFIX, tags=["triage"])
+
+TRIAGE_SAFETY_FALLBACK = (
+    "Không thể kiểm tra đầy đủ dấu hiệu nguy hiểm lúc này. "
+    "Gọi 115 ngay hoặc đến cơ sở y tế gần nhất nếu có triệu chứng nặng."
+)
 
 
 @router.post("/triage", response_model=TriageResponse)
@@ -44,7 +50,12 @@ def triage_endpoint(payload: TriageRequest, current_user=Depends(get_current_use
             from triage.red_flag import check_red_flag, append_red_flag_audit, EMERGENCY_MESSAGE  # type: ignore
         rf = check_red_flag(payload.message or "")
     except Exception:
-        rf = {"emergency": False, "red_flag_type": None, "message": ""}
+        return TriageResponse(
+            emergency=True,
+            red_flag_type="safety_check_unavailable",
+            message=TRIAGE_SAFETY_FALLBACK,
+            recommended_doctors=[],
+        )
     if not rf.get("emergency") and payload.latest_glucose_mgdl is not None:
         from src.shared.glucose_policy import THRESHOLDS
         if payload.latest_glucose_mgdl < THRESHOLDS["hypoglycemia"].value:
@@ -104,6 +115,18 @@ def triage_endpoint(payload: TriageRequest, current_user=Depends(get_current_use
             return TriageResponse(
                 emergency=True, message=EMERGENCY_MESSAGE,
                 symptoms=symptoms, recommended_doctors=[], **proposal,
+            )
+        if proposal.get("proposed_priority") and current_user is not None and current_user.get("role") == "user":
+            from src.triage.review_queue import create_case
+            try:
+                case_id = create_case(current_user["id"], payload.message, payload.latest_glucose_mgdl,
+                                      payload.symptom_onset, proposal)
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail="Hàng đợi phân luồng chưa sẵn sàng") from exc
+            return TriageResponse(
+                emergency=False, recommended_doctors=[], case_id=case_id,
+                message="Đã gửi thông tin cho điều dưỡng duyệt. Chưa có hướng xử trí được phê duyệt.",
+                **proposal,
             )
         return TriageResponse(
             emergency=False, symptoms=symptoms, recommended_doctors=[],
@@ -226,6 +249,62 @@ def triage_endpoint(payload: TriageRequest, current_user=Depends(get_current_use
         solver_used=solver_used,
         routing_reason=routing_reason,
     )
+
+
+class TriageDecision(BaseModel):
+    decision: str = Field(pattern="^(approved|revised|rejected)$")
+    priority: Optional[str] = Field(None, pattern="^(routine|soon|emergency)$")
+    message: Optional[str] = Field(None, min_length=10, max_length=1000)
+    notes: Optional[str] = Field(None, max_length=1000)
+
+
+def _triage_reviewer(user=Depends(get_current_user)):
+    if user["role"] not in ("nurse", "doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Triage reviewer role required")
+    return user
+
+
+@router.get("/triage/reviews/pending")
+def pending_triage_reviews(user=Depends(_triage_reviewer)):
+    from src.triage.review_queue import list_pending
+    return {"cases": list_pending()}
+
+
+@router.post("/triage/reviews/{case_id}/decide")
+def decide_triage_review(case_id: str, payload: TriageDecision, user=Depends(_triage_reviewer)):
+    from src.triage.review_queue import decide, get_case
+    from src.triage.red_flag import EMERGENCY_MESSAGE
+    if payload.decision == "revised" and (not payload.priority or not payload.message):
+        raise HTTPException(status_code=422, detail="Revised case requires priority and message")
+    if payload.decision == "approved" and not payload.message:
+        raise HTTPException(status_code=422, detail="Approved case requires message")
+    existing = get_case(case_id)
+    if payload.decision == "approved" and existing and payload.priority and payload.priority != existing["proposed_priority"]:
+        raise HTTPException(status_code=422, detail="Changed priority requires revised decision")
+    if payload.priority == "emergency" and payload.decision != "rejected":
+        message = EMERGENCY_MESSAGE
+    else:
+        message = payload.message
+    result = decide(case_id, user["id"], payload.decision, payload.priority, message, payload.notes)
+    if result is None:
+        raise HTTPException(status_code=409, detail="Case missing or already reviewed")
+    return {"id": case_id, "status": result["status"], "final_priority": result["final_priority"]}
+
+
+@router.get("/triage/reviews/{case_id}")
+def get_my_triage_review(case_id: str, user=Depends(get_current_user)):
+    from src.triage.review_queue import get_case
+    case = get_case(case_id)
+    if case is None or (user["role"] not in ("nurse", "doctor", "admin") and case["requester_id"] != user["id"]):
+        raise HTTPException(status_code=404, detail="Case not found")
+    if case["status"] == "pending" and user["role"] not in ("nurse", "doctor", "admin"):
+        return {"id": case_id, "status": "pending", "message": "Đang chờ điều dưỡng duyệt."}
+    if user["role"] in ("nurse", "doctor", "admin"):
+        from src.triage.review_queue import audit_for
+        case["audit"] = audit_for(case_id)
+        return case
+    return {"id": case_id, "status": case["status"], "priority": case["final_priority"],
+            "message": case["final_message"]}
 
 
 @router.get("/doctor/patients")

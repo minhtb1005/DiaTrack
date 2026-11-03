@@ -1,0 +1,76 @@
+{
+  "version": "2026-11-02.4",
+  "active_index": {
+    "path": "embeddings/pdf_db_nvidia_verified_20261102/hybrid_section_semantic/verified_manifest.json",
+    "index_dir": "embeddings/pdf_db_nvidia_verified_20261102/hybrid_section_semantic",
+    "sha256": "828b3c2448f16ffe088ab7b9743dc0488479cdc9b22eeff573f9e47209744223"
+  },
+  "sources": {
+    "who_classification_diabetes_2019": {
+      "path": "data/raw/pdfs/diabetes/WHO_Classification_Diabetes_2019.pdf",
+      "sha256": "1aafed8dbb3b23411edbae4b2bd2c6b557630b98a6068997f71fc450582b3557",
+      "publisher": "World Health Organization",
+      "official_url": "https://iris.who.int/server/api/core/bitstreams/2cb3ab68-a52a-402e-ad47-8bc5a4edc834/content",
+      "scope": "type2_diabetes",
+      "binary_match": true,
+      "approved_for_external_send": true
+    },
+    "who_hearts_d_diabetes_2020": {
+      "path": "data/raw/pdfs/diabetes/WHO_HEARTS_D_Diabetes_2020.pdf",
+      "sha256": "71b216b19a227e73e0e624274974571a3530e30a0db37a3d10b6d179eefac008",
+      "publisher": "World Health Organization",
+      "official_url": "https://iris.who.int/server/api/core/bitstreams/2a0b4f68-7155-4ad1-b543-945791e31830/content",
+      "scope": "type2_diabetes",
+      "binary_match": true,
+      "approved_for_external_send": true
+    },
+    "who_pen_2020_ncd": {
+      "path": "data/raw/pdfs/diabetes/WHO_PEN_2020_NCD.pdf",
+      "sha256": "a09cc0ea4b39fd6ebfceb4d73f20bee7c4a7baeb3ae60150160cad646d6ec7e6",
+      "publisher": "World Health Organization",
+      "official_url": "https://iris.who.int/server/api/core/bitstreams/b9f09202-a320-4c07-ba2c-afe0d1186339/content",
+      "scope": "type2_diabetes_and_comorbid_ncd",
+      "binary_match": true,
+      "approved_for_external_send": true
+    },
+    "byt_qd3319_hd_chandoan_dtd_type2_2017": {
+      "path": "data/raw/pdfs/byt/BYT_QD3319_HD_ChanDoan_DTD_Type2_2017.pdf",
+      "sha256": "b5df6fd56fc2c4d51fc0ee6de61e164b02229084dbcb658d179baf9d208e5314",
+      "publisher": "Bộ Y tế Việt Nam",
+      "official_url": "https://daithaoduong.kcb.vn/upload/files/HD-chan-doan-dieu-tri-DTD-2017_07_19-Approved%20%281%29.pdf",
+      "scope": "type2_diabetes",
+      "binary_match": true,
+      "approved_for_external_send": true
+    },
+    "ada_standards_of_care_2024_abridged": {
+      "path": "data/raw/pdfs/diabetes/ADA_Standards_of_Care_2024_Abridged.pdf",
+      "sha256": "bdc60c919f5d596092c1962fde675a126938e128b4fabb763aef99ff1fbf0a93",
+      "publisher": "American Diabetes Association",
+      "official_url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+      "scope": "type2_diabetes",
+      "binary_match": true,
+      "approved_for_external_send": false,
+      "eligible_for_next_index": true,
+      "verification": "exact SHA-256 match with the 328-page PDF downloaded from the issue page's Standards of Care (PDF) link on ada.silverchair-cdn.com"
+    },
+    "byt_qd5481_hd_chandoan_dtd_type2_2020": {
+      "path": "data/raw/pdfs/byt/BYT_QD5481_HD_ChanDoan_DTD_Type2_2020_GOV.pdf",
+      "sha256": "305fc9c51d54418f5798e7691d59f94d24545e0dd728945e2225794730694486",
+      "publisher": "Bộ Y tế Việt Nam",
+      "official_url": "https://syt.dongnai.gov.vn/vi/van-ban/detail/V-v-trien-khai-thuc-hien-Quyet-dinh-so-5481-QD-BYT-ngay-30-12-2020-cua-Bo-truong-Bo-Y-te-4905/?download=1&id=0",
+      "scope": "type2_diabetes",
+      "binary_match": true,
+      "approved_for_external_send": false,
+      "eligible_for_next_index": true,
+      "verification": "government-hosted attachment; 77 pages and normalized text SHA-256 match the prior local copy"
+    }
+  },
+  "tools": {
+    "gho_stats": {
+      "path": "data/processed/gho_stats.db",
+      "sha256": "b5f567cde972dc08c4343104deaa5ca6378ab23218e7a2509e06e17610256167",
+      "provenance": "local_public_aggregate",
+      "approved_for_external_send": true
+    }
+  }
+}

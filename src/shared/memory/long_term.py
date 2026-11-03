@@ -222,6 +222,8 @@ class LongTermMemory:
         facts = []
         for doc in docs:
             metadata = doc.metadata
+            if metadata.get("user_id") != self.user_id:
+                continue
             
             # Calculate temporal weight
             temporal_weight = self.temporal_weighting.calculate_weight(metadata['timestamp'])
@@ -254,7 +256,7 @@ class LongTermMemory:
         """Generate a user medical profile from stored facts."""
         # Retrieve all facts for user
         all_docs = self.vector_store.get(
-            filter={"user_id": self.user_id}
+            where={"user_id": self.user_id}
         )
         
         if not all_docs['ids']:
@@ -274,6 +276,8 @@ class LongTermMemory:
         for i, doc_id in enumerate(all_docs['ids']):
             doc = all_docs['documents'][i]
             metadata = all_docs['metadatas'][i]
+            if metadata.get('user_id') != self.user_id:
+                continue
             
             fact_type = metadata.get('fact_type', 'general')
             if fact_type in profile:
@@ -302,13 +306,15 @@ class LongTermMemory:
         
         # Get all facts for user
         all_docs = self.vector_store.get(
-            filter={"user_id": self.user_id}
+            where={"user_id": self.user_id}
         )
         
         # Identify old facts
         old_ids = []
         for i, doc_id in enumerate(all_docs['ids']):
             metadata = all_docs['metadatas'][i]
+            if metadata.get('user_id') != self.user_id:
+                continue
             if metadata['timestamp'] < cutoff_time:
                 old_ids.append(doc_id)
         
@@ -365,13 +371,10 @@ class LongTermMemory:
         return memory
 
 
-# Global instance for easy access
-long_term_memory = None  # Initialize only when this memory is requested.
+# Legacy handle is quarantined; requests never read it.
+long_term_memory = None
 
 
 def get_long_term_memory(user_id: str = "default_user") -> LongTermMemory:
-    """Get the global long-term memory instance for a user."""
-    global long_term_memory
-    if long_term_memory is None or long_term_memory.user_id != user_id:
-        long_term_memory = LongTermMemory(user_id=user_id)
-    return long_term_memory
+    """Request-local handle: never mutate a global owner during another request."""
+    return LongTermMemory(user_id=user_id)

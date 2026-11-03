@@ -6,35 +6,33 @@ from typing import Dict, Any, Optional
 
 try:
     from src.shared.prompt_manager import get_system_prompt
-    from src.shared.config import DEFAULT_MODEL, LLM_PROVIDER, OPENAI_API_KEY, OPENAI_BASE_URL, GROQ_API_KEY, GROQ_BASE_URL
+    from src.shared.config import DEFAULT_MODEL
 except ImportError:
     from shared.prompt_manager import get_system_prompt  # type: ignore
-    from shared.config import DEFAULT_MODEL, LLM_PROVIDER, OPENAI_API_KEY, OPENAI_BASE_URL, GROQ_API_KEY, GROQ_BASE_URL  # type: ignore
+    from shared.config import DEFAULT_MODEL  # type: ignore
 
 def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 1200) -> str:
     try:
-        from openai import OpenAI
-        if LLM_PROVIDER == "groq":
-            client = OpenAI(api_key=GROQ_API_KEY, base_url=GROQ_BASE_URL)
-        else:
-            client = OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
-        model = os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
-        # normalize openai/ prefix
-        if model.startswith("openai/"):
-            model = model.split("/", 1)[1]
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.2,
-            max_tokens=max_tokens,
-            response_format={"type": "json_object"},
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        raise e
+        from src.shared.nvidia import llm_client
+    except ImportError:
+        from shared.nvidia import llm_client  # type: ignore
+    client = llm_client()
+    if client is None:
+        raise RuntimeError("Kh\u00f4ng c\u00f3 NVIDIA key")
+    model = DEFAULT_MODEL
+    if model.startswith("openai/"):
+        model = model.split("/", 1)[1]
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.2,
+        max_tokens=max_tokens,
+    )
+    return resp.choices[0].message.content.strip()
+
 
 def _summarize_or_fallback(system: str, user: str, max_tokens: int, defaults: Dict[str, Any]) -> Dict[str, Any]:
     """Shared LLM JSON call + setdefaults (throws to caller fallback)."""
@@ -53,6 +51,9 @@ def summarize_guideline_diff(
     publication_date_hint: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Return structured diff JSON (VI). Falls back to heuristic if LLM unavailable."""
+    from src.shared.privacy import redact_text
+    old_text = redact_text(old_text or "")
+    new_text = redact_text(new_text)
     system = get_system_prompt("guideline_diff")
     user = (
         f"Nguồn: {source}\nTiêu đề: {title}\n"
@@ -74,6 +75,9 @@ def summarize_guideline_diff(
             "muc_do_quan_trong": "medium",
         })
     except Exception as e:
+        from src.shared.privacy import PrivacyError
+        if isinstance(e, PrivacyError):
+            raise
         # heuristic fallback — still VI
         snippet = new_text[:500].replace("\n", " ")
         return {
@@ -92,6 +96,8 @@ def summarize_guideline_diff(
 def summarize_safety_alert(raw_json: Dict[str, Any], source: str) -> Dict[str, Any]:
     """Summarize FDA/DAV/MOH raw alert into VI JSON."""
     system = get_system_prompt("safety_summary")
+    from src.shared.privacy import sanitize
+    raw_json = sanitize(raw_json)
     user = f"Nguồn: {source}\nDữ liệu thô (JSON):\n{json.dumps(raw_json, ensure_ascii=False)[:7000]}\n\nTrả về JSON đúng schema safety_summary."
     try:
         return _summarize_or_fallback(system, user, 1000, {

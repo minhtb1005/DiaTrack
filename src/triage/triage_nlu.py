@@ -11,10 +11,13 @@ intents}.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import unicodedata
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 # T2=Mon ... T7=Sat, CN=Sun (T4 = Wednesday!).
 VN_DAY = {"t2": 0, "t3": 1, "t4": 2, "t5": 3, "t6": 4, "t7": 5, "cn": 6}
@@ -233,7 +236,7 @@ def _extract_constraints(has_bhyt: bool, branch, tier, requested_list: list,
 
 
 def parse_regex(text: str) -> Dict[str, Any]:
-    """Deterministic fallback (also the CI path when no OPENAI_API_KEY)."""
+    """Deterministic fallback (also the CI path when no NVIDIA key)."""
     symptoms = _extract_symptoms(text)
     spec = "Endocrinology_General"
     for s in symptoms:
@@ -293,47 +296,100 @@ def _validate_llm_doctor(raw: str) -> Optional[str]:
         return None
 
 
+def _validate_llm_payload(data: Any, text: str = "") -> Optional[Dict[str, Any]]:
+    if not isinstance(data, dict):
+        return None
+    valid_codes = {code for code, _, _ in _SYMPTOMS}
+    symptoms = []
+    for item in data.get("symptoms") or []:
+        if not isinstance(item, dict):
+            continue
+        code, symptom_text = item.get("code"), item.get("text")
+        if code in valid_codes and isinstance(symptom_text, str) and symptom_text.strip():
+            symptoms.append({"code": code, "text": symptom_text.strip()[:120]})
+    urgency = data.get("urgency")
+    specialty = data.get("specialty")
+    constraints = data.get("time_constraints")
+    excluded = constraints.get("excluded_weekdays") if isinstance(constraints, dict) else []
+    requested = data.get("requested_doctor")
+    intents = data.get("intents")
+    safe_excluded = [d for d in excluded if d in DAY_FULL] if isinstance(excluded, list) else []
+    regex_excluded = _extract_excluded(text)
+    if regex_excluded:
+        safe_excluded = regex_excluded
+    codes = {item["code"] for item in symptoms}
+    if codes & {"neuropathy", "retinopathy"}:
+        specialty = "Endocrinology_Complication"
+    safe_intents = [i for i in intents if i in ("booking", "symptom_note")] \
+        if isinstance(intents, list) else []
+    if "booking" in safe_intents and not _hit(text, _BOOKING_WORDS) and not requested:
+        safe_intents.remove("booking")
+    if "symptom_note" in safe_intents and not symptoms:
+        safe_intents.remove("symptom_note")
+    return {
+        "symptoms": symptoms,
+        "urgency": urgency if urgency in ("routine", "soon", "urgent") else "routine",
+        "specialty": specialty if specialty in SPECIALTIES else "Endocrinology_General",
+        "time_constraints": {"excluded_weekdays": safe_excluded},
+        "requested_doctor": requested.strip()[:120]
+        if isinstance(requested, str) and requested.strip() else None,
+        "intents": safe_intents,
+    }
+
+
 def _parse_llm(text: str) -> Optional[Dict[str, Any]]:
-    """gpt-4o-mini refinement — only when OPENAI_API_KEY is set. Never adds emergency."""
-    if not os.getenv("OPENAI_API_KEY"):
+    """NVIDIA refinement only when a key is set. Never adds emergency."""
+    try:
+        from src.shared.nvidia import llm_client
+    except ImportError:
+        from shared.nvidia import llm_client  # type: ignore
+    try:
+        client = llm_client()
+    except RuntimeError:
+        return None
+    if client is None:
         return None
     try:
-        from openai import OpenAI
-        client = OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
-            timeout=20,
-        )
         schema_hint = (
-            '{"symptoms": [{"code": str, "text": str}], '
-            '"urgency": "routine|soon|urgent", '
-            '"specialty": "Endocrinology_General|Endocrinology_Complication|Nutrition_Lifestyle", '
-            '"time_constraints": {"excluded_weekdays": ["Monday"...]}, '
-            '"requested_doctor": str|null, "intents": ["booking", "symptom_note"]}'
+            'Schema bắt buộc: symptoms là mảng object {"code": enum, "text": string}; '
+            'code chỉ gồm neuropathy, retinopathy, hyperglycemia, hypoglycemia_sym, gi_side_effect. '
+            'urgency chỉ routine, soon, urgent. specialty chỉ Endocrinology_General, '
+            'Endocrinology_Complication, Nutrition_Lifestyle. time_constraints có '
+            'excluded_weekdays là mảng tên ngày tiếng Anh đầy đủ. requested_doctor là string hoặc null. '
+            'intents chỉ gồm booking, symptom_note. Không dịch các enum. '
+            'Ví dụ: {"symptoms":[{"code":"hyperglycemia","text":"khát nhiều"}],'
+            '"urgency":"soon","specialty":"Endocrinology_General",'
+            '"time_constraints":{"excluded_weekdays":["Wednesday"]},'
+            '"requested_doctor":null,"intents":["booking","symptom_note"]}'
         )
         resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.getenv(
+                "NVIDIA_TRIAGE_MODEL",
+                os.getenv("NVIDIA_CHAT_MODEL_LIGHT", "nvidia/nemotron-3.5-lightning-30b-a3b"),
+            ),
             messages=[
                 {"role": "system", "content":
                  "Trích xuất ý định đặt lịch khám tiểu đường sang JSON đúng schema, tiếng Việt. "
+                 "Dùng đúng enum tiếng Anh trong schema. "
                  "Ngày: T2=Monday...T7=Saturday, CN=Sunday. Chỉ trả JSON.\n" + schema_hint},
                 {"role": "user", "content": text},
             ],
             temperature=0, max_tokens=400,
+            response_format={"type": "json_object"},
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
-        data = json.loads((resp.choices[0].message.content or "").strip())
-        if not isinstance(data, dict):
+        choice = resp.choices[0]
+        content = (choice.message.content or "").strip()
+        if not content:
+            logger.warning("triage_llm_fallback reason=empty_content finish_reason=%s",
+                           getattr(choice, "finish_reason", None))
             return None
-        data.pop("emergency", None)  # belt-and-braces: schema forbids it
-        if data.get("specialty") not in SPECIALTIES:
-            data["specialty"] = "Endocrinology_General"
-        data.setdefault("symptoms", [])
-        data.setdefault("urgency", "routine")
-        data.setdefault("time_constraints", {"excluded_weekdays": []})
-        data.setdefault("requested_doctor", None)
-        data.setdefault("intents", [])
-        return data
-    except Exception:
+        return _validate_llm_payload(json.loads(content), text)
+    except Exception as exc:
+        from src.shared.privacy import PrivacyError
+        if isinstance(exc, PrivacyError):
+            raise
+        logger.warning("triage_llm_fallback reason=%s", type(exc).__name__)
         return None
 
 

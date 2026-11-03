@@ -1,7 +1,7 @@
 """Lab HITL B3: tier-routing + review rows + event-log + pharmacist account.
 
 Isolation: monkeypatch src.labs.store.LAB_DB_PATH (tmp) + TRIAGE_EVENTS_PATH
-(tmp) + delenv OPENAI_API_KEY (precedent test_labs_ask). Reviews live in the
+(tmp) + delenv NVIDIA keys (precedent test_labs_ask). Reviews live in the
 session tmp auth DB (conftest client fixture) — count before/after per test.
 """
 import json
@@ -31,7 +31,11 @@ def iso_hitl(monkeypatch, tmp_path):
     monkeypatch.setattr(ls, "LAB_DB_PATH", tmp_db)
     monkeypatch.setenv("TRIAGE_AUDIT_PATH", str(tmp_path / "audit.jsonl"))
     monkeypatch.setenv("TRIAGE_EVENTS_PATH", str(tmp_path / "events.jsonl"))
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     seed.seed_all(seed=42, reset=True, patient_ids=PIDS)
     return tmp_path
 

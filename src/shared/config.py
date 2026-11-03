@@ -15,13 +15,14 @@ def _env_first(*names: str, default: str = "") -> str:
     return default
 
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 BASE_DIR = Path(__file__).resolve().parents[2]
 RAW_DIR = BASE_DIR / "data" / "raw"
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
 PDF_DIR = BASE_DIR / "data" / "raw" / "pdfs"
 OUTPUT_DIR = BASE_DIR / "data" / "processed" / "docling_chunks"
 PDF_DB_DIR = BASE_DIR / "embeddings" / "pdf_db"
+NVIDIA_PDF_DB_DIR = Path(os.getenv(
+    "NVIDIA_PDF_DB_DIR", str(BASE_DIR / "embeddings" / "pdf_db_nvidia_verified_20261102")))
 META_DB_PATH = BASE_DIR / "metadata" / "metadata_store.db"
 
 MAX_TOKENS = 480
@@ -41,19 +42,19 @@ INDEX_STRATEGIES = [s.strip() for s in os.getenv("INDEX_STRATEGIES", "hybrid_sec
 # hybrid_section_semantic (beat sentence 0.8625, semantic 0.85, structure 0.8125).
 DEFAULT_CHUNK_STRATEGY = os.getenv("DEFAULT_CHUNK_STRATEGY", "hybrid_section_semantic")
 
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # generator model
-if _env_first("LLM_PROVIDER", "PROVIDER", default="openai").lower() == "nvidia":
-    DEFAULT_MODEL = os.getenv(
-        "NVIDIA_CHAT_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b")
-# Embedding: ưu tiên OpenAI, fallback về local nếu chưa cấu hình
+DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+if _env_first("LLM_PROVIDER", "PROVIDER", default="nvidia").lower() != "nvidia":
+    raise RuntimeError("Chỉ hỗ trợ LLM_PROVIDER=nvidia; xoá OPENAI/GROQ khỏi .env")
+DEFAULT_MODEL = os.getenv("NVIDIA_CHAT_MODEL", DEFAULT_MODEL)
+# Embedding qua NVIDIA (nemotron-embed); index tương ứng ở embeddings/pdf_db_nvidia
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 NVIDIA_EMBEDDING_MODEL = os.getenv(
     "NVIDIA_EMBEDDING_MODEL", "nvidia/nemotron-3-embed-1b")
-EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "openai").lower()  # "openai" | "local" | "nvidia"
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "nvidia").lower()  # "nvidia" | "local"
 if EMBEDDING_PROVIDER == "nvidia":
     EMBEDDING_MODEL = NVIDIA_EMBEDDING_MODEL
 else:
-    EMBEDDING_MODEL = OPENAI_EMBEDDING_MODEL if EMBEDDING_PROVIDER == "openai" else "all-MiniLM-L6-v2"
+    EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 EMBEDDING_DIMENSIONS_MAP = {
     "text-embedding-3-small": 1536,
     "text-embedding-3-large": 3072,
@@ -68,20 +69,15 @@ TOKENIZER_MODEL = "bert-base-uncased"
 # ==============================
 #  LLM provider selection
 # ==============================
-# "openai" (default) -> OPENAI_API_KEY + OPENAI_BASE_URL
-# "groq"             -> GROQ_API_KEY + https://api.groq.com/openai/v1
-# "nvidia"           -> NVDIA_API_KEY[2,3] + https://integrate.api.nvidia.com/v1
-LLM_PROVIDER = _env_first("LLM_PROVIDER", "PROVIDER", default="openai").lower()
-OPENAI_API_KEY = _env_first("OPENAI_API_KEY")
-OPENAI_BASE_URL = _env_first("OPENAI_BASE_URL", default="https://api.openai.com/v1")
+# Chỉ NVIDIA: NVDIA_API_KEY[2,3] + https://integrate.api.nvidia.com/v1
+LLM_PROVIDER = _env_first("LLM_PROVIDER", "PROVIDER", default="nvidia").lower()
 NVIDIA_BASE_URL = _env_first("NVIDIA_BASE_URL", default="https://integrate.api.nvidia.com/v1")
 NVIDIA_CHAT_MODEL_HARD = os.getenv(
     "NVIDIA_CHAT_MODEL_HARD", "nvidia/nemotron-3-ultra-550b-a55b")
 NVIDIA_CHAT_MODEL_LIGHT = os.getenv(
-    "NVIDIA_CHAT_MODEL_LIGHT", "meta/llama-3.2-11b-vision-instruct")
+    "NVIDIA_CHAT_MODEL_LIGHT", "nvidia/nemotron-3.5-lightning-30b-a3b")
 # Judge dùng model LIGHT (output sạch, parse JSON được; reasoning model xả thinking)
 NVIDIA_JUDGE_MODEL = os.getenv("NVIDIA_JUDGE_MODEL", NVIDIA_CHAT_MODEL_LIGHT)
-GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 
 TOP_K = 10
 HYBRID_ALPHA = 0.6
@@ -172,16 +168,22 @@ PII_REDACT_FIELDS = {"name", "phone", "email", "address", "cmnd", "cccd"}
 #  Auth & RBAC (mới)
 # ==============================
 AUTH_DB_PATH = BASE_DIR / "metadata" / "auth.db"
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production-please-set-env")
+DEFAULT_SECRET_KEY = "dev-secret-key-change-in-production-please-set-env"
+SECRET_KEY = os.getenv("SECRET_KEY", DEFAULT_SECRET_KEY)
+
+
+def validate_secret_key() -> None:
+    if not SECRET_KEY or SECRET_KEY == DEFAULT_SECRET_KEY:
+        raise RuntimeError("SECRET_KEY must be set to a private value before the API starts")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 # Cookie settings cho httpOnly
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() in ("true", "1", "yes")  # true khi https
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # lax | strict | none
-# Roles: user, doctor, pharmacist, specialist, admin
-VALID_ROLES = {"user", "doctor", "pharmacist", "specialist", "admin"}
-EXPERT_ROLES = {"doctor", "pharmacist", "specialist"}
+# Roles: user, doctor, pharmacist, specialist, nurse, admin
+VALID_ROLES = {"user", "doctor", "pharmacist", "specialist", "nurse", "admin"}
+EXPERT_ROLES = {"doctor", "pharmacist", "specialist", "nurse"}
 
 # ==============================
 #  HILT — RAG Confidence & Review Routing

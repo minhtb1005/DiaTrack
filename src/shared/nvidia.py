@@ -3,7 +3,7 @@ NVIDIA NIM provider (OpenAI-compatible) — chat + embeddings với xoay tua key
 
 - Keys đọc từ .env theo đúng tên đã có: NVDIA_API_KEY, NVDIA_API_KEY2,
   NVDIA_API_KEY3 (chấp nhận cả alias chính tả NVIDIA_API_KEY*).
-- Xoay tua: gặp 401 (key chết) hoặc 429 (rate limit) thì thử key tiếp theo.
+- Xoay tua: gặp 401/403 (key chết/thiếu quyền) hoặc 429 (rate limit) thì thử key tiếp theo.
   Lỗi khác (400/404 sai model...) fail-fast, không xoay (xoay cũng không cứu được).
 - Embeddings dùng HTTP trực tiếp tới /v1/embeddings để gửi được `input_type`:
   model QA (llama-3.2-nv-embedqa-1b-v2) BẮT BUỘC đúng mode — `passage` khi index,
@@ -14,6 +14,7 @@ NVIDIA NIM provider (OpenAI-compatible) — chat + embeddings với xoay tua key
 from __future__ import annotations
 
 import os
+import logging
 
 try:
     from dotenv import load_dotenv
@@ -23,6 +24,7 @@ except Exception:
 
 NVIDIA_BASE_URL = os.getenv(
     "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+logger = logging.getLogger(__name__)
 
 _KEY_NAMES = (
     "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",  # tên đang dùng trong .env
@@ -48,7 +50,7 @@ def _is_transient_error(exc: Exception | None) -> bool:
     if exc is None:
         return False
     status = getattr(exc, "status_code", None)
-    if status in (401, 429, 500, 502, 503, 529):
+    if status in (401, 403, 429, 500, 502, 503, 529):
         return True
     # Lỗi mạng thoáng qua (remote đóng kết nối, timeout): retry xoay vòng keys
     name = type(exc).__name__.lower()
@@ -68,6 +70,15 @@ def _is_rotatable_error(exc: Exception) -> bool:
     return _is_transient_error(exc)
 
 
+def _log_key_failure(operation: str, slot: int, total: int,
+                     exc: Exception, attempt: int | None = None) -> None:
+    logger.warning(
+        "NVIDIA %s failed key_slot=%d/%d attempt=%s status=%s error_type=%s",
+        operation, slot, total, attempt or 1,
+        getattr(exc, "status_code", None), type(exc).__name__,
+    )
+
+
 def _raise_if_no_keys() -> list[str]:
     keys = get_nvidia_keys()
     if not keys:
@@ -81,11 +92,18 @@ def embed_texts(texts: list[str], model: str,
     """Embed 1 batch qua NVIDIA /v1/embeddings, xoay key khi 401/429."""
     import httpx
 
+    from src.shared.privacy import sanitize, PrivacyError
+    import re
+    if not isinstance(texts, list) or not all(isinstance(t, str) for t in texts):
+        raise PrivacyError("invalid_embedding_input")
+    if not re.fullmatch(r"[\w./:-]+", model) or mode not in {"query", "passage"}:
+        raise PrivacyError("invalid_embedding_control")
+    texts = sanitize(texts)
     keys = _raise_if_no_keys()
     last_err: Exception | None = None
     import time as _t
     for attempt in range(3):  # hết vòng keys mà vẫn transient → nghỉ rồi thử lại
-        for key in keys:
+        for slot, key in enumerate(keys, 1):
             try:
                 with httpx.Client(timeout=120.0) as c:
                     r = c.post(
@@ -96,22 +114,22 @@ def embed_texts(texts: list[str], model: str,
                               "encoding_format": "float",
                               "truncate": "END"},
                     )
-                    if r.status_code in (401, 429):
+                    if r.status_code in (401, 403, 429):
                         class _E(Exception):
                             pass
-                        e = _E(f"NVIDIA embeddings {r.status_code}: "
-                               f"{r.text[:200]}")
+                        e = _E(f"NVIDIA embeddings status={r.status_code}")
                         e.status_code = r.status_code  # type: ignore
                         raise e
                     r.raise_for_status()
                     return [d["embedding"] for d in r.json()["data"]]
             except Exception as e:  # noqa: BLE001
                 last_err = e
+                _log_key_failure("embedding", slot, len(keys), e, attempt + 1)
                 if not _is_transient_error(e):
-                    raise
+                    raise RuntimeError("NVIDIA embeddings request failed") from None
                 # transient: thử key kế tiếp
         _t.sleep(3 * (attempt + 1))
-    raise last_err  # type: ignore[misc]
+    raise RuntimeError("NVIDIA embeddings unavailable") from None
 
 
 class NvidiaEmbeddings:
@@ -142,11 +160,13 @@ class _CompletionsNS:
         client = OpenAI(api_key=key,
                         base_url=self._parent.base_url,
                         timeout=self._parent.timeout)
-        kw = dict(kwargs)
-        kw["model"] = model
+        from src.shared.privacy import sanitize_chat
+        kw = sanitize_chat(dict(kwargs, model=model))
         return client.chat.completions.create(**kw)
 
     def create(self, **kwargs):
+        from src.shared.privacy import sanitize_chat
+        kwargs = sanitize_chat(kwargs)
         model = kwargs.get("model", "")
         keys = _raise_if_no_keys()
         last_err: Exception | None = None
@@ -155,9 +175,12 @@ class _CompletionsNS:
                 return self._once(key, model, kwargs)
             except Exception as e:  # noqa: BLE001
                 last_err = e
+                _log_key_failure("chat", i + 1, len(keys), e)
                 if _is_rotatable_error(e) and i < len(keys) - 1:
                     continue
-                raise
+                if not _is_rotatable_error(e):
+                    raise RuntimeError("NVIDIA chat request failed") from None
+                break
         # Hết keys vẫn lỗi quá tải + đang gọi model HARD -> fallback LIGHT 1 vòng
         if _is_overload(last_err) and model == hard_model():
             print(f"[nvidia] {model} overloaded, fallback {light_model()}")
@@ -167,7 +190,7 @@ class _CompletionsNS:
                 except Exception as e:  # noqa: BLE001
                     last_err = e
                     continue
-        raise last_err  # type: ignore[misc]
+        raise RuntimeError("NVIDIA chat unavailable") from None
 
 
 def _is_overload(exc: Exception | None) -> bool:
@@ -190,7 +213,7 @@ def hard_model() -> str:
 
 def light_model() -> str:
     return (os.getenv("NVIDIA_CHAT_MODEL_LIGHT")
-            or "meta/llama-3.2-11b-vision-instruct")
+            or "nvidia/nemotron-3.5-lightning-30b-a3b")
 
 
 _HARD_SIGNALS = (
@@ -232,3 +255,23 @@ class RotatingNvidiaClient:
         self.base_url = base_url or NVIDIA_BASE_URL
         self.timeout = timeout
         self.chat = _ChatNS(self)
+
+def llm_client():
+    """Shared chat client cho m?i module. Ch? NVIDIA; kh?ng c? key -> None
+
+    (caller t? r?i v? rule-based). Thay h?n nh?nh OpenAI/Groq c?.
+    """
+    from . import config  # import tr?: config ??c .env sau nvidia helper
+
+    if config.LLM_PROVIDER != "nvidia":
+        raise RuntimeError(
+            f"LLM_PROVIDER={config.LLM_PROVIDER!r} kh?ng c?n ???c h? tr?; ch? d?ng nvidia")
+    if not get_nvidia_keys():
+        return None
+    return RotatingNvidiaClient()
+
+
+def llm_model() -> str:
+    from . import config
+
+    return config.DEFAULT_MODEL

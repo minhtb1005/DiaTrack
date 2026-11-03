@@ -340,16 +340,20 @@ def write_sidecars(patients: dict, doctors: list, sidecar_dir=None, hospitals: l
 
 
 def _phrase(text: str) -> str:
-    """LLM phrasing when OPENAI_API_KEY exists, else deterministic template."""
-    if not os.getenv("OPENAI_API_KEY"):
+    """LLM phrasing when an NVIDIA key exists, else deterministic template."""
+    try:
+        from src.shared.nvidia import llm_client
+    except ImportError:
+        from shared.nvidia import llm_client  # type: ignore
+    try:
+        client = llm_client()
+    except RuntimeError:
+        return text
+    if client is None:
         return text
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"),
-                        base_url=os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
-                        timeout=15)
         resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.getenv("NVIDIA_CHAT_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b"),
             messages=[{"role": "system", "content": "Diễn đạt lại ngắn gọn, tiếng Việt, giữ nguyên số liệu."},
                       {"role": "user", "content": text}],
             temperature=0.2, max_tokens=150)
@@ -377,7 +381,7 @@ def run_b4(patients: dict, plan: list, db_path=None, use_llm=True, episodic=None
     Dual-write: UPDATE notes on the spike log row (so SOAP S auto-fills) +
     episodic add_message only when an episodic object is injected
     (standalone skip avoids heavy src.shared.memory model load; API fills it live).
-    Deterministic templates when no OPENAI_API_KEY; never raises.
+    Deterministic templates when no NVIDIA key; never raises.
     """
     stats = {"notes": 0, "episodic": 0}
     try:
@@ -508,7 +512,7 @@ def main() -> None:
     p.add_argument("--skip-b4", action="store_true", help="skip LLM/template check-in notes (fast scale)")
     p.add_argument("--reset", action="store_true", help="wipe syn_patient_% rows first (idempotent)")
     p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--no-llm", action="store_true", help="force deterministic templates even with OPENAI_API_KEY")
+    p.add_argument("--no-llm", action="store_true", help="force deterministic templates even with an NVIDIA key")
     args = p.parse_args()
     if args.dry_run:
         r = seed_all(args.seed, args.days, args.end_offset, dry_run=True,

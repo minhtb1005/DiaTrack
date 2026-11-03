@@ -91,7 +91,7 @@ def save_followup_notes(
             from src.shared.memory.episodic import get_episodic_memory
         except ImportError:
             from shared.memory.episodic import get_episodic_memory  # type: ignore
-        get_episodic_memory().add_message(
+        get_episodic_memory(user_id).add_message(
             "user", text, metadata={"user_id": user_id, "related_log_id": target_id}
         )
         saved_episodic = True

@@ -37,6 +37,11 @@ class TestClassifyGlucose:
     def test_no_legacy_band_labels(self):
         assert {classify_glucose(v, "random")[0] for v in (70, 139, 150, 200, 250)} == {"no_alert"}
 
+    @pytest.mark.parametrize("value", [69, 70, 250, 251, 299, 300])
+    def test_boundary_messages_never_recommend_changing_medication(self, value):
+        _, message = classify_glucose(value, "random")
+        assert "tự đổi liều" not in message.lower() or "không tự đổi liều" in message.lower()
+
 
 class TestGlucoseStatsAndEscalation:
     def test_add_and_stats(self, temp_user):
@@ -86,6 +91,12 @@ class TestGlucoseStatsAndEscalation:
             conn.execute("UPDATE glucose_logs SET classification = 'elevated' WHERE id = ?", (rec["id"],))
         assert get_logs(temp_user, limit=1)[0]["classification"] == "no_alert"
         assert get_stats(temp_user)["classification_counts"] == {"no_alert": 1}
+
+    def test_get_logs_rebuilds_safety_message(self, temp_user):
+        add_log(temp_user, 69, context="random")
+        log = get_logs(temp_user, limit=1)[0]
+        assert log["classification"] == "low"
+        assert "liên hệ cơ sở y tế ngay" in log["message"]
 
 
 @pytest.mark.parametrize("args,expected", [

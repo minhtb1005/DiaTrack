@@ -4,9 +4,13 @@ Mock `generate_answer` (LLM) de test deterministic; giu retrieval that
 (Chroma + OpenAI embeddings) va GHO SQLite tool that de verify wiring.
 """
 import uuid
+import pytest
 
 from src.chat import rag_pipeline as rp
 from src.shared.models.llm_io import LLMOutput
+
+
+pytestmark = pytest.mark.live_provider
 
 
 def _run(question: str, monkeypatch):

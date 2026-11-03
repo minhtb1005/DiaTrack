@@ -44,7 +44,7 @@ def get_current_user(request: Request, credentials: Optional[HTTPAuthorizationCr
     if not user.get("is_active"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User deactivated")
     # expert chưa verify thì chặn (trừ user/admin)
-    if user.get("role") in ("doctor", "pharmacist", "specialist") and not user.get("is_verified"):
+    if user.get("role") in ("doctor", "pharmacist", "specialist", "nurse") and not user.get("is_verified"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Expert account not verified by admin yet")
     return user
 

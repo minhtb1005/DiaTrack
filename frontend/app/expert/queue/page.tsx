@@ -14,6 +14,7 @@ export default function ExpertQueuePage() {
   const [finalAns, setFinalAns] = useState("");
   const [notes, setNotes] = useState("");
   const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -29,19 +30,22 @@ export default function ExpertQueuePage() {
   useEffect(()=>{ load(); const id=setInterval(load, 8000); return()=>clearInterval(id); },[]);
 
   const open = async (id:string) => {
-    const d = await getReviewDetail(id);
-    setSelected(d);
-    setFinalAns(d.draft_answer);
-    setNotes("");
+    try {
+      const d = await getReviewDetail(id);
+      setSelected(d);
+      setFinalAns(d.draft_answer);
+      setNotes("");
+    } catch (e:any) { setMsg(e.message); }
   };
   const decide = async (decision:string) => {
-    if (!selected) return;
+    if (!selected || saving) return;
+    setSaving(true);
     try {
       await decideReview(selected.id, { decision, final_answer: decision==="revised"? finalAns: undefined, expert_notes: notes || undefined });
       setMsg(`Đã ${decision}`);
       setSelected(null);
       load();
-    } catch(e:any){ setMsg(e.message); }
+    } catch(e:any){ setMsg(e.message); } finally { setSaving(false); }
   };
 
   if (loading) return <div className="text-sm">Đang tải…</div>;
@@ -59,13 +63,13 @@ export default function ExpertQueuePage() {
           <div className="mt-3 space-y-2 max-h-[600px] overflow-auto">
             {reviews.length===0 && <div className="text-xs text-slate-500 dark:text-slate-400">Không có yêu cầu pending</div>}
             {reviews.map((r:any)=>(
-              <div key={r.id} onClick={()=>open(r.id)} className={`rounded-xl border p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${selected?.id===r.id? "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800":"bg-white dark:bg-slate-900 dark:border-slate-700"}`}>
+              <button type="button" data-testid={`review-${r.id}`} key={r.id} onClick={()=>open(r.id)} className={`w-full text-left rounded-xl border p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${selected?.id===r.id? "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800":"bg-white dark:bg-slate-900 dark:border-slate-700"}`}>
                 <div className="text-xs font-mono text-slate-500 dark:text-slate-400">{r.routed_role} · {r.status} · {fmtDT(r.created_at)}</div>
                 <div className="text-sm font-medium line-clamp-2">{r.query}</div>
                 <div className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{r.draft_answer?.slice(0,120)}</div>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400">Failed: {parseFailedMetrics(r.failed_metrics).join(", ") || JSON.stringify(r.evaluation?.failed_metrics)}</div>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400">Requester: {r.requester_username || r.requester_id?.slice(0,8)}</div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -97,17 +101,17 @@ export default function ExpertQueuePage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs">Final answer (chỉnh sửa nếu revised)</label>
-                <textarea value={finalAns} onChange={(e)=>setFinalAns(e.target.value)} rows={6} className="w-full rounded-lg border p-2 text-xs" />
+                <label htmlFor="review-final-answer" className="text-xs">Final answer (chỉnh sửa nếu revised)</label>
+                <textarea id="review-final-answer" value={finalAns} onChange={(e)=>setFinalAns(e.target.value)} rows={6} className="w-full rounded-lg border p-2 text-xs" />
               </div>
               <div>
-                <label className="text-xs">Expert notes</label>
-                <Input value={notes} onChange={(e)=>setNotes(e.target.value)} className="text-xs" placeholder="ghi chú duyệt" />
+                <label htmlFor="review-expert-notes" className="text-xs">Expert notes</label>
+                <Input id="review-expert-notes" value={notes} onChange={(e)=>setNotes(e.target.value)} className="text-xs" placeholder="ghi chú duyệt" />
               </div>
               <div className="flex gap-2">
-                <Button variant="success" size="sm" onClick={()=>decide("approved")}>Duyệt (approved)</Button>
-                <Button size="sm" onClick={()=>decide("revised")}>Duyệt có sửa (revised)</Button>
-                <Button variant="destructive" size="sm" onClick={()=>decide("rejected")}>Từ chối</Button>
+                <Button variant="success" size="sm" disabled={saving} onClick={()=>decide("approved")}>Duyệt (approved)</Button>
+                <Button size="sm" disabled={saving || !finalAns.trim()} onClick={()=>decide("revised")}>Duyệt có sửa (revised)</Button>
+                <Button variant="destructive" size="sm" disabled={saving} onClick={()=>decide("rejected")}>Từ chối</Button>
               </div>
             </div>
           )}

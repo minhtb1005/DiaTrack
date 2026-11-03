@@ -5,7 +5,7 @@ Rolling weekly summarization: episodic -> long-term (1 fact/week).
 - Reads episodic summaries/facts for the week, summarizes via gpt-4o-mini
   (fallback: join notes), stores ONE fact into long-term Chroma.
 - Does NOT modify core src/memory/* modules; uses public APIs only:
-  get_episodic_memory() / get_long_term_memory(user).store_fact(...).
+  get_episodic_memory(user_id) / get_long_term_memory(user).store_fact(...).
 - week_key: "YYYY-MM-DD" Monday of the target week. Defaults to current Monday (UTC).
 """
 
@@ -99,22 +99,27 @@ def _already_rolled_up(long_term: Any, user_id: str, key: str) -> bool:
 
 
 def _summarize(texts: List[str], monday: str) -> str:
+    from src.shared.privacy import sanitize
+    texts = sanitize(texts)
     joined = "\n".join(f"- {t[:200]}" for t in texts[:20])
     prompt_body = (
         f"Tóm tắt thói quen đường huyết tuần bắt đầu {monday} thành 1-2 câu tiếng Việt "
         f"(vd 'Tuần 3/9: ăn ngọt tối nhiều'). Chỉ dùng dữ liệu sau:\n{joined}"
     )
-    api_key = os.getenv("OPENAI_API_KEY")
-    if api_key:
+    try:
+        from src.shared.nvidia import llm_client
+    except ImportError:
+        from shared.nvidia import llm_client  # type: ignore
+    client = llm_client()
+    if client is not None:
         try:
-            from openai import OpenAI
-
-            client = OpenAI(
-                api_key=api_key,
-                base_url=os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
-            )
+            from src.shared.config import DEFAULT_MODEL
+        except ImportError:
+            from shared.config import DEFAULT_MODEL  # type: ignore
+    if client is not None:
+        try:
             resp = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                model=DEFAULT_MODEL,
                 messages=[
                     {"role": "system", "content": "Bạn tóm tắt thói quen sức khỏe thành 1-2 câu ngắn gọn, tiếng Việt."},
                     {"role": "user", "content": prompt_body},
@@ -125,8 +130,10 @@ def _summarize(texts: List[str], monday: str) -> str:
             txt = (resp.choices[0].message.content or "").strip()
             if txt:
                 return txt
-        except Exception:
-            pass
+        except Exception as exc:
+            from src.shared.privacy import PrivacyError
+            if isinstance(exc, PrivacyError):
+                raise
     # Fallback: deterministic join (no LLM needed for demo/tests)
     head = "; ".join(t[:80] for t in texts[:5])
     return f"Tuần {monday}: {head}" if head else f"Tuần {monday}: chưa có dữ liệu episodic."
@@ -150,7 +157,7 @@ def rollup_weekly(
             from src.shared.memory import get_episodic_memory
         except ImportError:
             from shared.memory import get_episodic_memory  # type: ignore
-        episodic = get_episodic_memory()
+        episodic = get_episodic_memory(user_id)
     if long_term is None:
         try:
             from src.shared.memory import get_long_term_memory

@@ -36,7 +36,11 @@ def voice_iso(monkeypatch, tmp_path):
             return "mot tram hai muoi sau luc doi"
 
     monkeypatch.setattr(prov, "get_stt_provider", lambda: FixedSTT())
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     # Force-mock TTS (D7): real models installed must never change CI.
     monkeypatch.setenv("VOICE_TTS_PROVIDER", "none")
     monkeypatch.setattr(prov.PiperProvider, "available", False)
@@ -137,9 +141,9 @@ def test_prefs_get_set_fail_open(client, voice_iso):
     assert r.json()["tts_voice_region"] == "Nam"
 
 
-def test_no_key_factory_is_mock():
+def test_stt_factory_is_mock_without_asr_provider():
     import os
-    os.environ.pop("OPENAI_API_KEY", None)
+    os.environ.pop("NVDIA_API_KEY", None)
     from src.voice.providers import get_stt_provider, MockSTTProvider
     assert isinstance(get_stt_provider(), MockSTTProvider)
 
@@ -171,7 +175,7 @@ class TestTTSProviderRouting:
     def test_piper_unavailable_fail_open(self, monkeypatch):
         import src.voice.providers as prov
         monkeypatch.setenv("VOICE_TTS_PROVIDER", "piper")
-        monkeypatch.setattr(prov.PiperProvider, "available", False)
+        monkeypatch.setattr(prov.PiperProvider, "speak", lambda self, text, region="Bac": None)
         assert prov.synthesize("xin chao", "Bac") is None
 
     def test_unknown_region_falls_back_bac(self, monkeypatch):

@@ -7,7 +7,7 @@ Ordering (D2 pins, precedent triage red_flag short-circuit):
      lab_thresholds.is_panic) chay THU HAI — panic thi emergency + "115"
      + audit-append, skip RAG/LLM (khong import gi them).
   3. Non-panic: fetch report + history trend (don gian) -> RAG guideline
-     grounding (fail-open, chi khi co OPENAI_API_KEY) -> segments rule-based.
+     grounding (fail-open, chi khi co NVIDIA key) -> segments rule-based.
 
 Labs carve-out (D2 blocker): KHONG BAO GIO goi scope_guard tren path nay —
 scope_guard flag chu de than/gan (suy than, men gan...) trong khi panel lab
@@ -294,10 +294,14 @@ def labs_ask(payload: LabAskRequest, current_user=Depends(get_current_user_optio
                 trends[loinc] = "on dinh"
     except Exception:
         pass
-    # RAG guideline grounding (fail-open, chi khi co key; khong anh huong
+    # RAG guideline grounding (fail-open, chi khi co NVIDIA key; khong anh huong
     # tinh deterministic cua segments khi thieu key).
     guideline = GUIDELINE_FALLBACK
-    if os.getenv("OPENAI_API_KEY"):
+    try:
+        from src.shared.nvidia import get_nvidia_keys
+    except ImportError:
+        from shared.nvidia import get_nvidia_keys  # type: ignore
+    if os.getenv("LLM_PROVIDER", "nvidia").lower() == "nvidia" and get_nvidia_keys():
         try:
             try:
                 from src.chat.rag_pipeline import rag_chat

@@ -100,32 +100,6 @@ class MockSTTProvider:
         return self._text
 
 
-class WhisperAPIProvider:
-    """OpenAI Whisper API — key server-side only, never leaves the backend."""
-
-    def __init__(self, api_key: Optional[str] = None):
-        self._key = api_key or os.getenv("OPENAI_API_KEY", "")
-
-    def transcribe(self, audio_bytes: bytes, content_type: str = "") -> str:
-        if not self._key:
-            raise RuntimeError("OPENAI_API_KEY missing")
-        import tempfile
-        from openai import OpenAI  # local import: no cost when mocked
-        suffix = ".webm"
-        if "wav" in (content_type or ""):
-            suffix = ".wav"
-        elif "mpeg" in (content_type or "") or "mp3" in (content_type or ""):
-            suffix = ".mp3"
-        client = OpenAI(api_key=self._key)
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as f:
-            f.write(audio_bytes)
-            f.flush()
-            with open(f.name, "rb") as fh:
-                resp = client.audio.transcriptions.create(
-                    model="whisper-1", file=fh, language="vi")
-        return (resp.text or "").strip()
-
-
 class PhoSTTStub:
     """phoSTT (Zipformer-vi, CPU-only) — interface + stub only this cycle.
 
@@ -140,9 +114,11 @@ class PhoSTTStub:
 
 
 def get_stt_provider():
-    """Factory (D2 pin): key -> Whisper, no key -> deterministic mock."""
-    if os.getenv("OPENAI_API_KEY"):
-        return WhisperAPIProvider()
+    """Factory (D2 pin): chưa có ASR thật -> deterministic mock.
+
+    NVIDIA NIM không có endpoint Whisper-compatible, nên STT luôn mock cho tới
+    khi tích hợp ASR khác (docs/VOICE_DESIGN.md).
+    """
     return MockSTTProvider()
 
 

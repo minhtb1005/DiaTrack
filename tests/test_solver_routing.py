@@ -3,7 +3,7 @@
 Pins D1-D6: simulation skip-write, filters-always-apply + echo, BHYT cost
 warning + never-specialty, GA schema/timing/zero-writes, slot_generator
 untouched (gated by test_triage 27/27), single solvers.py module.
-No OPENAI_API_KEY here: fully deterministic.
+No LLM key here: fully deterministic.
 """
 import json
 import time
@@ -39,7 +39,11 @@ def iso_solver(monkeypatch, tmp_path):
     (meta / "doctors_patients.json").write_text("{}", encoding="utf-8")
     monkeypatch.setenv("SYNTHETIC_SIDECAR_DIR", str(meta))
     monkeypatch.setenv("TRIAGE_AUDIT_PATH", str(tmp_path / "audit.jsonl"))
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     monkeypatch.delenv("DEMO_BUSY", raising=False)
     return tmp_path
 

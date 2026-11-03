@@ -14,10 +14,12 @@ def test_memory_constructed_only_on_first_request(monkeypatch, name, klass):
     instance = SimpleNamespace(user_id='default_user')
     factory = Mock(return_value=instance)
     monkeypatch.setattr(module, klass, factory)
+    if hasattr(module, "_owner_memories"):
+        monkeypatch.setattr(module, "_owner_memories", {})
     getter = getattr(module, 'get_' + variable)
-    assert getter() is instance
-    assert getter() is instance
-    factory.assert_called_once()
+    assert getter("synthetic-owner") is instance
+    assert getter("synthetic-owner") is instance
+    assert factory.call_count == (2 if name == "long_term" else 1)
 
 
 def test_import_memory_does_not_create_instances():

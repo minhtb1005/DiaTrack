@@ -125,13 +125,19 @@ flowchart TD
 |---|---|
 | Backend | FastAPI (`POST /v1/glucose`, `/v1/query`, `/v1/soap/generate`) |
 | Frontend | Next.js 14 + Recharts (90-day sparkline) |
-| Knowledge | Chroma + OpenAI `text-embedding-3-small`; WHO + ADA 2024 + BYT QD 5481 |
+| Knowledge | Chroma; mục tiêu index sạch hiện tại chỉ gồm 4 binary đã xác minh: WHO Classification, HEARTS-D, WHO PEN và BYT QĐ3319. ADA 2024/BYT QĐ5481 bị chặn tới khi đối chiếu binary chính thức. |
 | AI (demo) | `gpt-4o-mini` via API - no GPU needed |
 | Quality | pytest (anomaly detector, SOAP summary, diabetes API, glucose tracker), `tsc --noEmit`, RAGAS faithfulness scoring on retrieved contexts. Verification commands and evidence requirements are defined in [AGENTS.md](AGENTS.md) |
 
 Test results belong with the task and its evidence, not in this overview. A demo recording does not replace automated tests or validation of clinical behavior.
 
 Existing docs: `AGENTS.md` - `docs/architecture_diagram.md` - `docs/api_contract.md` - `docs/evaluation.md` - `docs/data_contract.md` - `docs/monitoring.md`
+
+---
+
+## Deployment index gate
+
+The vector index and raw sources are ignored runtime data, so a fresh checkout must restore the versioned bundle described in [deployment/README.md](deployment/README.md). The backend now fails startup unless `NVIDIA_PDF_DB_DIR`, the active manifest/sidecar hash, all source hashes and all Chroma rows agree. Do not deploy with an empty `embeddings/` volume or rebuild an existing directory in place.
 
 ---
 

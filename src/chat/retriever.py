@@ -4,7 +4,7 @@ from langchain_core.documents import Document
 from langchain_chroma.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.retrievers import BM25Retriever as LangchainBM25Retriever
-from src.shared.config import PDF_DB_DIR, TOP_K, EMBEDDING_MODEL, EMBEDDING_PROVIDER, OPENAI_EMBEDDING_MODEL, NVIDIA_EMBEDDING_MODEL, BASE_DIR, DEFAULT_CHUNK_STRATEGY
+from src.shared.config import PDF_DB_DIR, NVIDIA_PDF_DB_DIR, TOP_K, EMBEDDING_MODEL, EMBEDDING_PROVIDER, NVIDIA_EMBEDDING_MODEL, BASE_DIR, DEFAULT_CHUNK_STRATEGY
 from src.shared.models.llm_io import ContextItem
 from typing import List, Optional
 import os as _os
@@ -13,32 +13,18 @@ import time as _time
 
 
 def _get_embeddings():
-    """Factory: NVIDIA / OpenAI nếu cấu hình, fallback HuggingFace."""
+    """Factory: NVIDIA nếu cấu hình, ngược lại HuggingFace local."""
     if EMBEDDING_PROVIDER == "nvidia":
         from src.shared.nvidia import NvidiaEmbeddings
         return NvidiaEmbeddings(model=NVIDIA_EMBEDDING_MODEL)
-    if EMBEDDING_PROVIDER == "openai":
-        try:
-            from langchain_openai import OpenAIEmbeddings
-            return OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL)
-        except Exception as e:
-            # fallback log
-            print(f"[retriever] OpenAIEmbeddings fail ({e}), fallback to HuggingFace")
-            from langchain_huggingface import HuggingFaceEmbeddings
-            return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-    else:
-        from langchain_huggingface import HuggingFaceEmbeddings
-        return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+    from langchain_huggingface import HuggingFaceEmbeddings
+    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
 
 def _resolve_db_dir(strategy: str) -> str:
-    # Tách DB riêng theo provider để tránh lệch dimension (openai 1536 vs local 384 vs nvidia 2048)
+    # Tách DB riêng theo provider để tránh lệch dimension (local 384 vs nvidia 2048)
     if EMBEDDING_PROVIDER == "nvidia":
-        base = BASE_DIR / "embeddings" / "pdf_db_nvidia"
-        return str(base / strategy)
-    if EMBEDDING_PROVIDER == "openai":
-        base = BASE_DIR / "embeddings" / "pdf_db_openai"
-        return str(base / strategy)
+        return str(NVIDIA_PDF_DB_DIR / strategy)
     return os.path.join(PDF_DB_DIR, strategy)
 
 
@@ -66,8 +52,8 @@ def cached_documents():
                 ))
         except Exception:
             pass
-    # Fallback: nếu chưa có doc nào và đang dùng openai, thử legacy local DB
-    if not docs and EMBEDDING_PROVIDER == "openai":
+    # Fallback: nếu chưa có doc nào và đang dùng embedding local, thử legacy local DB
+    if not docs and EMBEDDING_PROVIDER != "nvidia":
         try:
             from langchain_huggingface import HuggingFaceEmbeddings as _HF
             from langchain_chroma.vectorstores import Chroma as _Chroma
@@ -98,7 +84,13 @@ def should_merge(query: str) -> bool:
     ])
 
 
-def trim_text(text: str, max_chars: int = 4000) -> str:
+def trim_text(text: str, max_chars: int = 4000, verified_public: bool = False) -> str:
+    from src.shared.privacy import redact_text, verified_public_scope
+    if verified_public:
+        with verified_public_scope([text]):
+            text = redact_text(text)
+    else:
+        text = redact_text(text)
     if len(text) <= max_chars:
         return text
 
@@ -282,8 +274,7 @@ def retrieve_context(query: str, top_k: int = TOP_K,
     for doc in results:
         sid = doc.metadata.get("source_id")
         section = make_section_key(doc.metadata.get("section_path"))    
-        
-        key = (sid, section) if should_merge(query) else id(doc)
+        key = id(doc) if doc.metadata.get("verified_from_raw") else ((sid, section) if should_merge(query) else id(doc))
         grouped.setdefault(key, []).append(doc)
 
     out: List[ContextItem] = []
@@ -293,7 +284,8 @@ def retrieve_context(query: str, top_k: int = TOP_K,
             key=lambda d: d.metadata.get("chunk_index", 0)
         )
         merged_text = "\n\n---\n\n".join(p.page_content for p in parts)
-        merged_text = trim_text(merged_text)
+        verified_public = len(parts) == 1 and parts[0].metadata.get("verified_from_raw") is True
+        merged_text = trim_text(merged_text, verified_public=verified_public)
         pages = sorted({p for d in parts for p in (d.metadata.get("page_numbers") or [])})
         first_page = pages[0] if pages else None
         upd = _file_updated_at(str(parts[0].metadata.get("source_id")))

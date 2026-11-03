@@ -19,7 +19,7 @@ solvers + a constraint-counting orchestrator.
 - SchedulerOrchestrator: constraint count selects the algorithm ONLY
   (0-1 -> greedy, >=2 -> DFS); simulation intent -> GA (D2).
 
-No OPENAI_API_KEY needed anywhere here: fully deterministic.
+No LLM key needed anywhere here: fully deterministic.
 """
 
 from __future__ import annotations

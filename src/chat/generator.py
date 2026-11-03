@@ -1,27 +1,19 @@
 import re
+from functools import lru_cache
 from typing import List, Optional
-from openai import OpenAI
 
-# CrossEncoder (torch) is optional — openai-only deploy skips reranking
+# CrossEncoder (torch) is optional — deploy kh?ng c? torch th? b? rerank
 try:
     from sentence_transformers import CrossEncoder  # type: ignore
     _CROSS_ENCODER_AVAILABLE = True
-except Exception:  # torch / sentence-transformers not installed (openai-only)
+except Exception:  # torch / sentence-transformers not installed
     CrossEncoder = None  # type: ignore
     _CROSS_ENCODER_AVAILABLE = False
 
 try:
-    from shared.config import (
-        GROQ_API_KEY, GROQ_BASE_URL,
-        OPENAI_API_KEY, OPENAI_BASE_URL,
-        LLM_PROVIDER, DEFAULT_MODEL, RERANKER_MODEL,
-    )
+    from shared.config import LLM_PROVIDER, DEFAULT_MODEL, RERANKER_MODEL
 except ImportError:  # pragma: no cover - allows running as "src." package too
-    from src.shared.config import (
-        GROQ_API_KEY, GROQ_BASE_URL,
-        OPENAI_API_KEY, OPENAI_BASE_URL,
-        LLM_PROVIDER, DEFAULT_MODEL, RERANKER_MODEL,
-    )
+    from src.shared.config import LLM_PROVIDER, DEFAULT_MODEL, RERANKER_MODEL
 
 try:
     from shared.prompt_manager import get_prompt_version, get_system_prompt
@@ -34,26 +26,22 @@ except ImportError:
     from src.shared.observability.local_tracing import short_hash  # type: ignore
 
 try:
-    from shared.models.llm_io import LLMInput, LLMOutput, ContextItem
-except ImportError:
     from src.shared.models.llm_io import LLMInput, LLMOutput, ContextItem
+except ImportError:  # pragma: no cover
+    from shared.models.llm_io import LLMInput, LLMOutput, ContextItem
 
 
 def _build_llm_client():
-    if LLM_PROVIDER == "groq":
-        return OpenAI(api_key=GROQ_API_KEY, base_url=GROQ_BASE_URL)
-    if LLM_PROVIDER == "nvidia":
-        try:
-            from shared.nvidia import RotatingNvidiaClient
-        except ImportError:
-            from src.shared.nvidia import RotatingNvidiaClient  # type: ignore
-        return RotatingNvidiaClient()
-    return OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
+    try:
+        from shared.nvidia import llm_client
+    except ImportError:
+        from src.shared.nvidia import llm_client  # type: ignore
+    return llm_client()
 
 
 def _normalize_model(model: str) -> str:
     m = (model or DEFAULT_MODEL).strip()
-    if LLM_PROVIDER != "groq" and m.startswith("openai/"):
+    if m.startswith("openai/"):
         return m.split("/", 1)[1]
     return m
 
@@ -70,16 +58,17 @@ VI_USER_SUFFIX = "\nTrả lời HOÀN TOÀN bằng tiếng Việt."
 
 
 client = _build_llm_client()
-# Lazy init reranker — may be None in openai-only (no torch)
-if _CROSS_ENCODER_AVAILABLE:
+
+
+@lru_cache(maxsize=1)
+def _get_reranker():
+    if not _CROSS_ENCODER_AVAILABLE:
+        return None
     try:
-        reranker = CrossEncoder(RERANKER_MODEL)
+        return CrossEncoder(RERANKER_MODEL, local_files_only=True)
     except Exception as e:
-        print(f"[generator] CrossEncoder init failed ({e}) — reranking disabled (openai-only fallback)")
-        reranker = None
-else:
-    reranker = None
-    print("[generator] sentence-transformers/torch not installed — reranking disabled (pip install .[local] to enable)")
+        print(f"[generator] CrossEncoder init failed ({e}) — reranking disabled")
+        return None
 
 def format_context(contexts):
     context_text = ""
@@ -113,8 +102,9 @@ def format_context(contexts):
 def rerank_contexts(query: str, contexts: List[ContextItem], top_n=3):
     if not contexts:
         return []
+    reranker = _get_reranker()
     if reranker is None:
-        # openai-only fallback: keep original order (already hybrid BM25+vector), assign dummy scores
+        # fallback: keep original order (already hybrid BM25+vector), assign dummy scores
         for ctx in contexts:
             if ctx.score is None:
                 ctx.score = 0.0
@@ -190,9 +180,24 @@ def detect_tone_and_temp(query: str):
         return "balanced", 0.3, 512
     return "balanced", 0.2, 512
 
+
+def _safe_prompt_parts(input_data: LLMInput):
+    from src.shared.corpus_provenance import validate_context_provenance
+    from src.shared.privacy import redact_text, verified_public_scope
+    safe_contexts = []
+    for context in input_data.contexts:
+        if context.chunk_hash:
+            validate_context_provenance([context])
+            with verified_public_scope([context.content]):
+                content = redact_text(context.content)
+        else:
+            content = redact_text(context.content)
+        safe_contexts.append(context.model_copy(update={"content": content}))
+    return redact_text(input_data.query), safe_contexts
+
 def generate_answer(input_data: LLMInput, model=DEFAULT_MODEL) -> LLMOutput:
-    query = input_data.query
-    context_text = format_context(input_data.contexts)
+    query, safe_contexts = _safe_prompt_parts(input_data)
+    context_text = format_context(safe_contexts)
     tone, temperature, max_tokens = detect_tone_and_temp(query)
     system_prompt = get_system_prompt(tone)
     user_prompt = (f"Context: \n{context_text}\n\n" f"Question: {query}\n\n" "Answer clearly and concisely")
@@ -203,8 +208,24 @@ def generate_answer(input_data: LLMInput, model=DEFAULT_MODEL) -> LLMOutput:
     # (short/episodic/long-term) — no global history to avoid cross-user leak
     messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
     resolved_model = _normalize_model(model)
-    response = client.chat.completions.create(model=resolved_model, messages=messages, temperature=temperature, max_tokens=max_tokens)
-    answer = response.choices[0].message.content.strip()
+    from src.shared.privacy import verified_public_scope
+    with verified_public_scope([system_prompt, user_prompt]):
+        response = client.chat.completions.create(model=resolved_model, messages=messages, temperature=temperature, max_tokens=max_tokens)
+    answer = (response.choices[0].message.content or "").strip()
+    if not answer:
+        # Reasoning can consume the initial budget without producing an answer.
+        # Retry once with room for both reasoning and visible content.
+        try:
+            from src.shared.nvidia import hard_model as _hard
+        except ImportError:  # pragma: no cover
+            from shared.nvidia import hard_model as _hard  # type: ignore
+        retry_model = _normalize_model(_hard())
+        with verified_public_scope([system_prompt, user_prompt]):
+            response = client.chat.completions.create(
+                model=retry_model, messages=messages, temperature=temperature, max_tokens=max(max_tokens, 2048))
+        answer = (response.choices[0].message.content or "").strip()
+    if not answer:
+        raise RuntimeError("LLM trả về nội dung rỗng (hết token ở phần reasoning)")
     usage = getattr(response, "usage", None)
     token_usage = {
         "prompt_tokens": getattr(usage, "prompt_tokens", None),
@@ -222,19 +243,20 @@ def generate_answer(input_data: LLMInput, model=DEFAULT_MODEL) -> LLMOutput:
         generate_answer.last_tone = tone  # type: ignore
     except Exception:
         pass
-    return LLMOutput(answer=answer, cited_sources=cited_sources, contexts=input_data.contexts)
+    return LLMOutput(answer=answer, cited_sources=cited_sources,
+                     contexts=[context.model_dump() for context in input_data.contexts])
 
 
 def generate_answer_stream(input_data: LLMInput, model=DEFAULT_MODEL):
     """
-    SSE streaming variant of generate_answer — yields token deltas via OpenAI stream=True.
+    SSE streaming variant of generate_answer — yields token deltas via stream=True.
     Caller accumulates deltas to reconstruct full answer and LLMOutput.
     Sets generate_answer_stream.last_* attributes for tracing after iteration completes.
     Yields: str (delta content)
     """
     from typing import Generator  # local import to avoid circular
-    query = input_data.query
-    context_text = format_context(input_data.contexts)
+    query, safe_contexts = _safe_prompt_parts(input_data)
+    context_text = format_context(safe_contexts)
     tone, temperature, max_tokens = detect_tone_and_temp(query)
     system_prompt = get_system_prompt(tone)
     user_prompt = (f"Context: \n{context_text}\n\n" f"Question: {query}\n\n" "Answer clearly and concisely")
@@ -245,10 +267,12 @@ def generate_answer_stream(input_data: LLMInput, model=DEFAULT_MODEL):
     resolved_model = _normalize_model(model)
     prompt_version = short_hash(system_prompt)
 
-    # OpenAI-compatible streaming
-    stream = client.chat.completions.create(
-        model=resolved_model, messages=messages, temperature=temperature, max_tokens=max_tokens, stream=True
-    )
+    # Streaming qua client NVIDIA (OpenAI-compatible)
+    from src.shared.privacy import verified_public_scope
+    with verified_public_scope([system_prompt, user_prompt]):
+        stream = client.chat.completions.create(
+            model=resolved_model, messages=messages, temperature=temperature, max_tokens=max_tokens, stream=True
+        )
     full_answer = ""
     try:
         for chunk in stream:

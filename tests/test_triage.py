@@ -2,7 +2,7 @@
 
 Covers D5 angles: audit jsonl append, fully-unaccented path, unknown-doctor
 fallback, anonymous (no user_id -> 200 + notes + zero DB writes),
-missing-info -> followup_question + empty slots. No OPENAI_API_KEY here.
+missing-info -> followup_question + empty slots. No LLM key here.
 """
 import json
 import os
@@ -38,7 +38,11 @@ def iso_triage(monkeypatch, tmp_path):
     (meta / "doctors_patients.json").write_text("{}", encoding="utf-8")
     monkeypatch.setenv("SYNTHETIC_SIDECAR_DIR", str(meta))
     monkeypatch.setenv("TRIAGE_AUDIT_PATH", str(tmp_path / "audit.jsonl"))
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     monkeypatch.delenv("DEMO_BUSY", raising=False)
     return tmp_path
 

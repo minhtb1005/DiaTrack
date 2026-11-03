@@ -25,7 +25,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: [
+  webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER === '1' ? [] : [
     // Next.js frontend
     {
       command: 'npm run dev',

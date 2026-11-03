@@ -28,10 +28,12 @@ except ImportError:
     from src.shared.observability.tracing_db import add_span_chunks as db_add_chunks
     from src.shared.prompt_manager import get_prompt_version
 
+try:
+    from shared.corpus_provenance import validate_context_provenance
+except ImportError:
+    from src.shared.corpus_provenance import validate_context_provenance
+
 cache = CAGHybridCache(max_size=CAG_MAX_SIZE, ttl_seconds=CAG_TTL_SECONDS, semantic_model_name=CAG_SEMANTIC_MODEL, semantic_threshold=CAG_SEMANTIC_THRESHOLD)
-short_term_memory = None  # rag_chat initializes memory on demand.
-episodic_memory = None  # rag_chat initializes memory on demand.
-long_term_memory = None  # rag_chat initializes memory on demand.
 
 try:
     from src.monitors.gho_snapshot import looks_like_stats_question, query_gho_stats
@@ -87,6 +89,7 @@ def maybe_inject_gho_stats(question: str, contexts: List[ContextItem]) -> List[C
 
 def rag_chat(question: str, top_k: int = TOP_K, user_id: str = "default_user", username: str | None = None, model: str | None = None, **kwargs) -> Dict[str, Any]:
     timings = {}
+    memories = _request_memories(user_id)
     language = kwargs.get("language", "vi")
     if model is None:
         # provider nvidia: routing easy/hard; provider khác: DEFAULT_MODEL
@@ -117,41 +120,15 @@ def rag_chat(question: str, top_k: int = TOP_K, user_id: str = "default_user", u
     except Exception:
         prompt_version = None
 
-    global short_term_memory, episodic_memory, long_term_memory
-    short_term_memory = get_short_term_memory()
-    episodic_memory = get_episodic_memory()
-    long_term_memory = get_long_term_memory(user_id)
 
+    # Personal memory changes every turn; response cache is deliberately bypassed.
     # 0) Cache
     s_cache = start_span("cache_check", inputs={"query": question[:200]})
     t0 = time.perf_counter()
     defer_publication = bool(kwargs.get("defer_publication", False))
-    cached: LLMOutput | None = None if defer_publication else cache.get(question)
+    cached: LLMOutput | None = None
     timings['cache_check'] = time.perf_counter() - t0
     finish_span(s_cache, outputs={"hit": bool(cached)}, metadata={"duration_ms": timings['cache_check']*1000})
-    if cached:
-        t1 = time.perf_counter()
-        s_fmt = start_span("format_answer", inputs={"cached": True})
-        formatted = format_answer_for_ui(cached)
-        timings['format_answer'] = time.perf_counter() - t1
-        finish_span(s_fmt, outputs={"len": len(formatted)})
-        _update_memories(question, cached.answer, user_id)
-        total_ms = sum(timings.values())*1000
-        finish_span(s_root, outputs={"cache_hit": True})
-        end_trace(trace_id, answer=cached.answer, status="answered", total_latency_ms=total_ms, prompt_version=prompt_version)
-        return {
-            "raw_answer": cached.model_dump(),
-            "formatted_answer": formatted,
-            "cache_hit": True,
-            "cache_stats": cache.stats(),
-            "memory_stats": _get_memory_stats(),
-            "timings": timings,
-            "contexts": [c.model_dump() for c in cached.contexts],
-            "trace_id": trace_id,
-            "tone": tone,
-            "prompt_version": prompt_version,
-        }
-
     # 1) Retrieve
     s_ret = start_span("retrieve_context", inputs={"query": question, "top_k": top_k})
     t2 = time.perf_counter()
@@ -192,8 +169,9 @@ def rag_chat(question: str, top_k: int = TOP_K, user_id: str = "default_user", u
     # 3) Build LLMInput
     s_build = start_span("build_llm_input")
     t4 = time.perf_counter()
-    memory_context = _build_memory_context(question, user_id)
+    memory_context = _build_memory_context(question, memories)
     llm_input = LLMInput(query=question, language=language, contexts=[c.model_dump() for c in reranked] + [m.model_dump() for m in memory_context])
+    validate_context_provenance(llm_input.contexts)
     timings['build_llm_input'] = time.perf_counter() - t4
     try:
         add_span_chunks(s_build, trace_id, [m.model_dump() for m in memory_context])
@@ -210,19 +188,12 @@ def rag_chat(question: str, top_k: int = TOP_K, user_id: str = "default_user", u
     token_usage = getattr(generate_answer, "last_token_usage", None)
     finish_span(s_gen, outputs={"answer_len": len(llm_output.answer), "cited": llm_output.cited_sources}, metadata={"token_usage": token_usage, "tone": tone, "prompt_version": prompt_version})
 
-    # 5) Cache put
-    s_cache_put = start_span("cache_put")
-    t6 = time.perf_counter()
-    if not defer_publication:
-        cache.put(question, llm_output)
-    timings['cache_put'] = time.perf_counter() - t6
-    finish_span(s_cache_put)
 
     # 6) Memories
     s_mem = start_span("update_memories")
     t7 = time.perf_counter()
     if not defer_publication:
-        _update_memories(question, llm_output.answer, user_id)
+        _update_memories(question, llm_output.answer, user_id, memories)
     timings['update_memories'] = time.perf_counter() - t7
     finish_span(s_mem)
 
@@ -242,7 +213,7 @@ def rag_chat(question: str, top_k: int = TOP_K, user_id: str = "default_user", u
         "formatted_answer": formatted,
         "cache_hit": False,
         "cache_stats": cache.stats(),
-        "memory_stats": _get_memory_stats(),
+        "memory_stats": _get_memory_stats(memories),
         "timings": timings,
         "contexts": [c.model_dump() for c in llm_output.contexts],
         "trace_id": trace_id,
@@ -250,8 +221,17 @@ def rag_chat(question: str, top_k: int = TOP_K, user_id: str = "default_user", u
         "prompt_version": prompt_version,
     }
 
-def _build_memory_context(question: str, user_id: str) -> List[ContextItem]:
+def _request_memories(user_id):
+    if not user_id or user_id == "default_user":
+        return None
+    return (get_short_term_memory(user_id), get_episodic_memory(user_id), get_long_term_memory(user_id))
+
+
+def _build_memory_context(question: str, memories) -> List[ContextItem]:
     memory_context: List[ContextItem] = []
+    if memories is None:
+        return memory_context
+    short_term_memory, episodic_memory, long_term_memory = memories
     short_term_context = short_term_memory.get_context_string(max_tokens=500)
     if short_term_context:
         memory_context.append(ContextItem(source_id='short_term_memory', content=f"Recent conversation context: {short_term_context}", score=0.9, dataset='short_term_memory'))
@@ -264,7 +244,10 @@ def _build_memory_context(question: str, user_id: str) -> List[ContextItem]:
         memory_context.append(ContextItem(source_id='long_term_memory', content=f"User medical history: {facts_text}", score=0.7, dataset='long_term_memory'))
     return memory_context
 
-def _update_memories(question: str, answer: str, user_id: str):
+def _update_memories(question: str, answer: str, user_id: str, memories):
+    if memories is None:
+        return
+    short_term_memory, episodic_memory, long_term_memory = memories
     short_term_memory.add_message("user", question)
     short_term_memory.add_message("assistant", answer, metadata={"user_id": user_id})
     episodic_memory.add_message("user", question, metadata={"user_id": user_id})
@@ -272,7 +255,10 @@ def _update_memories(question: str, answer: str, user_id: str):
     combined_text = f"User: {question}\nAssistant: {answer}"
     long_term_memory.store_fact(combined_text, source="conversation", metadata={"user_id": user_id, "interaction_type": "Q&A"})
 
-def _get_memory_stats() -> Dict[str, Any]:
+def _get_memory_stats(memories) -> Dict[str, Any]:
+    if memories is None:
+        return {}
+    short_term_memory, episodic_memory, long_term_memory = memories
     return {'short_term': short_term_memory.get_stats(), 'episodic': episodic_memory.get_stats(), 'long_term': long_term_memory.get_stats()}
 
 
@@ -283,6 +269,7 @@ def rag_chat_stream(question: str, top_k: int = TOP_K, user_id: str = "default_u
     import re
     import json as _json
     timings: Dict[str, float] = {}
+    memories = _request_memories(user_id)
     language = kwargs.get("language", "vi")
     if model is None:
         try:
@@ -309,73 +296,14 @@ def rag_chat_stream(question: str, top_k: int = TOP_K, user_id: str = "default_u
     except Exception:
         prompt_version = None
 
-    global short_term_memory, episodic_memory, long_term_memory
-    short_term_memory = get_short_term_memory()
-    episodic_memory = get_episodic_memory()
-    long_term_memory = get_long_term_memory(user_id)
 
+    # Personal memory changes every turn; response cache is deliberately bypassed.
     # 0) Cache check
     s_cache = start_span("cache_check", inputs={"query": question[:200]})
     t0 = time.perf_counter()
-    cached: LLMOutput | None = cache.get(question)
+    cached: LLMOutput | None = None
     timings['cache_check'] = time.perf_counter() - t0
     finish_span(s_cache, outputs={"hit": bool(cached)}, metadata={"duration_ms": timings['cache_check']*1000})
-
-    if cached:
-        # metadata early
-        contexts_payload = [c.model_dump() for c in cached.contexts]
-        yield {"event": "metadata", "data": {"trace_id": trace_id, "prompt_version": prompt_version, "tone": tone, "contexts": contexts_payload, "cache_hit": True, "timings": timings}}
-        # stream cached answer in chunks for UX (20 chars per SSE token)
-        ans = cached.answer or ""
-        chunk_size = 20
-        for i in range(0, len(ans), chunk_size):
-            yield {"event": "token", "data": {"delta": ans[i:i+chunk_size]}}
-        # memories / tracing still needed
-        t_mem = time.perf_counter()
-        s_mem = start_span("update_memories")
-        _update_memories(question, ans, user_id)
-        timings['update_memories'] = time.perf_counter() - t_mem
-        finish_span(s_mem)
-        total_ms = sum(timings.values())*1000
-        finish_span(s_root, outputs={"cache_hit": True})
-        end_trace(trace_id, answer=ans, status="answered", total_latency_ms=total_ms, prompt_version=prompt_version)
-        formatted = format_answer_for_ui(cached)
-        # HILT evaluation for cached too (best effort)
-        evaluation = None
-        is_low = False
-        status_str = "answered"
-        review_id = None
-        try:
-            from src.reviews.evaluator import evaluate_rag as _eval
-        except ImportError:
-            try:
-                from reviews.evaluator import evaluate_rag as _eval  # type: ignore
-            except Exception:
-                _eval = None  # type: ignore
-        if _eval is not None:
-            try:
-                evaluation = _eval(question, ans, contexts_payload)
-                is_low = bool(evaluation.get("is_low_confidence"))
-                if is_low:
-                    status_str = "pending_review"
-            except Exception:
-                pass
-        yield {"event": "done", "data": {
-            "answer": ans,
-            "formatted_answer": formatted,
-            "cited_sources": getattr(cached, "cited_sources", []),
-            "contexts": contexts_payload,
-            "trace_id": trace_id,
-            "prompt_version": prompt_version,
-            "tone": tone,
-            "cache_hit": True,
-            "timings": timings,
-            "evaluation": evaluation,
-            "is_low_confidence": is_low,
-            "status": status_str,
-            "review_id": review_id,
-        }}
-        return
 
     # 1) Retrieve
     s_ret = start_span("retrieve_context", inputs={"query": question, "top_k": top_k})
@@ -412,8 +340,9 @@ def rag_chat_stream(question: str, top_k: int = TOP_K, user_id: str = "default_u
     # 3) Build LLMInput
     s_build = start_span("build_llm_input")
     t4 = time.perf_counter()
-    memory_context = _build_memory_context(question, user_id)
+    memory_context = _build_memory_context(question, memories)
     llm_input = LLMInput(query=question, language=language, contexts=[c.model_dump() for c in reranked] + [m.model_dump() for m in memory_context])
+    validate_context_provenance(llm_input.contexts)
     timings['build_llm_input'] = time.perf_counter() - t4
     try:
         add_span_chunks(s_build, trace_id, [m.model_dump() for m in memory_context])
@@ -434,9 +363,9 @@ def rag_chat_stream(question: str, top_k: int = TOP_K, user_id: str = "default_u
             full_answer += delta
             yield {"event": "token", "data": {"delta": delta}}
     except Exception as e:
-        finish_span(s_gen, outputs={"error": str(e)}, metadata={"tone": tone})
-        yield {"event": "error", "data": {"error": f"generate_stream error: {e}"}}
-        finish_span(s_root, outputs={"error": str(e)[:200]})
+        finish_span(s_gen, outputs={"error": type(e).__name__}, metadata={"tone": tone})
+        yield {"event": "error", "data": {"error": "generate_stream_failed"}}
+        finish_span(s_root, outputs={"error": type(e).__name__})
         end_trace(trace_id, answer=full_answer, status="failed", total_latency_ms=sum(timings.values())*1000, prompt_version=prompt_version)
         return
     timings['generate_answer'] = time.perf_counter() - t5
@@ -453,20 +382,11 @@ def rag_chat_stream(question: str, top_k: int = TOP_K, user_id: str = "default_u
     # Build LLMOutput for downstream steps
     llm_output = LLMOutput(answer=full_answer, cited_sources=cited_sources, contexts=llm_input.contexts)
 
-    # 5) Cache put
-    s_cache_put = start_span("cache_put")
-    t6 = time.perf_counter()
-    try:
-        cache.put(question, llm_output)
-    except Exception:
-        pass
-    timings['cache_put'] = time.perf_counter() - t6
-    finish_span(s_cache_put)
 
     # 6) Memories
     s_mem = start_span("update_memories")
     t7 = time.perf_counter()
-    _update_memories(question, full_answer, user_id)
+    _update_memories(question, full_answer, user_id, memories)
     timings['update_memories'] = time.perf_counter() - t7
     finish_span(s_mem)
 
@@ -522,7 +442,7 @@ def rag_chat_stream(question: str, top_k: int = TOP_K, user_id: str = "default_u
                 except Exception:
                     pass
         except Exception as e:
-            print(f"[HILT stream] evaluator error: {e}")
+            print(f"[HILT stream] evaluator error: {type(e).__name__}")
 
     total_ms = sum(timings.values())*1000
     # end trace with final status

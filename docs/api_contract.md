@@ -44,7 +44,7 @@ Tất cả cần login; user thường chỉ được thao tác trên `user_id` 
 
 - `POST /v1/glucose`: `{"user_id": "...", "value_mgdl": 145, "context": "fasting"}` (`value 20..800`, context: fasting/pre_meal/post_meal_2h/bedtime/random). Trả thêm `classification` (`low` <70, `no_alert` 70–250, `alert_high` >250 và <300, `critical` ≥300), `message`, `anomaly {spike|trend|none}`, `follow_up_questions[]`. `no_alert` chỉ nghĩa là chưa chạm ngưỡng cảnh báo của hệ thống, không xác nhận đạt mục tiêu cá nhân. GET log cũ tính lại nhãn từ giá trị đo; dữ liệu gốc không bị sửa.
 - Ngưỡng cảnh báo sản phẩm: <70 cần liên hệ y tế, >250 cần liên hệ bác sĩ, ≥300 cần liên hệ y tế ngay; dấu hiệu nặng gọi 115. Mốc xét nghiệm lúc đói ≥126 và OGTT 2 giờ ≥200 là tiêu chuẩn chẩn đoán trong phòng xét nghiệm, không dùng để chẩn đoán từ một lần đo tại nhà. Xem nguồn và giới hạn từng mốc ở `docs/project_requirements.json#scope_rules.threshold_evidence`.
-- `GET /v1/glucose/{user_id}?limit=50&days=14`: trả `logs[]` + `stats` (trung bình, streak) + `should_escalate` (có số đo <70 hoặc ≥300 trong các log gần nhất). Nhãn hiển thị cũ không tự kích hoạt chuyển ca.
+- `GET /v1/glucose/{user_id}?limit=50&days=14`: trả `logs[]` với `classification` và `message` được tính lại từ giá trị gốc, cùng `stats` (trung bình, streak) + `should_escalate` (có số đo <70 hoặc ≥300 trong các log gần nhất). Nhãn hiển thị cũ không tự kích hoạt chuyển ca.
 - `POST /v1/voice/transcribe`: trả `parse` (giá trị và bối cảnh), `measurement_time` (ISO 8601 +07:00 khi nghe rõ giờ và buổi đo) và cảnh báo red-flag. Luồng voice hỏi lại giờ đo nếu thiếu hoặc mơ hồ; chỉ gọi `POST /v1/glucose` với `measured_at` sau khi bệnh nhân xác nhận. Không tự gán giờ hiện tại cho bản ghi voice. Khi mất micro hoặc STT, người dùng có thể nhập thủ công.
 
 ### 5.2 Hypertension — BP
@@ -77,7 +77,11 @@ Gửi `{"message":"tê chân, mắt mờ", "structured":true, "latest_glucose_mg
 
 Red-flag được kiểm trước từ chối ngoài phạm vi, gồm `hypo_severe`, `hyperglycemia_danger`, `foot_infection`, `cardio_stroke`; API trả `emergency=true`, `red_flag_type`, `message` có 115 và danh sách bác sĩ rỗng. Số đo khẩn trong `latest_glucose_mgdl` cũng đi đường cảnh báo này. Nếu không có red-flag mà câu hỏi ngoài phạm vi, `message` là đúng `scope_rules.out_of_scope_reply` và không gợi ý lịch.
 
-Dành cho bác sĩ/dược sĩ duyệt câu trả lời điểm thấp: `GET /v1/reviews?status=pending` lọc, `GET /v1/reviews/{id}` xem kèm vitals, `POST /v1/reviews/{id}/decide` với `{decision: approved|rejected|revised}`. User thường xem yêu cầu của mình ở `/v1/reviews/my`.
+`POST /v1/query` với `require_doctor_review=true` luôn chuyển bản diễn giải sang bác sĩ (`pending_review`, `review_id`); chỉ trả thông báo chờ, không trả bản nháp hoặc evaluation nội bộ. Yêu cầu bắt buộc duyệt chuyển trực tiếp tới bác sĩ sau RAG/kiểm tra nguồn, không phụ thuộc bộ chấm AI; các câu hỏi khác giữ bộ chấm tự động hiện hành. Dấu hiệu khẩn và ngoài phạm vi vẫn đi đường an toàn trước RAG.
+
+Bác sĩ đã xác minh xem `GET /v1/reviews?status=pending`, chi tiết/nguồn/chỉ số tại `GET /v1/reviews/{id}`, và quyết định qua `POST /v1/reviews/{id}/decide` với `{decision: approved|rejected|revised, final_answer?, expert_notes?}`. `approved` công bố nguyên bản; `revised` bắt buộc nội dung sửa không rỗng. Review chỉ được quyết định một lần; lặp quyết định trả 400. Endpoint tương thích `/decision?decision=...` áp cùng quyền. Review bắt buộc bác sĩ chỉ cho doctor/admin duyệt; bệnh nhân, điều dưỡng, dược sĩ/chuyên gia sai quyền và bác sĩ chưa xác minh nhận 403.
+
+Bệnh nhân xem yêu cầu của mình tại `/v1/reviews/me`, `/v1/reviews` và `/v1/reviews/{id}`; chỉ nhận thông tin trạng thái/câu hỏi và `final_answer` sau quyết định, không nhận draft, evaluation, ghi chú nội bộ hay vitals. Truy cập chi tiết của bệnh nhân khác trả 403. `/v1/query/history` và history trong `/reviews/me` ẩn answer khi pending; sau duyệt trả toàn văn cuối (`history.status=approved`, kể cả khi review là `revised`). UI `/my/reviews` tải lại hoặc polling để cập nhật nội dung cuối; không cắt câu trả lời ở 300 ký tự. Tài khoản bác sĩ demo và dữ liệu thử không thay thế duyệt y khoa thực tế.
 
 ## 8. Monitors — `src/monitors/router.py` (13 routes)
 

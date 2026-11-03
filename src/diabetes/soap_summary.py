@@ -8,6 +8,7 @@ Hướng B — Công cụ chuẩn bị hồ sơ trước tái khám (SOAP/ADA).
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 
@@ -25,6 +26,9 @@ except ImportError:  # pragma: no cover
     from vitals.mood_tracker import get_mood_logs, get_mood_stats  # type: ignore
     from shared.memory import get_long_term_memory  # type: ignore
     from shared.config import DEFAULT_MODEL  # type: ignore
+
+
+logger = logging.getLogger(__name__)
 
 
 SOAP_SYSTEM_PROMPT = """Bạn là trợ lý y tế tạo bản tóm tắt trước tái khám theo cấu trúc SOAP,
@@ -45,6 +49,7 @@ YÊU CẦU BẮT BUỘC:
 
 
 def _build_soap_context(user_id: str, days: int, disease: str = "diabetes") -> str:
+    from src.shared.privacy import sanitize
     # Select logs/stats per disease
     if disease == "hypertension":
         logs = get_bp_logs(user_id, limit=200, days=days)
@@ -78,6 +83,7 @@ def _build_soap_context(user_id: str, days: int, disease: str = "diabetes") -> s
     except Exception:
         profile = {"message": "No profile"}
 
+    logs = sanitize(logs)
     ctx = header + "\n"
     if not logs:
         ctx += "Chưa có log nào.\n"
@@ -91,6 +97,7 @@ def _build_soap_context(user_id: str, days: int, disease: str = "diabetes") -> s
         ctx += f"Phân loại: {stats.get('classification_counts')}\n"
 
     ctx += "\n=== HỒ SƠ NGƯỜI DÙNG (Long-term memory) ===\n"
+    profile = sanitize(profile)
     if "message" in profile:
         ctx += profile["message"] + "\n"
     else:
@@ -103,7 +110,7 @@ def _build_soap_context(user_id: str, days: int, disease: str = "diabetes") -> s
 
 def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: str = "diabetes") -> Dict[str, Any]:
     """
-    Gọi LLM để tạo SOAP. Nếu không có OPENAI_API_KEY, trả về template rule-based.
+    Gọi LLM để tạo SOAP. Nếu không có NVIDIA key, trả về template rule-based.
     disease: diabetes|hypertension|respiratory|mental|all
     """
     # Select appropriate stats for rule-based
@@ -230,11 +237,10 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
     # Thử gọi LLM nếu có key
     try:
         import os
-        from openai import OpenAI
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("No OPENAI_API_KEY")
-        client = OpenAI(api_key=api_key, base_url=os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1")
+        from src.shared.nvidia import llm_client
+        client = llm_client()
+        if client is None:
+            raise RuntimeError("No NVIDIA key")
         user_prompt = (
             f"{context}\n\nHãy tạo bản tóm tắt SOAP cho bác sĩ, trả về JSON với 4 keys: "
             "subjective, objective, assessment, plan. "
@@ -245,7 +251,7 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
             'Plan LUÔN là chuỗi rỗng "".'
         )
         resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.getenv("NVIDIA_CHAT_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b"),
             messages=[
                 {"role": "system", "content": SOAP_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
@@ -286,6 +292,7 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
                         soap[k] = (soap[k] + f" Nguồn: {_src_links}.").strip()
         if disease == "diabetes":
             soap["assessment"] = rule_based()["assessment"]
+        logger.info("soap_generation mode=llm")
         return {
             "user_id": user_id,
             "generated_at": datetime.now(timezone.utc),
@@ -296,7 +303,11 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
             "followup": followup,
         }
     except Exception as e:
+        from src.shared.privacy import PrivacyError
+        if isinstance(e, PrivacyError):
+            raise
         # fallback rule-based
+        logger.warning("soap_generation mode=fallback reason=%s", type(e).__name__)
         rb = rule_based()
         return {
             "user_id": user_id,
@@ -306,7 +317,7 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
             "stats": stats,
             "disease": disease,
             "followup": followup,
-            "_fallback_reason": str(e)[:200],
+            "_fallback_reason": type(e).__name__,
         }
 
 

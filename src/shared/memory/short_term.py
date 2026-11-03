@@ -38,24 +38,41 @@ except ImportError:  # fallback for non-package import
 
 
 class ContextCompressor:
-    """Compresses context using a small language model."""
-    
+    """Compresses context using a small language model (lazy, optional).
+
+    The encoder is loaded on first compression only, so startup and normal
+    short-window chat never need the model. If it is not in the local cache
+    (offline deploys) compression degrades to a no-op instead of crashing.
+    """
+
     def __init__(self, model_name: str = "distilbert-base-uncased"):
-        self.model = SentenceTransformer(model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-    
+        self.model_name = model_name
+        self._model = None
+        self._tokenizer = None
+
+    def _load(self):
+        if self._model is None:
+            self._model = SentenceTransformer(self.model_name)
+            self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        return self._model, self._tokenizer
+
     def compress_message(self, message: Message, target_tokens: int = 100) -> str:
         """Compress a message to target token count."""
         if not message.content:
             return ""
-            
+
         # Simple compression: extract key sentences
         sentences = message.content.split('. ')
         if len(sentences) <= 2:
             return message.content
-            
+
+        try:
+            model, tokenizer = self._load()
+        except Exception:  # model unavailable offline -> keep original text
+            return message.content
+
         # Use sentence embeddings to find most important sentences
-        embeddings = self.model.encode(sentences)
+        embeddings = model.encode(sentences)
         importance_scores = [abs(embedding).mean() for embedding in embeddings]
         
         # Sort sentences by importance
@@ -67,7 +84,7 @@ class ContextCompressor:
         current_tokens = 0
         
         for sentence, _ in sentence_scores:
-            sentence_tokens = len(self.tokenizer.tokenize(sentence))
+            sentence_tokens = len(tokenizer.tokenize(sentence))
             if current_tokens + sentence_tokens <= target_tokens:
                 compressed.append(sentence)
                 current_tokens += sentence_tokens
@@ -279,13 +296,18 @@ class ShortTermMemory:
         return memory
 
 
-# Global instance for easy access
-short_term_memory = None  # Initialize only when this memory is requested.
+# Legacy ownerless state is deliberately never adopted by an authenticated user.
+short_term_memory = None
+_owner_memories = {}
+from threading import RLock
+_owner_lock = RLock()
 
 
-def get_short_term_memory() -> ShortTermMemory:
-    """Get the global short-term memory instance."""
-    global short_term_memory
-    if short_term_memory is None:
-        short_term_memory = ShortTermMemory()
-    return short_term_memory
+def get_short_term_memory(user_id: str | None = None) -> ShortTermMemory:
+    """Return only the requested owner's memory; anonymous calls are ephemeral."""
+    if not user_id or user_id == "default_user":
+        return ShortTermMemory()
+    with _owner_lock:
+        if user_id not in _owner_memories:
+            _owner_memories[user_id] = ShortTermMemory()
+        return _owner_memories[user_id]

@@ -50,7 +50,11 @@ def _inp(lang="vi"):
 
 
 def test_vi_instruction_in_system_and_user_prompt(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     fake = _FakeClient()
     monkeypatch.setattr(gen, "client", fake)
     gen.generate_answer(_inp("vi"))
@@ -62,7 +66,11 @@ def test_vi_instruction_in_system_and_user_prompt(monkeypatch):
 
 
 def test_en_skips_vi_instruction(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for _k in (
+        "NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
+        "NVIDIA_API_KEY", "NVIDIA_API_KEY2", "NVIDIA_API_KEY3",
+    ):
+        monkeypatch.delenv(_k, raising=False)
     fake = _FakeClient()
     monkeypatch.setattr(gen, "client", fake)
     gen.generate_answer(_inp("en"))
@@ -76,3 +84,26 @@ def test_en_skips_vi_instruction(monkeypatch):
 def test_query_request_defaults_language_vi():
     from src.chat.schemas import QueryRequest
     assert QueryRequest(query="x").language == "vi"
+
+
+@pytest.mark.parametrize("retry_content", ["Nội dung sau retry", None])
+def test_empty_hard_model_retries_once_with_more_tokens(monkeypatch, retry_content):
+    from types import SimpleNamespace
+    from src.shared import nvidia
+
+    calls = []
+    def create(**kwargs):
+        calls.append(kwargs)
+        content = None if len(calls) == 1 else retry_content
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))], usage=None)
+    fake = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(gen, "client", fake)
+    model = nvidia.hard_model()
+    if retry_content:
+        assert gen.generate_answer(_inp(), model=model).answer == retry_content
+    else:
+        with pytest.raises(RuntimeError, match="nội dung rỗng"):
+            gen.generate_answer(_inp(), model=model)
+    assert len(calls) == 2
+    assert calls[0]["model"] == calls[1]["model"]
+    assert calls[1]["max_tokens"] >= 2048
