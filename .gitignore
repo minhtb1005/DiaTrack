@@ -17,9 +17,11 @@ src/embeddings/
 
 # Frontend build + test artifacts (never commit)
 /frontend/.next/
+/frontend/.next-*/
 /frontend/node_modules/
 /frontend/playwright-report/
 /frontend/test-results/
+/frontend/debug.log
 /frontend/tsconfig.tsbuildinfo
 frontend/tsconfig.tsbuildinfo
 # Runtime triage event logs (never commit)
@@ -28,6 +30,14 @@ logs/
 # Backend test + runtime logs (never commit)
 test-results/
 src/logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Local deployment bundles and working documents
+/deployment/*.zip
+/docs/PROJECT_COVERAGE.md
+/.env.example
 
 # Local agent session state (kept out of Git)
 /WORKFLOW_STATE.md

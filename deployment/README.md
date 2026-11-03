@@ -1,10 +1,10 @@
 # Verified RAG deployment assets
 
-`verified-rag-assets-20261102.zip` contains the clean 452-chunk Chroma index and the four hash-verified source PDFs required by startup preflight. SHA-256:
+`verified-rag-assets-20261102.zip` is a local/release artifact that is intentionally not tracked by Git. It contains the clean 452-chunk Chroma index and the four hash-verified source PDFs required by startup preflight. SHA-256:
 
 `eca27169aa713db004dd2247e35fefdd54fa4289c868fa9916b508d1e4acf7e6`
 
-From the repository root, verify the archive, extract it without changing paths, and run the preflight:
+After obtaining the archive through the controlled deployment channel, place it in `deployment/`. From the repository root, verify it, extract it without changing paths, and run the preflight:
 
 ```powershell
 (Get-FileHash deployment\verified-rag-assets-20261102.zip -Algorithm SHA256).Hash.ToLower()
