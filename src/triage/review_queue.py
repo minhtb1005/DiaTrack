@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from src.auth import db as auth_db
 
@@ -63,6 +65,32 @@ def get_case(case_id: str) -> dict | None:
         conn.close()
 
 
+def handoff_for(case_id: str) -> dict | None:
+    case = get_case(case_id)
+    if case is None:
+        return None
+    return {
+        "case_id": case["id"],
+        "symptoms": case["message"],
+        "latest_glucose_mgdl": case["latest_glucose_mgdl"],
+        "symptom_onset": case["symptom_onset"],
+        "missing_information": [
+            label for value, label in (
+                (case["latest_glucose_mgdl"], "Số đo đường huyết gần nhất"),
+                (case["symptom_onset"], "Thời điểm bắt đầu triệu chứng"),
+            ) if value is None or (isinstance(value, str) and not value.strip())
+        ],
+        "proposed_priority": case["proposed_priority"],
+        "rationale": case["rationale"],
+        "sources": [
+            {"label": source.strip(), "href": "https://github.com/minhtb1005/DiaTrack/blob/main/docs/project_requirements.json"}
+            for source in case["source"].split(";") if source.strip()
+        ],
+        "created_at": case["created_at"],
+        "notice": "Phiếu bàn giao không phải chẩn đoán; quyết định xử trí do nhân viên y tế duyệt.",
+    }
+
+
 def decide(case_id: str, reviewer_id: str, decision: str, priority: str | None, message: str | None, notes: str | None) -> dict | None:
     conn = _conn()
     try:
@@ -94,3 +122,36 @@ def audit_for(case_id: str) -> list[dict]:
         return [dict(row) for row in conn.execute("SELECT * FROM triage_review_audit WHERE case_id=? ORDER BY created_at", (case_id,))]
     finally:
         conn.close()
+
+
+def audit_report() -> dict:
+    """Return de-identified reviewer disagreement and a separate red-flag gold check."""
+    conn = _conn()
+    try:
+        rows = conn.execute("""SELECT previous_priority, final_priority
+            FROM triage_review_audit WHERE action IN ('approved','revised')""").fetchall()
+    finally:
+        conn.close()
+    reviewed = len(rows)
+    disagreements = sum(row[0] != row[1] for row in rows)
+
+    gold_path = Path(__file__).resolve().parents[2] / "data" / "evaluation" / "bench_triage.json"
+    gold = json.loads(gold_path.read_text(encoding="utf-8"))
+    red_flags = [item for item in gold if item.get("kind") == "redflag"]
+    from src.triage.red_flag import check_red_flag
+    failures = []
+    for item in red_flags:
+        actual = check_red_flag(item["text"])
+        if bool(actual.get("emergency")) != item["expect_emergency"] or actual.get("red_flag_type") != item.get("expect_group"):
+            failures.append(item["id"])
+    return {
+        "reviewed_cases": reviewed,
+        "disagreement_count": disagreements,
+        "disagreement_rate": disagreements / reviewed if reviewed else None,
+        "gold": {
+            "dataset": "data/evaluation/bench_triage.json",
+            "version": max((item.get("version", 0) for item in gold), default=0),
+            "red_flag_cases": len(red_flags),
+            "red_flag_failures": failures,
+        },
+    }

@@ -182,7 +182,13 @@ app.add_middleware(
 
 # ---------- include routers ----------
 from src.medications.router import router as medications_router
+from src.diabetes.soap_workflow import router as soap_workflow_router
+from src.diabetes.nutrition_workflow import router as nutrition_workflow_router
+from src.scheduling.booking_router import router as booking_router
 app.include_router(medications_router)
+app.include_router(soap_workflow_router)
+app.include_router(nutrition_workflow_router)
+app.include_router(booking_router)
 if AUTH_ENABLED and auth_router is not None:
     app.include_router(auth_router)
     app.include_router(reviews_router)  # type: ignore

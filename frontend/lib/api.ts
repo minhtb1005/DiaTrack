@@ -82,6 +82,20 @@ export async function queryRag(query: string, top_k = 5, user_id = "default_user
   return apiPost("/v1/query", { ...ragBody(query, top_k, user_id), language, require_doctor_review: requireDoctorReview }, "query");
 }
 
+export const createSoapDraft = (body:any) => apiPost("/v1/soap/drafts", body);
+export const editSoapDraft = (id:string, body:any) => apiPost(`/v1/soap/drafts/${id}`, body, "edit SOAP", "PUT");
+export const signSoapDraft = (id:string) => apiPost(`/v1/soap/drafts/${id}/sign`);
+export const getSoapDraft = (id:string) => apiGet(`/v1/soap/drafts/${id}`);
+export const saveNutritionProfile = (body:any) => apiPost("/v1/nutrition/profile", body, "nutrition profile", "PUT");
+export const createMealPlan = (body:any) => apiPost("/v1/nutrition/meal-plans", body);
+export const approveMealPlan = (id:string) => apiPost(`/v1/nutrition/meal-plans/${id}/approve`);
+export const getMealPlan = (id:string) => apiGet(`/v1/nutrition/meal-plans/${id}`);
+export const suggestBooking = (need:string) => apiPost("/v1/bookings/suggest", {need});
+export const holdBooking = (body:any) => apiPost("/v1/bookings/hold", body);
+export const confirmBooking = (id:string) => apiPost(`/v1/bookings/${id}/confirm`);
+export const approveBooking = (id:string) => apiPost(`/v1/bookings/${id}/approve`);
+export const bookingDashboard = () => apiGet("/v1/bookings/coordination/dashboard");
+
 // SSE streaming for POST /v1/query/stream — yields {event, data} via callback
 export async function queryRagStream(
   query: string,
@@ -295,6 +309,10 @@ export async function decideTriageReview(id: string, body: { decision: "approved
 export async function getTriageReview(id: string) {
   return apiGet(`/v1/triage/reviews/${encodeURIComponent(id)}`, undefined, "triage review");
 }
+export async function getTriageHandoff(id: string) {
+  return apiGet(`/v1/triage/reviews/${encodeURIComponent(id)}/handoff`, undefined, "triage handoff");
+}
+export const getTriageAuditReport = () => apiGet('/v1/triage/audit/report');
 export const API_BASE = API;
 
 // Micro-curriculum (learn): lessons + quiz + adaptive + 7-day today.

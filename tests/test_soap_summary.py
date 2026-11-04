@@ -40,17 +40,41 @@ class TestSoapSummary:
         add_log(temp_user, 130, context="fasting")
         response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=(
             '{"subjective":"S","objective":"O","assessment":"A","plan":""}'
-        )))])
-        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: response)))
+        )), finish_reason="stop")])
+        request = {}
+        def create(**kwargs):
+            request.update(kwargs)
+            return response
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
         monkeypatch.setattr(nvidia, "llm_client", lambda: client)
+        monkeypatch.setenv("NVIDIA_CHAT_MODEL_LIGHT", "test-light-model")
 
         with caplog.at_level(logging.INFO, logger="src.diabetes.soap_summary"):
             data = soap_summary.generate_soap(temp_user, days=7)
 
         assert data.get("_fallback_reason") is None
         assert "soap_generation mode=llm" in caplog.text
+        assert request["model"] == "test-light-model"
+        assert request["max_tokens"] == 2048
+        assert request["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
         assert temp_user not in caplog.text
         assert "130" not in caplog.text
+
+    def test_empty_llm_content_falls_back_with_finish_reason(self, temp_user, monkeypatch, caplog):
+        from src.diabetes import soap_summary
+        from src.shared import nvidia
+
+        response = SimpleNamespace(choices=[SimpleNamespace(
+            message=SimpleNamespace(content=None), finish_reason="length"
+        )])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: response)))
+        monkeypatch.setattr(nvidia, "llm_client", lambda: client)
+
+        with caplog.at_level(logging.WARNING, logger="src.diabetes.soap_summary"):
+            data = soap_summary.generate_soap(temp_user, days=7)
+
+        assert data["_fallback_reason"] == "RuntimeError"
+        assert "soap_generation empty_content finish_reason=length" in caplog.text
 
     def test_soap_audit_links_and_hba1c(self, temp_user, mock_openai):
         add_log(temp_user, 130, context="fasting", notes="khát nước nhiều")
@@ -88,3 +112,18 @@ class TestSoapSummary:
         add_log(temp_user, 100, context="random")
         data = generate_soap(temp_user, days=30, language="vi")
         assert data["period"] == "30 ngày"
+
+    def test_transcript_draft_marks_missing_and_keeps_plan_empty(self, client, make_user):
+        patient, token = make_user()
+        response = client.post(
+            "/v1/soap/drafts",
+            json={"patient_id": patient["id"], "transcript": "Tôi thấy khát nước."},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["plan"] == ""
+        assert data["objective"] == "chưa ghi nhận"
+        assert "chỉ số đường huyết" in data["missing"]
+        assert data["subjective"].endswith("[Transcript]")
+        assert "không phải chẩn đoán" in data["assessment"]

@@ -251,17 +251,22 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
             'Plan LUÔN là chuỗi rỗng "".'
         )
         resp = client.chat.completions.create(
-            model=os.getenv("NVIDIA_CHAT_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b"),
+            model=os.getenv("NVIDIA_CHAT_MODEL_LIGHT", "nvidia/nemotron-3.5-lightning-30b-a3b"),
             messages=[
                 {"role": "system", "content": SOAP_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.2,
-            max_tokens=800,
+            max_tokens=2048,
             response_format={"type": "json_object"},
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
         import json
-        txt = resp.choices[0].message.content.strip()
+        choice = resp.choices[0]
+        txt = (choice.message.content or "").strip()
+        if not txt:
+            logger.warning("soap_generation empty_content finish_reason=%s", getattr(choice, "finish_reason", None))
+            raise RuntimeError("NVIDIA returned empty SOAP content")
         data = json.loads(txt)
         # chuẩn hoá keys — coerce list → string (LLM sometimes returns bullet arrays)
         def _coerce(v):
@@ -307,7 +312,7 @@ def generate_soap(user_id: str, days: int = 14, language: str = "vi", disease: s
         if isinstance(e, PrivacyError):
             raise
         # fallback rule-based
-        logger.warning("soap_generation mode=fallback reason=%s", type(e).__name__)
+        logger.warning("soap_generation mode=fallback reason=%s", type(e).__name__, exc_info=True)
         rb = rule_based()
         return {
             "user_id": user_id,

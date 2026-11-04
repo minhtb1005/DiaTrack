@@ -383,3 +383,13 @@ class TestTriageAuthGate:
         assert (r.json().get("previsit_notes") or "").strip() != ""
         notes = gt.get_logs(user["id"], limit=1)[0].get("notes") or ""
         assert "tê chân" in notes, notes
+
+    def test_booking_suggestion_uses_roster_and_red_flags_never_get_slots(self, client, auth_header):
+        headers = {"Authorization": f"Bearer {auth_header['token']}"}
+        normal = client.post("/v1/bookings/suggest", json={"need": "khám mắt do đái tháo đường"}, headers=headers)
+        assert normal.status_code == 200
+        assert normal.json()["source"].startswith("docs/project_requirements.json")
+        assert normal.json()["suggestions"] and normal.json()["suggestions"][0]["doctor_id"].startswith("syn_doctor_")
+        urgent = client.post("/v1/bookings/suggest", json={"need": "đau ngực và méo miệng"}, headers=headers)
+        assert urgent.json()["emergency"] is True and urgent.json()["suggestions"] == []
+        assert "115" in urgent.json()["message"]

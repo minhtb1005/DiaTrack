@@ -10,7 +10,7 @@ if (!process.env.TRIAGE_E2E_DB_DIR) throw new Error('TRIAGE_E2E_DB_DIR is requir
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'triage-review.integration.spec.ts',
+  testMatch: ['triage-review.integration.spec.ts', 'medications.integration.spec.ts', 'care-workflows.integration.spec.ts'],
   timeout: 90_000,
   expect: { timeout: 15_000 },
   workers: 1,

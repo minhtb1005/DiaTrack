@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.auth.dependencies import get_current_user, require_role, enforce_user_ownership
 from src.auth.db import get_user_by_id
+from src.auth.db import create_notification
 
 DB_PATH = Path(os.getenv('MEDICATION_DB_PATH', 'metadata/medications.db'))
 VN = timezone(timedelta(hours=7))
@@ -30,6 +31,7 @@ def connection():
         conn.execute('CREATE TABLE IF NOT EXISTS plans (id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, doctor_id TEXT NOT NULL, status TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, approved_at TEXT)')
         conn.execute('CREATE TABLE IF NOT EXISTS doses (plan_id TEXT NOT NULL, due_at TEXT NOT NULL, status TEXT NOT NULL, recorded_at TEXT NOT NULL, actor_id TEXT NOT NULL, PRIMARY KEY(plan_id,due_at))')
         conn.execute('CREATE TABLE IF NOT EXISTS plan_events (id TEXT PRIMARY KEY, plan_id TEXT NOT NULL, actor_id TEXT NOT NULL, action TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)')
+        conn.execute('CREATE TABLE IF NOT EXISTS reminder_events (plan_id TEXT NOT NULL, due_at TEXT NOT NULL, kind TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(plan_id,due_at,kind))')
         yield conn
         conn.commit()
     finally:
@@ -89,6 +91,33 @@ def occurrences(payload):
             yield datetime.combine(start+timedelta(days=offset), time.fromisoformat(hour), VN).isoformat()
 
 
+def send_due_reminders(now: datetime | None = None) -> int:
+    """Create one in-app reminder per due occurrence; scheduler calls this function."""
+    now = (now or datetime.now(timezone.utc)).astimezone(VN)
+    sent = 0
+    with connection() as conn:
+        for row in conn.execute("SELECT id,patient_id,payload FROM plans WHERE status='approved'"):
+            payload = json.loads(row['payload'])
+            recorded = {item['due_at'] for item in conn.execute('SELECT due_at FROM doses WHERE plan_id=?', (row['id'],))}
+            for due_at in occurrences(payload):
+                if due_at in recorded or datetime.fromisoformat(due_at) > now:
+                    continue
+                try:
+                    conn.execute('INSERT INTO reminder_events VALUES (?,?,?,?)',
+                                 (row['id'], due_at, 'due', datetime.now(timezone.utc).isoformat()))
+                except sqlite3.IntegrityError:
+                    continue
+                create_notification(row['patient_id'], 'medication_due', 'Đến giờ xác nhận dùng thuốc',
+                                    f"{payload['medicine']} lúc {due_at}. Xác nhận đã dùng hoặc bỏ liều; không tự uống bù.", row['id'])
+                sent += 1
+    return sent
+
+
+@router.post('/reminders/run')
+def run_reminders(admin=Depends(require_role('admin'))):
+    return {'sent': send_due_reminders()}
+
+
 def get_plan(conn, plan_id):
     row = conn.execute('SELECT * FROM plans WHERE id=?', (plan_id,)).fetchone()
     if row is None:
@@ -103,7 +132,10 @@ def create_plan(body: Plan, doctor=Depends(require_role('doctor'))):
         raise HTTPException(404, 'Không tìm thấy bệnh nhân')
     plan_id = str(uuid.uuid4())
     with connection() as conn:
-        conn.execute('INSERT INTO plans VALUES (?,?,?,?,?,?,NULL)', (plan_id,body.patient_id,doctor['id'],'draft',body.model_dump_json(),datetime.now(timezone.utc).isoformat()))
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute('INSERT INTO plans VALUES (?,?,?,?,?,?,NULL)', (plan_id,body.patient_id,doctor['id'],'draft',body.model_dump_json(),now))
+        conn.execute('INSERT INTO plan_events VALUES (?,?,?,?,?,?)',
+                     (str(uuid.uuid4()), plan_id, doctor['id'], 'created', 'Tạo bản nháp từ đơn đã nhập', now))
     return {'id':plan_id, 'status':'draft'}
 
 
@@ -115,7 +147,10 @@ def approve_plan(plan_id: str, doctor=Depends(require_role('doctor'))):
             raise HTTPException(403, 'Chỉ bác sĩ tạo lịch được duyệt lịch này')
         if plan['status'] != 'draft':
             raise HTTPException(409, 'Lịch đã được duyệt')
-        conn.execute("UPDATE plans SET status='approved',approved_at=? WHERE id=?", (datetime.now(timezone.utc).isoformat(),plan_id))
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute("UPDATE plans SET status='approved',approved_at=? WHERE id=?", (now,plan_id))
+        conn.execute('INSERT INTO plan_events VALUES (?,?,?,?,?,?)',
+                     (str(uuid.uuid4()), plan_id, doctor['id'], 'approved', 'Bác sĩ duyệt lịch theo đơn', now))
     return {'id':plan_id,'status':'approved'}
 
 
@@ -125,6 +160,8 @@ def list_plans(patient_id: str, user=Depends(get_current_user)):
     now = datetime.now(VN)
     with connection() as conn:
         plans = conn.execute('SELECT * FROM plans WHERE patient_id=? ORDER BY created_at DESC',(patient_id,)).fetchall()
+        if user['role'] == 'doctor':
+            plans = [row for row in plans if row['doctor_id'] == user['id']]
         result=[]
         for row in plans:
             plan=dict(row)
@@ -139,9 +176,17 @@ def list_plans(patient_id: str, user=Depends(get_current_user)):
                     schedule.append({'due_at':due,'status':record['status'] if record else ('overdue' if datetime.fromisoformat(due)<now else 'scheduled')})
             due_count=sum(datetime.fromisoformat(r['due_at'])<=now for r in schedule)
             taken=sum(r['status']=='taken' and datetime.fromisoformat(r['due_at'])<=now for r in schedule)
+            missed_streak = current_streak = 0
+            for item in sorted((r for r in schedule if datetime.fromisoformat(r['due_at']) <= now), key=lambda r: r['due_at']):
+                current_streak = current_streak + 1 if item['status'] == 'skipped' else 0
+                missed_streak = max(missed_streak, current_streak)
             events=[dict(r) for r in conn.execute('SELECT actor_id,action,reason,created_at FROM plan_events WHERE plan_id=? ORDER BY created_at', (plan['id'],))]
-            result.append({**plan,**payload,'events':events,'schedule':schedule,'adherence':{'due':due_count,'taken':taken,'rate':taken/due_count if due_count else None}})
-    return {'plans':result,'timezone':'Asia/Ho_Chi_Minh','disclaimer':'Chỉ dùng theo đơn bác sĩ đã duyệt. Không tự đổi liều hoặc uống bù; hỏi bác sĩ/dược sĩ khi bỏ liều.'}
+            result.append({**plan,**payload,'events':events,'schedule':schedule,'adherence':{'due':due_count,'taken':taken,'rate':taken/due_count if due_count else None,'missed_streak':missed_streak}})
+    glucose_logs = []
+    if user['role'] == 'doctor' and result:
+        from src.diabetes.glucose_tracker import get_logs
+        glucose_logs = get_logs(patient_id, limit=50, days=90)
+    return {'plans':result,'glucose_logs':glucose_logs,'timezone':'Asia/Ho_Chi_Minh','disclaimer':'Tỷ lệ và dữ liệu đường huyết chỉ để đối chiếu; không chứng minh hiệu quả thuốc và không phải đề xuất đổi liều. Không tự đổi liều hoặc uống bù.'}
 
 
 @router.post('/plans/{plan_id}/doses')

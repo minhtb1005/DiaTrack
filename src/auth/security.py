@@ -2,34 +2,25 @@
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
+import bcrypt
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 
 try:
     from src.shared.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 except ImportError:
     from shared.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS  # type: ignore
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def _password_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:72]
 
 def hash_password(password: str) -> str:
-    # bcrypt 5.0 compat: truncate to 72 bytes, passlib bug workaround
-    # Use direct bcrypt if passlib fails
-    try:
-        return pwd_context.hash(password[:72])
-    except Exception:
-        import bcrypt
-        return bcrypt.hashpw(password[:72].encode(), bcrypt.gensalt()).decode()
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode()
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return pwd_context.verify(plain[:72], hashed)
-    except Exception:
-        import bcrypt
-        try:
-            return bcrypt.checkpw(plain[:72].encode(), hashed.encode())
-        except Exception:
-            return False
+        return bcrypt.checkpw(_password_bytes(plain), hashed.encode())
+    except (TypeError, ValueError):
+        return False
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     import uuid

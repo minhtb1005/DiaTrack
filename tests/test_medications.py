@@ -75,5 +75,43 @@ def test_doctor_stops_schedule_preserving_history(client, make_user, doctor_user
     stopped = client.get(listing, headers=headers(token)).json()['plans'][0]
     assert stopped['status'] == 'stopped'
     assert stopped['schedule'] == []
-    assert stopped['events'][0]['reason'] == 'Đơn mô phỏng đã kết thúc'
+    assert [event['action'] for event in stopped['events']] == ['created', 'approved', 'stopped']
+    assert stopped['events'][-1]['reason'] == 'Đơn mô phỏng đã kết thúc'
     assert client.post(path+'/doses', json={'due_at':due,'status':'taken'}, headers=headers(token)).status_code == 409
+
+
+def test_other_doctor_cannot_approve_or_stop_and_audit_is_preserved(client, make_user, doctor_user, admin_client):
+    patient, token = make_user()
+    username = 'doc_other_' + patient['id'][:6]
+    password = 'OtherDoc@123'
+    created = client.post('/v1/auth/register', json={'username':username, 'password':password, 'role':'doctor'},
+                          headers=headers(admin_client['token']))
+    assert created.status_code in (200, 201), created.text
+    login = client.post('/v1/auth/login-json', json={'username':username, 'password':password})
+    other_token = login.json()['access_token']
+
+    response = client.post('/v1/medications/plans', json=prescription(patient), headers=headers(doctor_user['token']))
+    plan_id = response.json()['id']
+    path = '/v1/medications/plans/' + plan_id
+    assert client.post(path+'/approve', headers=headers(other_token)).status_code == 403
+    assert client.post(path+'/approve', headers=headers(doctor_user['token'])).status_code == 200
+    assert client.post(path+'/stop', json={'reason':'Không có quyền'}, headers=headers(other_token)).status_code == 403
+
+    patient_plan = client.get('/v1/medications/patients/'+patient['id'], headers=headers(token)).json()['plans'][0]
+    assert patient_plan['status'] == 'approved'
+    assert [event['action'] for event in patient_plan['events']] == ['created', 'approved']
+    assert all(event['actor_id'] == doctor_user['user']['id'] for event in patient_plan['events'])
+
+
+def test_due_reminder_is_outside_page_and_idempotent(client, make_user, doctor_user, admin_client):
+    patient, token = make_user()
+    plan_id = client.post('/v1/medications/plans', json=prescription(patient), headers=headers(doctor_user['token'])).json()['id']
+    client.post('/v1/medications/plans/'+plan_id+'/approve', headers=headers(doctor_user['token']))
+    run = '/v1/medications/reminders/run'
+    assert client.post(run, headers=headers(token)).status_code == 403
+    assert client.post(run, headers=headers(admin_client['token'])).json()['sent'] == 1
+    assert client.post(run, headers=headers(admin_client['token'])).json()['sent'] == 0
+    notifications = client.get('/v1/auth/notifications', headers=headers(token)).json()['notifications']
+    matching = [item for item in notifications if item['type'] == 'medication_due']
+    assert len(matching) == 1
+    assert 'không tự uống bù' in matching[0]['body']

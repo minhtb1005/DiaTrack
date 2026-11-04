@@ -48,7 +48,7 @@ export default function AdminUsersPage() {
           <Input placeholder="email" value={form.email} onChange={(e)=>setForm({...form, email:e.target.value})} className="text-xs" />
           <Input placeholder="full name" value={form.full_name} onChange={(e)=>setForm({...form, full_name:e.target.value})} className="text-xs" />
           <select value={form.role} onChange={(e)=>setForm({...form, role:e.target.value})} className="rounded border px-2 py-1 text-xs">
-            <option value="doctor">doctor</option><option value="nurse">nurse</option><option value="pharmacist">pharmacist</option><option value="specialist">specialist</option><option value="admin">admin</option><option value="user">user</option>
+            <option value="doctor">doctor</option><option value="nurse">nurse</option><option value="receptionist">receptionist</option><option value="pharmacist">pharmacist</option><option value="specialist">specialist</option><option value="admin">admin</option><option value="user">user</option>
           </select>
         </div>
         <Button variant="dark" onClick={createExpert} className="mt-3">Tạo</Button>
@@ -64,13 +64,13 @@ export default function AdminUsersPage() {
                   <td className="py-2">{u.username}<br/><span className="text-slate-500 dark:text-slate-400">{u.email}</span></td>
                   <td>
                     <select value={u.role} onChange={(e)=>changeRole(u, e.target.value)} className="rounded border px-1 py-1 text-xs">
-                      <option value="user">user</option><option value="doctor">doctor</option><option value="nurse">nurse</option><option value="pharmacist">pharmacist</option><option value="specialist">specialist</option><option value="admin">admin</option>
+                      <option value="user">user</option><option value="doctor">doctor</option><option value="nurse">nurse</option><option value="receptionist">receptionist</option><option value="pharmacist">pharmacist</option><option value="specialist">specialist</option><option value="admin">admin</option>
                     </select>
                   </td>
                   <td>{u.is_verified? "Đã duyệt":"Chưa duyệt"}</td>
                   <td>{u.is_active? "Hoạt động":"Đã khóa"}</td>
                   <td className="flex gap-1 py-1">
-                    {["doctor","pharmacist","specialist","nurse"].includes(u.role) && !u.is_verified && <button onClick={()=>verify(u)} className="rounded bg-emerald-600 text-white px-2 py-1">Duyệt</button>}
+                    {["doctor","pharmacist","specialist","nurse","receptionist"].includes(u.role) && !u.is_verified && <button onClick={()=>verify(u)} className="rounded bg-emerald-600 text-white px-2 py-1">Duyệt</button>}
                     <button onClick={()=>toggleVerify(u)} className="rounded border px-2 py-1">{u.is_verified? "Bỏ duyệt":"Duyệt"}</button>
                     <button onClick={async ()=>{ try{ await adminUpdateUser(u.id, { is_active: !u.is_active }); load(); }catch(e:any){ setMsg(e.message);} }} className="rounded border px-2 py-1">{u.is_active? "Khóa":"Mở"}</button>
                   </td>

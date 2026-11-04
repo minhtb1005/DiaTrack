@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type Plan = { events?:{action:string;reason:string;created_at:string}[]; id:string; medicine:string; prescribed_dose:string; prescription_reference:string; status:string; doctor_id:string; times:string[]; start_date:string; end_date:string; schedule:{due_at:string;status:string}[]; adherence:{due:number;taken:number;rate:number|null} };
+type Plan = { events?:{action:string;reason:string;created_at:string}[]; id:string; medicine:string; prescribed_dose:string; prescription_reference:string; status:string; doctor_id:string; times:string[]; start_date:string; end_date:string; schedule:{due_at:string;status:string}[]; adherence:{due:number;taken:number;rate:number|null;missed_streak:number} };
 export default function MedicationsPage() {
   const {user,loading}=useAuth();
   const [patient,setPatient]=useState("");
@@ -15,12 +15,13 @@ export default function MedicationsPage() {
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState("");
+  const [glucoseLogs,setGlucoseLogs]=useState<any[]>([]);
   const doctor=user?.role==="doctor";
   const target=doctor?patient:user?.id;
   async function load() {
     if(!target) return;
     setError("");setBusy(true);
-    try {setPlans((await medicationPlans(target)).plans);} catch(e) {setError("Chưa tải được lịch thuốc. Kiểm tra bệnh nhân đã chọn và thử lại.");} finally {setBusy(false);}
+    try {const data=await medicationPlans(target);setPlans(data.plans);setGlucoseLogs(data.glucose_logs||[]);} catch(e) {setError("Chưa tải được lịch thuốc. Kiểm tra bệnh nhân đã chọn và thử lại.");} finally {setBusy(false);}
   }
   useEffect(()=>{if(!user||doctor) return; load(); const timer=setInterval(load,60000); return ()=>clearInterval(timer);},[user?.id]);
   async function action(run:()=>Promise<unknown>, message:string) {
@@ -52,6 +53,7 @@ export default function MedicationsPage() {
     {!doctor&&<Button onClick={load} disabled={busy}>Cập nhật lịch</Button>}
     {busy&&<p role="status">Đang xử lý…</p>}
     {!busy&&!plans.length&&!error&&<Card className="p-6">Chưa có lịch thuốc được hiển thị. Bệnh nhân chỉ thấy lịch sau khi bác sĩ duyệt.</Card>}
+    {doctor&&plans.length>0&&<Card className="p-5"><h2 className="font-semibold">Đối chiếu đường huyết cùng kỳ</h2><p>Chỉ để đối chiếu; không chứng minh hiệu quả thuốc và không phải đề xuất đổi liều.</p>{glucoseLogs.length===0?<p>Chưa có dữ liệu trong kỳ.</p>:<ul>{glucoseLogs.map(log=><li key={log.id}>{log.measured_at}: {log.value_mgdl} mg/dL</li>)}</ul>}</Card>}
     {plans.map(plan=><Card key={plan.id} className="p-5 space-y-3">
       <h2 className="text-lg font-semibold">{plan.medicine}</h2><p>{plan.prescribed_dose}</p>
       <p className="text-sm">Nguồn đơn: {plan.prescription_reference} · {plan.start_date} đến {plan.end_date} · {plan.times.join(", ")} (giờ Việt Nam)</p>
@@ -61,6 +63,7 @@ export default function MedicationsPage() {
       {doctor&&plan.status==="approved"&&plan.doctor_id===user.id&&<details className="border-t pt-3"><summary className="cursor-pointer min-h-12">Dừng lịch theo quyết định bác sĩ</summary><form className="space-y-3" onSubmit={e=>{e.preventDefault();const reason=String(new FormData(e.currentTarget).get('reason'));action(()=>stopMedicationPlan(plan.id,reason),"Đã dừng lịch. Các lần xác nhận trước đó vẫn được lưu.");}}><label className="block">Lý do dừng<Input name="reason" required maxLength={500}/></label><Button disabled={busy} variant="outline" type="submit">Xác nhận dừng lịch</Button></form></details>}
       {plan.status==="approved"&&<>
         <p>Đã xác nhận dùng {plan.adherence.taken}/{plan.adherence.due} liều đến hạn{plan.adherence.rate!==null?` (${Math.round(plan.adherence.rate*100)}%)`:" — chưa có liều đến hạn"}. Chưa phản hồi không đồng nghĩa đã bỏ liều.</p>
+        <p>Chuỗi bỏ liều dài nhất: {plan.adherence.missed_streak}.</p>
         <ul className="divide-y">{plan.schedule.map(dose=><li key={dose.due_at} className="flex flex-wrap items-center justify-between gap-3 py-3">
           <span>{new Date(dose.due_at).toLocaleString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"})} — {({taken:"Đã dùng",skipped:"Đã báo bỏ liều",overdue:"Đến hạn — chưa xác nhận",scheduled:"Chưa đến giờ"} as Record<string,string>)[dose.status]}</span>
           {user.role==="user"&&dose.status==="overdue"&&<div className="flex gap-2"><Button disabled={busy} onClick={()=>action(()=>recordMedicationDose(plan.id,dose.due_at,"taken"),"Đã ghi nhận dùng thuốc.")}>Đã dùng</Button><Button variant="outline" disabled={busy} onClick={()=>action(()=>recordMedicationDose(plan.id,dose.due_at,"skipped"),"Đã ghi nhận bỏ liều. Hỏi bác sĩ/dược sĩ, không tự uống bù.")}>Bỏ liều</Button></div>}

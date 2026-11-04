@@ -24,6 +24,7 @@ def main() -> None:
         "VITALS_DB_PATH": "vitals.db", "MONITORING_DB_PATH": "monitoring.db",
         "TRACING_DB_PATH": "tracing.db", "LAB_DB_PATH": "labs.db",
         "LEARN_DB_PATH": "learn.db", "MEDICATION_DB_PATH": "medications.db",
+        "CARE_DB_PATH": "care-workflows.db",
         "TRIAGE_EVENTS_PATH": "triage-events.jsonl",
         "TRIAGE_AUDIT_PATH": "red-flags.jsonl", "VOICE_PREFS_PATH": "voice-prefs.json",
     }
@@ -34,6 +35,7 @@ def main() -> None:
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     from dotenv import load_dotenv
     load_dotenv(root / ".env")
+    os.environ["FRONTEND_URL"] = os.environ.get("TRIAGE_E2E_FRONTEND_URL", "http://127.0.0.1:3108")
     live_rag = os.environ.get("TRIAGE_E2E_LIVE_RAG") == "1"
     # Live RAG is opt-in; ordinary triage tests never call NVIDIA.
     for _key in ("NVDIA_API_KEY", "NVDIA_API_KEY2", "NVDIA_API_KEY3",
@@ -65,6 +67,16 @@ def main() -> None:
                 "nurse", is_verified=True)
     create_user("live_admin", None, hash_password("TestAdmin@123"), None,
                 "admin", is_verified=True)
+    create_user("medication_doctor", None, hash_password("Doctor@12345"), None,
+                "doctor", is_verified=True)
+    create_user("other_medication_doctor", None, hash_password("Doctor@12345"), None,
+                "doctor", is_verified=True)
+    create_user("care_doctor", None, hash_password("Doctor@12345"), None,
+                "doctor", is_verified=True)
+    create_user("care_specialist", None, hash_password("Specialist@12345"), None,
+                "specialist", is_verified=True)
+    create_user("booking_receptionist", None, hash_password("Reception@12345"), None,
+                "receptionist", is_verified=True)
     from src.api.main import app
     if live_rag:
         import src.shared.corpus_provenance

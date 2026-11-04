@@ -36,7 +36,7 @@ def init_auth_db():
             email TEXT UNIQUE,
             hashed_password TEXT NOT NULL,
             full_name TEXT,
-            role TEXT NOT NULL CHECK(role IN ('user','doctor','pharmacist','specialist','nurse','admin')),
+            role TEXT NOT NULL CHECK(role IN ('user','doctor','pharmacist','specialist','nurse','receptionist','admin')),
             is_active INTEGER DEFAULT 1,
             is_verified INTEGER DEFAULT 1,
             created_at TEXT NOT NULL,
@@ -48,9 +48,9 @@ def init_auth_db():
         conn.execute("ALTER TABLE users ADD COLUMN diabetes_type TEXT NOT NULL DEFAULT 'unknown'")
     # SQLite cannot alter CHECK constraints. Preserve IDs and dependent rows.
     users_sql = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
-    if "'nurse'" not in users_sql:
+    if "'receptionist'" not in users_sql:
         conn.commit()
-        conn.execute("CREATE TABLE users_new (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, email TEXT UNIQUE, hashed_password TEXT NOT NULL, full_name TEXT, role TEXT NOT NULL CHECK(role IN ('user','doctor','pharmacist','specialist','nurse','admin')), is_active INTEGER DEFAULT 1, is_verified INTEGER DEFAULT 1, created_at TEXT NOT NULL, last_login TEXT, diabetes_type TEXT NOT NULL DEFAULT 'unknown' CHECK(diabetes_type IN ('type2','type1','unknown')))")
+        conn.execute("CREATE TABLE users_new (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, email TEXT UNIQUE, hashed_password TEXT NOT NULL, full_name TEXT, role TEXT NOT NULL CHECK(role IN ('user','doctor','pharmacist','specialist','nurse','receptionist','admin')), is_active INTEGER DEFAULT 1, is_verified INTEGER DEFAULT 1, created_at TEXT NOT NULL, last_login TEXT, diabetes_type TEXT NOT NULL DEFAULT 'unknown' CHECK(diabetes_type IN ('type2','type1','unknown')))")
         conn.execute("INSERT INTO users_new (id,username,email,hashed_password,full_name,role,is_active,is_verified,created_at,last_login,diabetes_type) SELECT id,username,email,hashed_password,full_name,role,is_active,is_verified,created_at,last_login,diabetes_type FROM users")
         conn.execute("DROP TABLE users")
         conn.execute("ALTER TABLE users_new RENAME TO users")

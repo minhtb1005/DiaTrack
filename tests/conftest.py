@@ -6,6 +6,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+
+@pytest.fixture(autouse=True)
+def isolated_care_store(monkeypatch, tmp_path):
+    """Keep SOAP/nutrition/booking workflow writes out of dev and other tests."""
+    import src.care_store as store
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "care_workflows.db")
+    store.init_db()
+
 @pytest.fixture(scope="session")
 def client():
     """FastAPI TestClient với cách ly DB đầy đủ (không rò rỉ vào DB dev).

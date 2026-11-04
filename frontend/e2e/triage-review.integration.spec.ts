@@ -37,7 +37,7 @@ test('real patient UI, verified nurse UI, API and isolated SQLite', async ({ bro
     expect(response.request().postDataJSON()).toMatchObject({ structured: true, latest_glucose_mgdl: 180 });
     const created = await response.json();
     expect(created.case_id).toBeTruthy();
-    expect(created.proposed_priority).toBeNull();
+    expect(created.proposed_priority).toBe('soon');
     expect(created.recommended_doctors).toEqual([]);
     await expect(patientPage.getByText('Đã gửi thông tin cho điều dưỡng duyệt. Chưa có hướng xử trí được phê duyệt.')).toBeVisible();
     await expect(patientPage.getByText(finalMessage)).toHaveCount(0);
@@ -76,11 +76,23 @@ test('real patient UI, verified nurse UI, API and isolated SQLite', async ({ bro
     await expect(nursePage).toHaveURL(/tracker/);
     await nursePage.goto('/expert/triage');
     await expect(nursePage.getByText('Ca phân luồng chờ duyệt')).toBeVisible();
+    const initialAudit = await nurse.request.get(`${api}/v1/triage/audit/report`);
+    expect(initialAudit.status()).toBe(200);
+    expect(JSON.stringify(await initialAudit.json())).not.toContain('requester_id');
+    await expect(nursePage.getByRole('region', { name: 'Báo cáo kiểm toán' })).toContainText('chưa có dữ liệu');
     await expect(nursePage.getByText('tê chân, mắt mờ')).toBeVisible();
     const reviewer = inspect(caseId).reviewer;
     expect(reviewer.role).toBe('nurse');
     expect(reviewer.is_verified).toBe(1);
     await nursePage.getByRole('button', { name: 'Xem và duyệt' }).first().click();
+    const handoff = nursePage.getByRole('region', { name: 'Phiếu bàn giao' });
+    await expect(handoff).toContainText('Triệu chứng: tê chân, mắt mờ');
+    await expect(handoff).toContainText('Đường huyết: 180 mg/dL');
+    await expect(handoff).toContainText('Khởi phát: hôm qua');
+    await expect(handoff).toContainText('Dữ kiện thiếu: Không có');
+    await expect(handoff).toContainText('không phải chẩn đoán');
+    await expect(handoff.getByRole('link')).toHaveCount(2);
+    await expect(handoff.getByRole('link').first()).toHaveAttribute('href', /project_requirements\.json$/);
     await nursePage.getByRole('combobox', { name: 'Mức ưu tiên cuối' }).selectOption('routine');
     await nursePage.getByRole('textbox', { name: 'Thông báo cho bệnh nhân' }).fill(finalMessage);
     await nursePage.getByRole('textbox', { name: 'Ghi chú kiểm toán' }).fill('Đã đối chiếu dữ kiện thử.');
@@ -98,6 +110,9 @@ test('real patient UI, verified nurse UI, API and isolated SQLite', async ({ bro
       previous_priority: pending.case.proposed_priority, final_priority: 'routine',
       previous_message: 'tê chân, mắt mờ', final_message: finalMessage });
     expect(stored.audit[0].created_at).toBe(stored.case.reviewed_at);
+    await expect(nursePage.getByRole('region', { name: 'Báo cáo kiểm toán' })).toContainText('1/1 ca khác đề xuất (100.0%)');
+    await expect(nursePage.getByRole('region', { name: 'Báo cáo kiểm toán' })).toContainText('Gold red-flag v1: 0/');
+    expect((await patient.request.get(`${api}/v1/triage/audit/report`)).status()).toBe(403);
     await patientPage.reload();
     await patientPage.getByRole('heading', { name: 'Phân luồng triệu chứng' }).locator('..').getByRole('button', { name: 'Mở' }).click();
     await expect(patientPage.getByText(finalMessage)).toBeVisible({ timeout: 15_000 });

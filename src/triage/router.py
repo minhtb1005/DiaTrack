@@ -270,6 +270,12 @@ def pending_triage_reviews(user=Depends(_triage_reviewer)):
     return {"cases": list_pending()}
 
 
+@router.get("/triage/audit/report")
+def triage_audit_report(user=Depends(_triage_reviewer)):
+    from src.triage.review_queue import audit_report
+    return audit_report()
+
+
 @router.post("/triage/reviews/{case_id}/decide")
 def decide_triage_review(case_id: str, payload: TriageDecision, user=Depends(_triage_reviewer)):
     from src.triage.review_queue import decide, get_case
@@ -305,6 +311,15 @@ def get_my_triage_review(case_id: str, user=Depends(get_current_user)):
         return case
     return {"id": case_id, "status": case["status"], "priority": case["final_priority"],
             "message": case["final_message"]}
+
+
+@router.get("/triage/reviews/{case_id}/handoff")
+def get_triage_handoff(case_id: str, user=Depends(get_current_user)):
+    from src.triage.review_queue import get_case, handoff_for
+    case = get_case(case_id)
+    if case is None or (user["role"] not in ("nurse", "doctor", "admin") and case["requester_id"] != user["id"]):
+        raise HTTPException(status_code=404, detail="Case not found")
+    return handoff_for(case_id)
 
 
 @router.get("/doctor/patients")

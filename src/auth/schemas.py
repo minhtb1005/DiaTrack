@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, Literal, List
 from pydantic import BaseModel, Field, EmailStr
 
-Role = Literal["user", "doctor", "pharmacist", "specialist", "nurse", "admin"]
+Role = Literal["user", "doctor", "pharmacist", "specialist", "nurse", "receptionist", "admin"]
 
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_\-\.]+$")

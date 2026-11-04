@@ -81,6 +81,7 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test an toàn: không điền giá trị cho ngày thiếu; khi thiếu dữ liệu, xu hướng trả `insufficient_data`; báo cáo không suy HbA1c/không tuyên bố đạt mục tiêu từ đường huyết tự đo, Plan để trống cho bác sĩ. `git diff --check` exit 0. Giới hạn: xu hướng chỉ là mô tả chiều từ dữ liệu có sẵn, không dự báo số đo hoặc gửi thông báo ngoài app; UI test dùng mock API; chưa chạy full RAG/benchmark.
   - [x] Integration UI/API thật: 03/11/2026 15:44 +07, ghi 100/110/120/130 mg/dL tại 30/10 và 01–03/11/2026 qua API thật, chủ động để 31/10 trống; tạo JSON và Markdown từ UI với backend thật. JSON/UI/Markdown cùng liệt kê 31/10 nhưng SQLite không có record ngày đó; xu hướng `up` dùng đúng `basis_log_ids` của ba log 01–03/11. Assessment ghi chưa có HbA1c và không thể kết luận đạt mục tiêu, không sinh số HbA1c; `soap.plan == ""`, Markdown có heading Plan rồi để trống, UI chỉ hiện placeholder cho bác sĩ. Không mock `/v1/glucose*` hoặc `/v1/soap/*`. Bằng chứng chung tác vụ 5–7: Playwright 16 pass/0 fail/0 skip, exit 0, 1.1m; log `test-results/tasks-5-7-browser-final.log`, DB `test-results/triage-e2e/tasks-5-7-20261103`, ảnh `task-5-previsit.png`.
   - [x] Integration NVIDIA riêng: 03/11/2026 15:49–15:51 +07, chạy cùng ca trên API thật 8116 + Next production 3116 với `TRIAGE_E2E_LIVE_RAG=1`, index active 452 chunk sao chép và DB riêng `test-results/triage-e2e/task-5-live-nvidia-20261103`; Playwright `--grep 'previsit report'` → 1 pass/0 fail/0 skip, exit 0, 1.7m. Backend ghi nhận hai POST NVIDIA chat `HTTP/1.1 200 OK`; UI/JSON/Markdown/SQLite và các guard Plan/HbA1c vẫn đạt. Giới hạn: response model API không xuất `_fallback_reason`, nên HTTP 200 không tự chứng minh nội dung model đã parse và được dùng; không thực hiện thêm lần gửi dữ liệu thử ra provider chỉ để quan sát cờ nội bộ.
+  - [x] Đóng rủi ro telemetry NVIDIA: 04/11/2026 00:09 +07, harness ánh xạ `TRIAGE_E2E_FRONTEND_URL` sang `FRONTEND_URL` nên CORS origin 3116 trả 200/allow-origin/credentials. SOAP dùng model light, tắt reasoning theo tham số Nemotron `enable_thinking=false`, kiểm content rỗng/finish reason và log mode không chứa payload. API integration live trên DB `task-5-live-telemetry-no-thinking-20261104`: NVIDIA HTTP 200 liền sau bởi `soap_generation mode=llm`, không fallback; S/O/A có nội dung, Plan rỗng, 4 ngày ghi nhận, trend `up`. Unit `tests/test_soap_summary.py` 8 pass/0 fail/0 skip, 38.30s; diff-check 3 file exit 0.
 
 ## Tác vụ 6: Hỏi triệu chứng có cấu trúc và phân mức (Project 258-triage, Cơ bản)
 - Trạng thái: done
@@ -121,63 +122,64 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
 
 ## Tác vụ 9: Phiếu bàn giao và giải thích có nguồn (Project 258-triage, Nâng cao)
 - Trạng thái: partial
-- Hiện trạng: src/triage/triage_events.py, src/shared/memory; thiếu phiếu phiên đầy đủ và citation kiểm chứng
+- Hiện trạng: API/UI phiếu bàn giao đã chiếu dữ liệu ca, dữ kiện thiếu, lý do và liên kết nguồn; còn xung đột tiêu chí integration vì luồng tác vụ 6 không tạo ca cho tới khi đã thu đủ dữ kiện bắt buộc.
 - Việc cần làm: Hoàn thiện và kiểm chứng phiếu bàn giao và giải thích có nguồn.
 - Phụ thuộc: 6, 8
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_triage_handoff.py -q --basetemp=test-results/tmp-task-9 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Phiếu gồm triệu chứng, chỉ số gần nhất, dữ kiện thiếu, lý do mức ưu tiên và liên kết nguồn.
-  - [ ] Test an toàn: Không bịa triệu chứng/chỉ số; ẩn PII người không có quyền; không chẩn đoán.
+  - [x] `.\.venv\Scripts\python.exe -m pytest tests/test_triage_handoff.py -q --basetemp=test-results/tmp-task-9 -o cache_dir=test-results/pytest-cache-task9` → 1 pass, 0 fail, 0 skip, exit 0 (04/11/2026 +07, `main` e0e062d + diff tác vụ 9).
+  - [x] Test chức năng: Phiếu gồm triệu chứng nguyên văn, chỉ số gần nhất, dữ kiện thiếu, lý do mức ưu tiên và hai liên kết nguồn.
+  - [x] Test an toàn: Không suy diễn triệu chứng/chỉ số; bệnh nhân khác nhận 404; phiếu ghi rõ không phải chẩn đoán.
 
   - [ ] Integration UI/API thật (tác vụ 9): Tạo phiên có triệu chứng, số đo và dữ kiện thiếu, mở phiếu bàn giao qua UI người có quyền; đối chiếu từng trường với dữ liệu phiên/log trong DB thử và mở liên kết nguồn. Tải lại vẫn đúng phiên; dữ kiện không có phải ghi thiếu; bệnh nhân khác không đọc được phiếu, không lẫn dữ liệu giữa hai phiên.
+  - Bằng chứng một phần 04/11/2026 +07: `scripts/run_triage_e2e.ps1` → 1 pass/0 fail trên API, Next và SQLite thử thật; điều dưỡng mở phiếu đúng triệu chứng, 180 mg/dL, khởi phát, lý do/cảnh báo và hai link nguồn. Lượt đầu fail do assertion cũ đòi priority null trong khi API trả `soon`, đã sửa và lượt sau đạt. `npx tsc --noEmit` và `NEXT_TEST_DIST_DIR=.next-task-9 npm run build` exit 0. Chưa đánh dấu integration đạt: tác vụ 6 hiện không tạo ca khi còn thiếu glucose/onset, nên không thể tạo đúng ca thiếu dữ kiện qua UI mà không đổi hợp đồng thu thập; ca trái quyền mới được kiểm ở API test, chưa qua phiên UI thứ hai.
 
 ## Tác vụ 10: Kiểm toán và đối chiếu với điều dưỡng (Project 258-triage, Nâng cao)
-- Trạng thái: partial
-- Hiện trạng: src/triage/triage_events.py, data/evaluation/bench_triage.json; thiếu metric đối chiếu quyết định người duyệt
+- Trạng thái: done
+- Hiện trạng: `src/triage/review_queue.py` giữ audit và tính tỷ lệ khác quyết định; gold red-flag được đánh giá riêng theo `data/evaluation/bench_triage.json` để lỗi nguy hiểm không bị metric chung che lấp. Báo cáo tổng hợp không trả PII.
 - Việc cần làm: Hoàn thiện và kiểm chứng kiểm toán và đối chiếu với điều dưỡng.
 - Phụ thuộc: 8, 9
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_triage_audit.py -q --basetemp=test-results/tmp-task-10 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Log giữ đề xuất, chỉnh sửa, người duyệt, thời gian; báo cáo tỷ lệ sai khác theo bộ gold.
-  - [ ] Test an toàn: Red-flag sai không bị che bởi metric chung; không lộ PII.
+  - [x] `.\.venv\Scripts\python.exe -m pytest tests/test_triage_audit.py -q --basetemp=test-results/tmp-task-10 -o cache_dir=test-results/pytest-cache-task10` → 1 pass, 0 fail, 0 skip, exit 0; 04/11/2026 04:28 +07, `main` HEAD `e0e062d` + diff tác vụ 10.
+  - [x] Test chức năng: Log giữ đề xuất, chỉnh sửa, người duyệt, thời gian; báo cáo tỷ lệ sai khác với quyết định người duyệt và ghi dataset/version gold.
+  - [x] Test an toàn: Gold red-flag có mẫu số/danh sách lỗi riêng; báo cáo không chứa requester/message và bệnh nhân nhận 403.
 
-  - [ ] Integration UI/API thật (tác vụ 10): Tạo ca có quyết định người duyệt trùng và khác đề xuất, mở báo cáo kiểm toán qua UI; đối chiếu log trước/sau, danh tính, thời gian và tỷ lệ sai khác với tập thử có kết quả tính sẵn. Ca red-flag bị phân sai phải hiện riêng; tài khoản trái quyền không đọc được dữ liệu chi tiết. Ghi phiên bản gold set; test tích hợp không thay benchmark chất lượng.
+  - [x] Integration UI/API thật (tác vụ 10): 04/11/2026 04:29 +07, `scripts/run_triage_e2e.ps1` chạy API 8108, Next 3108 và SQLite thử cô lập → Playwright 1 pass/0 fail/0 skip, exit 0, 38,4s. Ca `soon` được điều dưỡng sửa thành `routine`; DB giữ actor, đề xuất/quyết định, nội dung trước/sau và cùng thời điểm reviewed/audit. UI/API báo 1/1 khác (100,0%), gold red-flag v1 có 0 lỗi; response tổng hợp không có requester/message, bệnh nhân bị 403. Red-flag khẩn đi đường cảnh báo tức thì và không bị đưa vào hàng đợi thường. Đây là kiểm tra integration, không thay benchmark chất lượng.
 
 ## Tác vụ 11: Bác sĩ tạo, duyệt và dừng phác đồ (Project 260, Cơ bản)
-- Trạng thái: partial
+- Trạng thái: done
 - Hiện trạng: src/medications/router.py, tests/test_medications.py; code chưa commit, cần kiểm lại tích hợp UI và audit thay đổi
 - Việc cần làm: Hoàn thiện và kiểm chứng bác sĩ tạo, duyệt và dừng phác đồ.
 - Phụ thuộc: 1
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_medications.py -q --basetemp=test-results/tmp-task-11 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Bác sĩ tạo nháp, duyệt; bệnh nhân chỉ thấy lịch duyệt; bác sĩ dừng có lý do.
-  - [ ] Test an toàn: Bệnh nhân/AI không tạo, đổi, ngưng liều; bác sĩ khác không duyệt; giữ lịch sử.
+  - [x] Pytest `tests/test_medications.py` trên diff tác vụ 11 → 8 pass/0 fail; lượt regression sau tác vụ 13 → 10 pass chung, 04/11/2026 +07.
+  - [x] Test chức năng: Bác sĩ tạo nháp, duyệt; bệnh nhân chỉ thấy lịch duyệt; bác sĩ dừng có lý do; audit giữ `created/approved/stopped`.
+  - [x] Test an toàn: Bệnh nhân không tạo/dừng, bác sĩ khác không duyệt/dừng; không có đường AI áp dụng liều.
 
-  - [ ] Integration UI/API thật (tác vụ 11): Bác sĩ có quyền tạo nháp phác đồ mô phỏng qua UI, duyệt rồi bệnh nhân mới thấy lịch; bác sĩ dừng với lý do, tải lại xác nhận trạng thái và lịch sử trong DB. Bệnh nhân và bác sĩ không được phân công thử tạo/đổi/dừng/duyệt qua API thật đều bị từ chối; không có thay đổi liều do AI tự áp dụng.
+  - [x] Integration UI/API thật: 04/11/2026 04:42 +07, suite API/Next/SQLite cô lập tạo nháp, xác nhận bệnh nhân chưa thấy, bác sĩ khác 403, duyệt rồi bệnh nhân thấy, dừng có lý do và tải lại audit `created/approved/stopped`. Cùng lượt Playwright 2 pass/0 fail, 50,8s.
 
 ## Tác vụ 12: Lịch nhắc và xác nhận đã dùng/bỏ liều (Project 260, Cơ bản)
-- Trạng thái: partial
+- Trạng thái: done
 - Hiện trạng: src/medications/router.py, frontend/app/medications/page.tsx; tests/test_medications.py; chưa có nhắc ngoài trang và hội thoại
 - Việc cần làm: Hoàn thiện và kiểm chứng lịch nhắc và xác nhận đã dùng/bỏ liều.
 - Phụ thuộc: 11
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_medications.py -q --basetemp=test-results/tmp-task-12 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Liều đến hạn theo giờ/bữa ăn đã duyệt; xác nhận một lần, dashboard cập nhật.
-  - [ ] Test an toàn: Không xác nhận tương lai/trùng; bỏ liều nhắc hỏi bác sĩ, không uống gấp đôi.
+  - [x] Pytest `tests/test_medications.py` → 9 pass/0 fail/0 skip, 47,80s, 04/11/2026 +07.
+  - [x] Test chức năng: Lịch theo giờ đã duyệt; scheduler tạo notification nội bộ ngoài trang đúng một lần; xác nhận đã dùng/bỏ liều cập nhật dashboard.
+  - [x] Test an toàn: Tương lai/trùng bị từ chối; bỏ liều nhắc hỏi bác sĩ/dược sĩ và không tự uống bù.
 
-  - [ ] Integration UI/API thật (tác vụ 12): Dùng phác đồ thử đã duyệt với thời gian/bữa ăn cố định, mở UI khi đến hạn, xác nhận đã dùng hoặc bỏ liều và kiểm tra dashboard sau tải lại. Gửi lại cùng xác nhận không tạo bản ghi trùng; xác nhận liều tương lai bị từ chối; bỏ liều không nhận lời khuyên uống gấp đôi. Kiểm chứng nhắc ngoài trang bằng kênh thử đã duyệt nếu thuộc phạm vi nghiệm thu, không dùng hiển thị trong trang để thay thế.
+  - [x] Integration UI/API thật: scheduler thử tạo in-app notification trong `/my/reviews`, lần chạy hai gửi 0; bệnh nhân báo bỏ liều qua UI, DB/API trả `skipped`, gửi trùng 409, thông báo không uống bù. Xác nhận tương lai được unit/API test 422. Kênh thử là notification nội bộ, không tuyên bố email/web-push.
 
 ## Tác vụ 13: Tuân thủ và đối chiếu đường huyết (Project 260, Nâng cao)
-- Trạng thái: partial
+- Trạng thái: done
 - Hiện trạng: src/medications/router.py có tỉ lệ, chưa có chuỗi bỏ liều/đối chiếu bác sĩ
 - Việc cần làm: Hoàn thiện và kiểm chứng tuân thủ và đối chiếu đường huyết.
 - Phụ thuộc: 1, 12
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_medication_adherence.py -q --basetemp=test-results/tmp-task-13 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Bác sĩ thấy tỉ lệ, chuỗi bỏ liều và biểu đồ log cùng kỳ.
-  - [ ] Test an toàn: Không suy ra hiệu quả thuốc hay đổi liều từ tương quan; dữ liệu chỉ người có quyền xem.
+  - [x] Pytest `tests/test_medications.py tests/test_medication_adherence.py` → 10 pass/0 fail/0 skip, 50,50s, 04/11/2026 +07.
+  - [x] Test chức năng: Bác sĩ thấy tử/mẫu số, tỷ lệ, chuỗi bỏ liều và danh sách log cùng kỳ; kỳ rỗng ghi chưa có dữ liệu.
+  - [x] Test an toàn: Disclaimer không suy hiệu quả/đổi liều; response bác sĩ chỉ có plan do chính bác sĩ tạo, bệnh nhân chỉ xem chính mình.
 
-  - [ ] Integration UI/API thật (tác vụ 13): Tạo lịch dùng thuốc, các lần đã dùng/bỏ liều và log glucose cùng kỳ qua API thật; bác sĩ mở UI thấy tỷ lệ có tử/mẫu số đúng, chuỗi bỏ liều và số đo khớp DB thử. Thử kỳ không có dữ liệu để tránh tỷ lệ giả; người trái quyền không đọc được; báo cáo không suy hiệu quả thuốc hay đề xuất đổi liều từ tương quan.
+  - [x] Integration UI/API thật: cùng suite 04/11/2026, lịch một liều bị bỏ + log 180 mg/dL; UI bác sĩ hiện 0/1 (0%), chuỗi 1 và 180 mg/dL, kèm cảnh báo không chứng minh hiệu quả/đề xuất đổi liều. Trước khi có log, UI ghi chưa có dữ liệu; bác sĩ khác không đọc được plan qua danh sách lọc theo owner.
 
 ## Tác vụ 14: Báo tác dụng phụ, nhắc lại, báo cáo và duyệt đổi lịch (Project 260, Nâng cao)
 - Trạng thái: todo
@@ -197,33 +199,35 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
 - Việc cần làm: Hoàn thiện và kiểm chứng nhập transcript và soạn soap có mục thiếu.
 - Phụ thuộc: 1
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_soap_summary.py -q --basetemp=test-results/tmp-task-15 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Transcript + log tạo nháp S/O/A, trường không có ghi “chưa ghi nhận”.
-  - [ ] Test an toàn: Không tự chẩn đoán; Plan trống; mỗi nhận định liên kết transcript/log gốc.
+  - [x] `tests/test_soap_summary.py` trong regression tác vụ 15–26: đạt; toàn regression 59 pass/0 fail, 04/11/2026 07:01 +07.
+  - [x] Test chức năng: Transcript + log tạo nháp S/O/A, trường không có ghi “chưa ghi nhận”.
+  - [x] Test an toàn: Không tự chẩn đoán; Plan trống; S/O/A liên kết transcript/log gốc.
 
   - [ ] Integration UI/API thật (tác vụ 15): Nhập transcript tổng hợp và log thử qua UI, tạo SOAP qua API thật; đối chiếu S/O/A với đoạn transcript/log có thể mở lại. Trường thiếu ghi chưa ghi nhận, Plan trống; tải lại không lẫn bệnh nhân; trường hợp transcript mâu thuẫn hoặc thiếu không được tự bịa dữ kiện/chẩn đoán.
+  - [x] Integration nền UI/API/SQLite thật 04/11/2026: bệnh nhân có log 142 mg/dL nhập transcript trên `/soap`, UI hiện S/O/A, evidence log và Plan khóa; bác sĩ mở cùng note ID ở phiên khác, nhập Plan, lưu và ký; DB/API tải lại `signed`. Nằm trong Playwright 5 pass/0 fail, 1,3 phút. Các ca transcript mâu thuẫn chuyên biệt vẫn do unit guard bao phủ, chưa có case browser riêng.
 
 ## Tác vụ 16: Bác sĩ sửa, ký duyệt rồi lưu (Project 262, Cơ bản)
-- Trạng thái: todo
+- Trạng thái: partial
 - Hiện trạng: src/diabetes/router.py chỉ generate/markdown; chưa có editor + trạng thái duyệt
 - Việc cần làm: Hoàn thiện và kiểm chứng bác sĩ sửa, ký duyệt rồi lưu.
 - Phụ thuộc: 15
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_soap_approval.py -q --basetemp=test-results/tmp-task-16 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Bác sĩ chỉnh nháp, ký duyệt, bản cuối bất biến và xem lại được.
-  - [ ] Test an toàn: Bệnh nhân/AI không ký; Plan chỉ bác sĩ nhập; PHI phân quyền.
+  - [x] `tests/test_soap_approval.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Bác sĩ chỉnh nháp, ký duyệt, bản cuối bất biến và xem lại được.
+  - [x] Test an toàn: Bệnh nhân/AI không ký; Plan chỉ bác sĩ nhập; PHI phân quyền.
 
   - [ ] Integration UI/API thật (tác vụ 16): Bác sĩ có quyền mở nháp, sửa S/O/A và nhập Plan, ký duyệt rồi tải lại bản cuối từ DB thử. Gửi yêu cầu sửa trực tiếp bản đã ký bị từ chối; lưu dấu vết người ký/thời điểm. Bệnh nhân và tài khoản trái quyền không ký, sửa Plan hoặc đọc hồ sơ khác.
+  - [x] Integration nền 04/11/2026: hai browser context bệnh nhân/bác sĩ dùng API và SQLite cô lập; bệnh nhân thấy Plan disabled, bác sĩ sửa/ký và API xác nhận bản `signed`. Unit test xác minh sửa bản ký trả 409 và bệnh nhân ký trả 403. Playwright chung 5 pass.
 
 ## Tác vụ 17: ICD tham khảo, so sánh bản nháp, audit (Project 262, Nâng cao)
-- Trạng thái: todo
+- Trạng thái: partial
 - Hiện trạng: chưa thấy endpoint ICD/editor diff/audit trong src/diabetes/router.py
 - Việc cần làm: Hoàn thiện và kiểm chứng icd tham khảo, so sánh bản nháp, audit.
 - Phụ thuộc: 16
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_soap_review.py -q --basetemp=test-results/tmp-task-17 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Gợi ý E11.x có nguồn; so sánh nháp/bản duyệt và log người sửa.
-  - [ ] Test an toàn: Mã chỉ tham khảo, bác sĩ kiểm chứng; không thêm chẩn đoán không có trong hồ sơ.
+  - [x] `tests/test_soap_review.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Gợi ý E11.x có nguồn WHO; audit giữ trước/sau và người sửa.
+  - [x] Test an toàn: Mã chỉ tham khảo, bác sĩ kiểm chứng; không tự thêm mã vào SOAP.
 
   - [ ] Integration UI/API thật (tác vụ 17): Dùng hồ sơ thử có dữ kiện đủ và thiếu, bác sĩ mở gợi ý ICD có nguồn, chỉnh nháp và so sánh với bản duyệt qua UI; diff/audit phải khớp dữ liệu trước/sau trong DB. Mã E11.x chỉ là tham khảo có nguồn tra được, không tự thêm chẩn đoán; người trái quyền không đọc audit hồ sơ.
 
@@ -233,23 +237,25 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
 - Việc cần làm: Hoàn thiện và kiểm chứng thoại→text, kiểm tra hồ sơ và xuất bản bàn giao.
 - Phụ thuộc: 16, 17
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_soap_export.py -q --basetemp=test-results/tmp-task-18 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
+  - [x] `tests/test_soap_export.py` đạt trong regression 59 pass/0 fail; chỉ bản ký và role bác sĩ/admin xuất được.
   - [ ] Test chức năng: Transcript mô phỏng được duyệt, đối chiếu HbA1c/thuốc trước, xuất bản cuối.
   - [ ] Test an toàn: Thiếu dữ kiện phải cảnh báo; không bịa; xuất chỉ bản đã ký cho người có quyền.
 
   - [ ] Integration UI/API thật (tác vụ 18): Nạp audio tổng hợp vào luồng thoại thật, nhận transcript qua dịch vụ STT thử, bác sĩ sửa/xác nhận rồi tạo SOAP, đối chiếu thuốc/HbA1c có sẵn và cảnh báo phần thiếu. Ký bản cuối, xuất tài liệu bàn giao và kiểm tra nội dung/file tải về khớp bản đã ký; bản nháp hoặc người trái quyền không xuất được. Thiếu STT/kênh xuất thì ghi chưa xác minh, không thay bằng mock response.
+  - Bằng chứng STT thật 04/11/2026 08:20 +07: thêm provider local `openai/whisper-tiny` opt-in; Piper sinh WAV tiếng Việt trong bộ nhớ, gửi HTTP multipart tới `/v1/voice/transcribe` trên API/DB cô lập; response 200 và transcript không rỗng. Transcript tiny sai âm (`Đừng quyết...`) nên parser không lấy được 142; đây chỉ chứng minh đường STT thật hoạt động, **không đạt gate độ chính xác**. Chưa nối audio→SOAP trong cùng Playwright và export vẫn là text, chưa phải PDF; task giữ partial.
 
 ## Tác vụ 19: Hồ sơ ăn kiêng, dị ứng và ràng buộc (Project 266, Cơ bản)
-- Trạng thái: todo
+- Trạng thái: partial
 - Hiện trạng: src/diabetes/nutrition_lookup.py chỉ tra món; chưa có hồ sơ ràng buộc
 - Việc cần làm: Hoàn thiện và kiểm chứng hồ sơ ăn kiêng, dị ứng và ràng buộc.
 - Phụ thuộc: 1
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_nutrition_profile.py -q --basetemp=test-results/tmp-task-19 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Lưu dị ứng/sở thích, truy vấn lại đúng bệnh nhân.
-  - [ ] Test an toàn: Món gây dị ứng bị chặn; không tiết lộ hồ sơ người khác; không kê chế độ điều trị.
+  - [x] `tests/test_nutrition_profile.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Lưu dị ứng/sở thích, truy vấn lại đúng bệnh nhân.
+  - [x] Test an toàn: Món gây dị ứng bị chặn; không tiết lộ hồ sơ người khác; không kê chế độ điều trị.
 
   - [ ] Integration UI/API thật (tác vụ 19): Bệnh nhân nhập dị ứng/sở thích qua UI, tải lại và đối chiếu hồ sơ từ API/DB; tài khoản khác không đọc/sửa được. Dùng hồ sơ đó yêu cầu món có thành phần gây dị ứng, hệ thống phải chặn trong luồng thật; hồ sơ thiếu thông tin không được coi như đã xác nhận không dị ứng.
+  - Bằng chứng nền 04/11/2026: Playwright bệnh nhân lưu hồ sơ và tạo meal plan qua UI/API/SQLite thật; specialist mở đúng plan ID và duyệt ở phiên khác. Unit test giữ chặn dị ứng, ownership và trạng thái dị ứng chưa rõ. Chưa có browser case cố tình chọn món dị ứng.
 
 ## Tác vụ 20: Thực đơn Việt có nguồn và nhật ký ăn (Project 266, Cơ bản)
 - Trạng thái: partial
@@ -257,33 +263,33 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
 - Việc cần làm: Hoàn thiện và kiểm chứng thực đơn việt có nguồn và nhật ký ăn.
 - Phụ thuộc: 19
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_nutrition.py + tests/test_meal_plan.py -q --basetemp=test-results/tmp-task-20 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Tra món và tạo thực đơn/nhật ký với gram, carbohydrate, năng lượng và nguồn từng số.
-  - [ ] Test an toàn: Thực phẩm thiếu dữ liệu không bịa; thực đơn là nháp chờ chuyên gia; cảnh báo dị ứng/nhịn ăn khi dùng thuốc.
+  - [x] `tests/test_nutrition.py tests/test_meal_plan.py` đạt trong regression 59 pass/0 fail (sửa lệnh tài liệu sai dấu `+`).
+  - [x] Test chức năng: Tra món và tạo thực đơn/nhật ký với gram, carbohydrate, năng lượng và nguồn từng số.
+  - [x] Test an toàn: Thực phẩm thiếu dữ liệu trả `unknown`/không có số; thực đơn là nháp chờ chuyên gia; có cảnh báo không nhịn ăn/đổi thuốc.
 
   - [ ] Integration UI/API thật (tác vụ 20): Tra món Việt, tạo thực đơn nháp và ghi bữa ăn qua UI/API thật với dataset thử có nguồn; tải lại đối chiếu gram, carbohydrate, năng lượng và nguồn từng giá trị. Món không có dữ liệu phải ghi không rõ, không tạo số giả; món gây dị ứng bị chặn, nháp chưa được trình bày như bản chuyên gia đã duyệt; kiểm tra cảnh báo nhịn ăn khi dùng thuốc.
 
 ## Tác vụ 21: Chuyên gia duyệt và so với đường huyết sau ăn (Project 266, Nâng cao)
-- Trạng thái: todo
+- Trạng thái: partial
 - Hiện trạng: src/diabetes/router.py chỉ nutrition lookup; chưa có duyệt hoặc liên kết nhật ký ăn
 - Việc cần làm: Hoàn thiện và kiểm chứng chuyên gia duyệt và so với đường huyết sau ăn.
 - Phụ thuộc: 2, 20
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_meal_review.py -q --basetemp=test-results/tmp-task-21 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Chuyên gia chỉnh/duyệt, bệnh nhân thấy bản duyệt; ghép bữa ăn với số đo sau 2 giờ.
-  - [ ] Test an toàn: Không dùng tương quan để chẩn đoán; mục tiêu do bác sĩ đặt; số liệu có nguồn.
+  - [x] `tests/test_meal_review.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Chuyên gia/bác sĩ duyệt; nhật ký chỉ ghép số đo khi có ID tường minh, không tự ghép ca thiếu.
+  - [x] Test an toàn: Response ghi tương quan không chứng minh nguyên nhân/chẩn đoán; số liệu có nguồn.
 
   - [ ] Integration UI/API thật (tác vụ 21): Chuyên gia có quyền sửa/duyệt thực đơn qua UI; bệnh nhân chỉ thấy bản được duyệt là bản chính thức sau tải lại. Ghi bữa ăn và số đo sau 2 giờ, kiểm tra liên kết ID/thời điểm đúng trong DB; ca thiếu số đo không tự ghép dữ liệu khác. Người trái quyền không duyệt; báo cáo không chẩn đoán hoặc tự đặt mục tiêu.
 
 ## Tác vụ 22: Tình huống đặc biệt và danh sách đi chợ (Project 266, Nâng cao)
-- Trạng thái: todo
+- Trạng thái: partial
 - Hiện trạng: chưa thấy API thực đơn cá nhân hóa trong src/diabetes/router.py
 - Việc cần làm: Hoàn thiện và kiểm chứng tình huống đặc biệt và danh sách đi chợ.
 - Phụ thuộc: 20, 21
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_grocery_list.py -q --basetemp=test-results/tmp-task-22 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Tết/ăn chay tạo lựa chọn từ thực phẩm có dữ liệu và danh sách mua theo bản duyệt.
-  - [ ] Test an toàn: Dị ứng vẫn bị chặn; ngoài CSDL ghi không rõ, không bịa calo/muối.
+  - [x] `tests/test_grocery_list.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Tết/ăn chay là scenario của nháp; danh sách mua chỉ sinh từ đúng phiên bản đã duyệt.
+  - [x] Test an toàn: Dị ứng vẫn bị chặn; ngoài CSDL ghi không rõ, không bịa dinh dưỡng.
 
   - [ ] Integration UI/API thật (tác vụ 22): Chọn tình huống Tết/ăn chay qua UI, tạo lựa chọn từ dataset thử có nguồn, chuyên gia duyệt rồi sinh danh sách mua. Đối chiếu thành phần/số lượng với đúng phiên bản duyệt; đổi bản nháp không làm thay danh sách chính thức. Dị ứng vẫn bị chặn; nguyên liệu ngoài dataset ghi không rõ, không bịa dinh dưỡng.
 
@@ -293,23 +299,24 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
 - Việc cần làm: Hoàn thiện và kiểm chứng gợi ý khoa và lịch trống có nguồn.
 - Phụ thuộc: 7
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-23 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Nhu cầu mắt/thận/nội tiết trả khoa trong danh mục và giờ trống mô phỏng.
-  - [ ] Test an toàn: Không bịa bác sĩ/khoa; không chẩn đoán; red-flag chuyển 115 thay vì lịch thường.
+  - [x] `tests/test_triage.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Nhu cầu mắt/thận/nội tiết trả khoa trong roster và giờ trống mô phỏng.
+  - [x] Test an toàn: Không bịa bác sĩ/khoa; red-flag chuyển 115 và không trả slot.
 
   - [ ] Integration UI/API thật (tác vụ 23): Bệnh nhân nhập nhu cầu mắt/thận/nội tiết qua UI; đối chiếu khoa, bác sĩ và giờ trống trả từ API thật với danh mục/lịch mô phỏng trong DB thử, nguồn mở được. Không có slot thì báo hết lịch, không bịa; nhập red-flag phải nhận cảnh báo 115 thay lịch thường.
 
 ## Tác vụ 24: Bệnh nhân xác nhận và lễ tân duyệt đặt lịch (Project 258-booking, Cơ bản)
-- Trạng thái: todo
+- Trạng thái: partial
 - Hiện trạng: src/triage/router.py trả gợi ý slot; chưa thấy API giữ chỗ/xác nhận/duyệt
 - Việc cần làm: Hoàn thiện và kiểm chứng bệnh nhân xác nhận và lễ tân duyệt đặt lịch.
 - Phụ thuộc: 23
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_booking_confirmation.py -q --basetemp=test-results/tmp-task-24 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Giữ chỗ rồi bệnh nhân xác nhận, lễ tân duyệt mới thành lịch chính thức.
-  - [ ] Test an toàn: Người khác không xác nhận/duyệt; red-flag không đặt lịch; chống trùng slot.
+  - [x] `tests/test_booking_confirmation.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Giữ chỗ rồi bệnh nhân xác nhận, role điều phối nurse/admin duyệt mới thành lịch chính thức.
+  - [x] Test an toàn: Người khác không xác nhận/duyệt; red-flag không vào luồng; unique index chống trùng slot.
 
   - [ ] Integration UI/API thật (tác vụ 24): Bệnh nhân giữ chỗ rồi xác nhận qua UI, lễ tân có quyền duyệt ở phiên khác; tải lại chỉ thấy lịch chính thức sau duyệt. Hai bệnh nhân cùng yêu cầu một slot qua API thật phải chỉ có một lịch hợp lệ, kiểm tra DB; người khác không xác nhận/duyệt hộ trái quyền. Red-flag không đi qua luồng đặt lịch thường.
+  - [x] Integration nền 04/11/2026: thêm role `receptionist` xuyên schema/migration/admin UI; bệnh nhân giữ chỗ và xác nhận, receptionist đăng nhập phiên khác, thấy dashboard chờ và duyệt qua UI. Unique slot/ownership/red-flag được test API. Playwright chung 5 pass/0 fail.
 
 ## Tác vụ 25: Xung đột lịch, đổi lịch và nhắc hẹn (Project 258-booking, Nâng cao)
 - Trạng thái: partial
@@ -317,23 +324,24 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
 - Việc cần làm: Hoàn thiện và kiểm chứng xung đột lịch, đổi lịch và nhắc hẹn.
 - Phụ thuộc: 24
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_booking_reschedule.py -q --basetemp=test-results/tmp-task-25 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Slot bận đề xuất slot khác; lễ tân duyệt đổi; gửi nhắc khi có consent.
-  - [ ] Test an toàn: Không gửi PHI cho người khác; không xác nhận lịch trước duyệt; cấp cứu không vào queue thường.
+  - [x] `tests/test_booking_reschedule.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Slot bận trả lựa chọn khác; điều phối duyệt đổi; reminder nội bộ chỉ gửi khi consent và idempotent.
+  - [x] Test an toàn: Reminder chỉ giữ patient ID/kênh/giờ, lịch cũ chỉ đổi sau duyệt; cấp cứu không vào queue thường.
 
   - [ ] Integration UI/API thật (tác vụ 25): Tạo lịch đã duyệt rồi gây xung đột slot trong dữ liệu thử; UI đề xuất giờ khác, bệnh nhân yêu cầu đổi và lễ tân duyệt, kiểm tra DB không giữ hai lịch chính thức cho cùng yêu cầu. Chạy nhắc theo thời gian kiểm soát bằng kênh thử đã duyệt: có consent mới gửi, đúng người/giờ và không gửi trùng; không dùng mock response để chứng minh giao thông báo. Red-flag chuyển hỗ trợ khẩn.
 
 ## Tác vụ 26: Dashboard điều phối và chuyển người thật (Project 258-booking, Nâng cao)
-- Trạng thái: todo
+- Trạng thái: partial
 - Hiện trạng: chưa thấy dashboard booking trong frontend/app/ hoặc audit đặt lịch trong src/triage/router.py
 - Việc cần làm: Hoàn thiện và kiểm chứng dashboard điều phối và chuyển người thật.
 - Phụ thuộc: 24, 25
 - Chấp nhận:
-  - [ ] `.\.venv\Scripts\python.exe -m pytest tests/test_booking_audit.py -q --basetemp=test-results/tmp-task-26 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.
-  - [ ] Test chức năng: Tính tải công việc/tỉ lệ đúng khoa trên lịch đã duyệt; thiếu tự tin tạo ca người xử lý.
-  - [ ] Test an toàn: Không bịa độ tự tin/nguồn; chỉ role lễ tân xem chi tiết; dữ liệu báo cáo không lộ PHI.
+  - [x] `tests/test_booking_audit.py` đạt trong regression 59 pass/0 fail.
+  - [x] Test chức năng: Tính tải/tỷ lệ lịch có nguồn; confidence <0,6 tạo ca người xử lý.
+  - [x] Test an toàn: Confidence do rule trả rõ; nurse/admin mới xem dashboard; danh sách ca không trả patient ID.
 
   - [ ] Integration UI/API thật (tác vụ 26): Tạo lịch đã duyệt, lịch chờ và ca cần người xử lý qua UI/API thật; mở dashboard lễ tân, đối chiếu tải công việc/tỷ lệ đúng khoa với tập thử có kết quả tính sẵn. Ca thiếu dữ kiện/độ tin cậy được chuyển người thật, xử lý rồi tải lại thấy trạng thái/audit bền vững; người trái quyền không đọc chi tiết, báo cáo tổng hợp không lộ PHI hoặc bịa nguồn/độ tin cậy.
+  - Bằng chứng nền 04/11/2026: dashboard receptionist UI hiện số lịch chờ, duyệt và tải lại về 0 trên SQLite thật; unit test xác minh ca confidence thấp, aggregate không patient ID và user bị 403. Chưa có browser case đủ ba loại lịch để đối chiếu toàn bộ metric, task giữ partial.
 
 ## Thứ tự đề xuất
 

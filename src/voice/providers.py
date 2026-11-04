@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import io
 import os
+import subprocess
 import wave
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -113,12 +114,41 @@ class PhoSTTStub:
             "install Zipformer-vi + deps, then enable in get_stt_provider)")
 
 
-def get_stt_provider():
-    """Factory (D2 pin): chưa có ASR thật -> deterministic mock.
+class WhisperSTTProvider:
+    """Local multilingual Whisper; audio is decoded in-memory through ffmpeg."""
 
-    NVIDIA NIM không có endpoint Whisper-compatible, nên STT luôn mock cho tới
-    khi tích hợp ASR khác (docs/VOICE_DESIGN.md).
-    """
+    _pipeline = None
+
+    def __init__(self):
+        if self.__class__._pipeline is None:
+            from transformers import pipeline
+            self.__class__._pipeline = pipeline(
+                "automatic-speech-recognition",
+                model=os.getenv("VOICE_STT_MODEL", "openai/whisper-tiny"),
+                device=-1,
+            )
+
+    def transcribe(self, audio_bytes: bytes, content_type: str = "") -> str:
+        import numpy as np
+        decoded = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
+             "-f", "f32le", "-ac", "1", "-ar", "16000", "pipe:1"],
+            input=audio_bytes, capture_output=True, check=True,
+        ).stdout
+        audio = np.frombuffer(decoded, dtype=np.float32)
+        if not audio.size:
+            return ""
+        result = self.__class__._pipeline(
+            {"raw": audio, "sampling_rate": 16000},
+            generate_kwargs={"language": "vi", "task": "transcribe"},
+        )
+        return str(result.get("text", "")).strip()
+
+
+def get_stt_provider():
+    """Local Whisper is opt-in; ordinary tests keep the deterministic mock."""
+    if os.getenv("VOICE_STT_PROVIDER", "mock").strip().lower() == "whisper":
+        return WhisperSTTProvider()
     return MockSTTProvider()
 
 

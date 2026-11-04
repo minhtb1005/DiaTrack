@@ -181,9 +181,9 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 # Cookie settings cho httpOnly
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() in ("true", "1", "yes")  # true khi https
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # lax | strict | none
-# Roles: user, doctor, pharmacist, specialist, nurse, admin
-VALID_ROLES = {"user", "doctor", "pharmacist", "specialist", "nurse", "admin"}
-EXPERT_ROLES = {"doctor", "pharmacist", "specialist", "nurse"}
+# Roles: user, doctor, pharmacist, specialist, nurse, receptionist, admin
+VALID_ROLES = {"user", "doctor", "pharmacist", "specialist", "nurse", "receptionist", "admin"}
+EXPERT_ROLES = {"doctor", "pharmacist", "specialist", "nurse", "receptionist"}
 
 # ==============================
 #  HILT — RAG Confidence & Review Routing

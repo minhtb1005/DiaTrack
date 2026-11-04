@@ -22,6 +22,17 @@ def test_login_wrong_password_fails(client: TestClient, make_user):
     r = client.post("/v1/auth/login-json", json={"username": user["username"], "password": "wrongpass"})
     assert r.status_code == 401
 
+
+def test_bcrypt_5_hash_verify_and_malformed_hash():
+    from src.auth.security import hash_password, verify_password
+
+    password = "mật-khẩu-" + "á" * 40
+    hashed = hash_password(password)
+    assert hashed.startswith(("$2a$", "$2b$", "$2y$"))
+    assert verify_password(password, hashed)
+    assert not verify_password("sai", hashed)
+    assert not verify_password(password, "not-a-bcrypt-hash")
+
 def test_admin_create_expert_and_verify(client: TestClient, admin_client):
     tok = admin_client["token"]
     import uuid
@@ -202,3 +213,15 @@ def test_review_publication_permissions_and_db(client, make_user, doctor_user, d
         history = conn.execute("SELECT status, answer FROM query_history WHERE review_id=?", (rid,)).fetchone()
     assert row == (decision, final, doctor_user["user"]["id"])
     assert history == ("approved", final)
+
+
+def test_admin_can_create_verified_receptionist(client, admin_client):
+    username = f"reception_{__import__('uuid').uuid4().hex[:8]}"
+    response = client.post(
+        "/v1/auth/register",
+        json={"username": username, "password": "Reception@123", "role": "receptionist"},
+        headers={"Authorization": f"Bearer {admin_client['token']}"},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["role"] == "receptionist"
+    assert response.json()["is_verified"] is True
