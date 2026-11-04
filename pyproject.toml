@@ -67,8 +67,8 @@ test = [
 security = [
     "safety>=3.0",
 ]
-# Local embeddings + reranking + semantic cache (requires torch) — dùng khi EMBEDDING_PROVIDER=local
-# Deploy openai-only (mặc định) KHÔNG cần cài nhóm này: pip install .  (≈400MB, không cần torch)
+# Local embeddings, reranking và Whisper STT (requires torch) — dùng khi EMBEDDING_PROVIDER=local hoặc VOICE_STT_PROVIDER=whisper
+# Deploy NVIDIA API-only (mặc định) KHÔNG cần nhóm này: pip install .  (≈400MB, không cần torch)
 # Deploy local embeddings/reranker: pip install .[local]  (≈2GB, có torch + faiss)
 local = [
     "torch>=2.9.0",

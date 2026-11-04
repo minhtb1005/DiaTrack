@@ -1,8 +1,8 @@
-# Hợp Đồng API — WHO-RAG Infrastructure API
+# Hợp đồng API DiaTrack
 
 > Base `http://localhost:8000`, prefix `/v1`. Tài liệu sống ở `/docs` (Swagger). Code: `src/api/main.py`, `src/api/schemas.py`.
 
-> **Mục tiêu đọc-xong-làm-được:** login lấy token, log đường huyết, hỏi RAG, tạo SOAP, đọc được lỗi 401/422/403.
+> Đọc xong tài liệu này, bạn có thể đăng nhập lấy token, ghi đường huyết, gọi RAG, tạo SOAP và xử lý các lỗi 401, 403 và 422.
 
 ## 1. Quy ước chung
 
@@ -17,28 +17,28 @@
 
 RAG (tìm tài liệu rồi sinh câu trả lời có trích dẫn) xem Glossary ở `docs/architecture_diagram.md`.
 
-## 2. Health & Discovery
+## 2. Kiểm tra dịch vụ và khám phá API
 
 - `GET /health` (public): trả `{status, version, pdf_count, vector_db_ready}`. Dùng để kiểm tra backend sống chưa.
 - `GET /` (public): liệt kê nhóm endpoint (health, query, glucose, soap, auth, reviews, monitors).
 - `GET /v1/guidelines/status` (public): số PDF theo nguồn.
 
-## 3. Auth — `src/auth/router.py`
+## 3. Xác thực — `src/auth/router.py`
 
-Chỉ cần nhớ 3 cặp: `register` tạo user → `login` lấy token → `me` kiểm tra. Expert tạo ra bị `is_verified=false` chờ admin duyệt. Token refresh ở `/v1/auth/refresh`, logout ở `/v1/auth/logout`. Admin xem users ở `GET /v1/admin/users`. Chi tiết field xem Swagger `/docs`.
+Chỉ cần nhớ 3 cặp: `register` tạo user → `login` lấy token → `me` kiểm tra. Expert và `receptionist` tạo ra bị `is_verified=false` chờ admin duyệt nếu không do admin tạo. Token refresh ở `/v1/auth/refresh`, logout ở `/v1/auth/logout`. Admin xem users ở `GET /v1/admin/users`. Chi tiết field xem Swagger `/docs`.
 
-## 4. RAG Query (HILT) — `POST /v1/query` — auth bắt buộc
+## 4. Truy vấn RAG có HILT — `POST /v1/query`
 
 Hỏi guideline, AI trả lời kèm trích dẫn; điểm thấp thì chuyển bác sĩ duyệt (`pending_review`).
 
 - Request tối thiểu: `{"query": "Dấu hiệu đái tháo đường type 2 là gì?", "top_k": 5}`. Thêm `tone` (strict/friendly/balanced) nếu muốn, `user_id` phải trùng token nếu role=user.
 - Response tối thiểu: `{"answer": "...[Source 1]", "status": "answered|pending_review", "trace_id": "abc", "cache_hit": false}`. Đầy đủ còn có `contexts[]`, `audit` (prompt_version, latency), `evaluation` (4 điểm, `is_low_confidence`, `routed_role`).
-- Luồng (`src/api/main.py:172`): check quyền → `rag_chat` (cache → retrieve hybrid 0.6 → rerank top3 → sinh) → `evaluate_rag`, thấp điểm (<3.5) thì tạo review.
+- Luồng: check quyền/scope → `rag_chat` (retrieve hybrid 0.6 → rerank top3 → privacy/provenance gate → sinh) → `evaluate_rag`; thấp điểm (<3.5) thì tạo review. Response cache cá nhân hiện bị bypass.
 - Ngoài-scope ĐTĐ (ví dụ "uống kháng sinh nào?") bị chặn bằng mẫu cứng TRƯỚC khi gọi RAG, không tốn lookup.
 
-## 5. Vitals — 4 bệnh, unified
+## 5. Diabetes — phạm vi sản phẩm hiện hành
 
-Tất cả cần login; user thường chỉ được thao tác trên `user_id` của mình.
+Tất cả cần login; user thường chỉ được thao tác trên `user_id` của mình. Các router BP/respiratory/mood còn trong repo là module legacy hoặc hạ tầng dùng thử, không mở rộng phạm vi sản phẩm ngoài đái tháo đường týp 2.
 
 ### 5.1 Diabetes — Glucose
 
@@ -46,30 +46,25 @@ Tất cả cần login; user thường chỉ được thao tác trên `user_id` 
 - Ngưỡng cảnh báo sản phẩm: <70 cần liên hệ y tế, >250 cần liên hệ bác sĩ, ≥300 cần liên hệ y tế ngay; dấu hiệu nặng gọi 115. Mốc xét nghiệm lúc đói ≥126 và OGTT 2 giờ ≥200 là tiêu chuẩn chẩn đoán trong phòng xét nghiệm, không dùng để chẩn đoán từ một lần đo tại nhà. Xem nguồn và giới hạn từng mốc ở `docs/project_requirements.json#scope_rules.threshold_evidence`.
 - `GET /v1/glucose/{user_id}?limit=50&days=14`: trả `logs[]` với `classification` và `message` được tính lại từ giá trị gốc, cùng `stats` (trung bình, streak) + `should_escalate` (có số đo <70 hoặc ≥300 trong các log gần nhất). Nhãn hiển thị cũ không tự kích hoạt chuyển ca.
 - `POST /v1/voice/transcribe`: trả `parse` (giá trị và bối cảnh), `measurement_time` (ISO 8601 +07:00 khi nghe rõ giờ và buổi đo) và cảnh báo red-flag. Luồng voice hỏi lại giờ đo nếu thiếu hoặc mơ hồ; chỉ gọi `POST /v1/glucose` với `measured_at` sau khi bệnh nhân xác nhận. Không tự gán giờ hiện tại cho bản ghi voice. Khi mất micro hoặc STT, người dùng có thể nhập thủ công.
+- STT mặc định là mock xác định cho test. Runtime local chỉ dùng Whisper thật khi đặt `VOICE_STT_PROVIDER=whisper`; cần ffmpeg và model trong cache. Transcript không rỗng không đồng nghĩa số được nhận đúng, vì vậy giá trị và thời điểm luôn phải qua bước xác nhận.
 
-### 5.2 Hypertension — BP
+### 5.2–5.5 Module legacy ngoài phạm vi
 
-`POST /v1/bp`: `{"user_id": "...", "systolic": 130, "diastolic": 85}` → `classification` normal/elevated/stage1/stage2/crisis (chuẩn AHA/ACC: crisis ≥180/120). GET tương tự glucose.
+`/v1/bp`, `/v1/respiratory`, `/v1/mood` và `/v1/vitals` có thể còn được wire để tương thích hoặc thử nghiệm. Không dùng chúng làm chức năng DiaTrack hiện hành; câu hỏi ngoài phạm vi phải trả đúng `scope_rules.out_of_scope_reply`.
 
-### 5.3 Respiratory — Asthma/COPD
-
-`POST /v1/respiratory`: gửi `peak_flow_percent` → `classification` green (≥80%) / yellow (50-79%) / red (<50%). Kèm điểm CAT và kỹ thuật hít.
-
-### 5.4 Mental — PHQ-9/GAD-7
-
-`POST /v1/mood`: gửi `phq9_score 0..27`, `gad7_score 0..21` → `classification` minimal/mild/moderate/severe/crisis. Ghi chú tự động xóa PII (tên, phone, email), phát hiện từ khóa khủng hoảng thì gắn hotline 1800-1567/1900-1267/115.
-
-### 5.5 Unified Vitals
-
-`POST /v1/vitals`: một endpoint cho frontend, thêm field `disease` rồi gửi kèm field của bệnh đó.
-
-## 6. SOAP Pre-visit — `POST /v1/soap/generate` + `/markdown`
+## 6. SOAP trước buổi khám — `POST /v1/soap/generate` + `/markdown`
 
 - Request tối thiểu: `{"user_id": "...", "days": 14, "language": "vi", "disease": "diabetes"}` (`days 1..90`).
-- Response tối thiểu: `{"soap": {"subjective": "...[Xem log #3]", "objective": "...", "assessment": "đạt/không đạt HbA1c<7%...", "plan": ""}, "period": "..."}`. **P luôn `""`** + placeholder mờ cho bác sĩ; S/O/A đều có link `[Xem log #id]`. A chỉ đối chiếu HbA1c<7% (BYT QĐ5481 2020 + ADA 2024), không chẩn đoán mới.
+- Response tối thiểu: `{"soap": {"subjective": "...[Xem log #3]", "objective": "...", "assessment": "chưa thể kết luận HbA1c từ nhật ký tự đo...[Xem log #3]", "plan": ""}, "period": "..."}`. **P luôn `""`** + placeholder mờ cho bác sĩ; S/O/A có audit link. A mô tả dữ liệu đã ghi, không suy HbA1c hoặc kết luận đạt mục tiêu từ đường huyết tự đo.
 - `/markdown` trả `text/plain` đã format sẵn.
 
-## 7. Reviews (HILT) — `src/reviews/router.py`
+## 7. Quy trình duyệt HILT — `src/reviews/router.py`
+
+### Workflow SOAP, dinh dưỡng và đặt lịch
+
+- `/v1/soap/drafts`: bệnh nhân tạo nháp từ transcript; doctor/admin mở, sửa, nhập Plan và ký. Bản đã ký bất biến; `/export` chỉ xuất bản đã ký.
+- `/v1/nutrition/profile`, `/meal-plans`, `/meal-logs`: hồ sơ dị ứng thuộc bệnh nhân; số dinh dưỡng lấy từ dataset có nguồn, món không biết trả `nutrition=null`; specialist/doctor/admin duyệt meal plan.
+- `/v1/bookings/suggest`, `/hold`, `/{id}/confirm`: bệnh nhân tìm slot, giữ chỗ và xác nhận. Chỉ `receptionist`/admin duyệt, chạy reminder và xem `/coordination/dashboard`; unique index ngăn hai lịch đang hiệu lực dùng cùng slot.
 
 ### Triage có cấu trúc — `POST /v1/triage`
 
@@ -83,11 +78,11 @@ Bác sĩ đã xác minh xem `GET /v1/reviews?status=pending`, chi tiết/nguồn
 
 Bệnh nhân xem yêu cầu của mình tại `/v1/reviews/me`, `/v1/reviews` và `/v1/reviews/{id}`; chỉ nhận thông tin trạng thái/câu hỏi và `final_answer` sau quyết định, không nhận draft, evaluation, ghi chú nội bộ hay vitals. Truy cập chi tiết của bệnh nhân khác trả 403. `/v1/query/history` và history trong `/reviews/me` ẩn answer khi pending; sau duyệt trả toàn văn cuối (`history.status=approved`, kể cả khi review là `revised`). UI `/my/reviews` tải lại hoặc polling để cập nhật nội dung cuối; không cắt câu trả lời ở 300 ký tự. Tài khoản bác sĩ demo và dữ liệu thử không thay thế duyệt y khoa thực tế.
 
-## 8. Monitors — `src/monitors/router.py` (13 routes)
+## 8. Giám sát nguồn — `src/monitors/router.py` (13 route)
 
 Chỉ cần nhớ: `GET /v1/monitors/status` xem tổng quan; `POST /v1/monitors/check/guidelines?source_key=gold` (specialist) và `check/safety` (pharmacist) để quét bản mới; `GET .../guidelines` + `POST .../guidelines/{gid}/decision` để duyệt; alerts tương tự cho dược sĩ; `cleanup-superseded` (admin) dọn bản cũ >30 ngày.
 
-## 9. Admin — Tracing & Prompts
+## 9. Quản trị tracing và prompt
 
 Tracing (`src/admin/tracing_router.py`): `GET /v1/admin/traces` lọc + `GET /v1/admin/traces/{trace_id}` xem spans/chunks/ragas + `POST .../ragas` chấm lại + `DELETE .../expired` dọn >30 ngày. Prompts (`src/admin/prompt_router.py`): xem/tạo/duyệt version prompt theo tone, `dry-run` chạy 5 câu golden để so sánh.
 
@@ -103,14 +98,14 @@ curl -X POST http://localhost:8000/v1/glucose -H "Authorization: Bearer $TOKEN" 
 
 Thêm SOAP và monitors xem Swagger `/docs` (không paste dài ở đây để file gọn).
 
-## 11. Mã lỗi & Validation
+## 11. Mã lỗi và cách xử lý
 
 - `422`: sai kiểu/miền — ví dụ `value_mgdl` ngoài 20..800, `top_k` ngoài 1..20, `days` ngoài 1..90. Cách sửa: đọc `detail` trả về, sửa field đó.
 - `401`: thiếu/hết hạn token → login lại, gắn `Authorization: Bearer`.
 - `403`: user thao tác nhầm `user_id` người khác, hoặc thiếu role (cần specialist/pharmacist/admin), hoặc expert chưa verify.
-- `400`: thao tác không hợp lệ (review đã duyệt rồi...). `500`: lỗi RAG — đọc message, kiểm tra OpenAI key/Chroma.
+- `400`: thao tác không hợp lệ (review đã duyệt rồi...). `500`: lỗi RAG — kiểm tra cấu hình NVIDIA, bundle index, provenance gate và log không chứa dữ liệu nhạy cảm.
 
-### Checklist tự kiểm tra
+### Tự kiểm tra
 
 - [ ] Login + gọi 3 API query/glucose/soap bằng Swagger thành công.
 - [ ] Kể được khác biệt 401 vs 403 vs 422 bằng 1 câu mỗi loại.

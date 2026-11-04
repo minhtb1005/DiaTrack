@@ -30,6 +30,7 @@ Six capabilities:
 
 Where to read next:
 
+- New contributor guide and reading order: [docs/README.md](docs/README.md)
 - Current scope, six project requirements and safety rules: [docs/project_requirements.json](docs/project_requirements.json) (`scope_rules`).
 - Task list and acceptance criteria: `docs/TASKS.md` when present.
 - Agent workflow, verification and handoff: [AGENTS.md](AGENTS.md)
@@ -125,13 +126,13 @@ flowchart TD
 |---|---|
 | Backend | FastAPI (`POST /v1/glucose`, `/v1/query`, `/v1/soap/generate`) |
 | Frontend | Next.js 14 + Recharts (90-day sparkline) |
-| Knowledge | Chroma; mục tiêu index sạch hiện tại chỉ gồm 4 binary đã xác minh: WHO Classification, HEARTS-D, WHO PEN và BYT QĐ3319. ADA 2024/BYT QĐ5481 bị chặn tới khi đối chiếu binary chính thức. |
-| AI (demo) | `gpt-4o-mini` via API - no GPU needed |
+| Knowledge | Chroma; active index gồm 4 source đã duyệt gửi: WHO Classification, HEARTS-D, WHO PEN và BYT QĐ3319. ADA 2024/BYT QĐ5481 đã đối chiếu binary nhưng chưa được duyệt vào active index. |
+| AI (current) | NVIDIA NIM for chat and embeddings; provider calls are guarded by local privacy and corpus-provenance checks |
 | Quality | pytest (anomaly detector, SOAP summary, diabetes API, glucose tracker), `tsc --noEmit`, RAGAS faithfulness scoring on retrieved contexts. Verification commands and evidence requirements are defined in [AGENTS.md](AGENTS.md) |
 
 Test results belong with the task and its evidence, not in this overview. A demo recording does not replace automated tests or validation of clinical behavior.
 
-Existing docs: `AGENTS.md` - `docs/architecture_diagram.md` - `docs/api_contract.md` - `docs/evaluation.md` - `docs/data_contract.md` - `docs/monitoring.md`
+Documentation entry point: [docs/README.md](docs/README.md).
 
 ---
 
@@ -159,9 +160,9 @@ Additional modules in `src/vitals/`, `src/labs/` and `src/monitors/` do not expa
 
 ---
 
-## 7. Production path - FUTURE, NOT IN DEMO
+## 7. Earlier production exploration — historical
 
-> **FUTURE - NOT IN DEMO.** The demo above runs on `gpt-4o-mini` via API. Nothing below is implemented; no GPU dependency is in the demo install.
+> This section records an earlier local-serving direction. The current implementation uses NVIDIA NIM through `src/shared/nvidia.py`; the architecture below is not the active runtime.
 
 Planned production serving: **Llama-3-8B-AWQ** (AWQ - Activation-aware Weight Quantization: a compressed model format that runs faster on less GPU memory) + **vLLM/SGLang** with **PagedAttention** (memory-efficient attention for serving) and **continuous batching** (serving many requests together) to cut time-to-first-token for multi-turn follow-up questions. Benchmarks on hosted GPUs are future work - no numbers are claimed here.
 

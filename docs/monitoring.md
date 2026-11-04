@@ -1,6 +1,8 @@
-# Giám sát Guideline & An toàn thuốc — Kiến trúc Agent
+# Giám sát guideline và an toàn thuốc
 
-> Triết lý: `agent tìm → tóm tắt thay đổi (VI) → gắn cờ "cần review" → chuyên gia duyệt → mới đưa vào corpus (kèm version/ngày)`.
+> Tài liệu mô tả cả luồng hiện hành và một số cơ chế ingestion cũ. Trước khi vận hành hoặc reindex, đối chiếu `data_contract.md`, `corpus_provenance.json` và `deployment/README.md`; active index không được sửa tại chỗ.
+
+> Quy trình bắt buộc: `agent tìm → tóm tắt thay đổi bằng tiếng Việt → đánh dấu cần duyệt → chuyên gia duyệt → đưa vào corpus kèm phiên bản và ngày`.
 
 ## Tổng quan
 
@@ -11,7 +13,7 @@ Hai agent chung nền tảng `src/monitors/`:
 
 Tất cả phát hiện mới đều vào `data/raw/staging/<source>/<version>/` trước, **không tự động vào** `data/raw/pdfs/<source>/`. Chỉ sau khi duyệt mới promote và reindex.
 
-## Luồng 5 bước (đúng yêu cầu)
+## Luồng xử lý năm bước
 
 ```
 1. Fetch (HEAD/etag hoặc FDA JSON)
@@ -30,7 +32,7 @@ Tất cả phát hiện mới đều vào `data/raw/staging/<source>/<version>/`
 
 ---
 
-## Data Model — `metadata/monitoring.db`
+## Mô hình dữ liệu — `metadata/monitoring.db`
 
 ### monitored_sources (10 dòng seed)
 
@@ -67,7 +69,7 @@ Dedup: trùng `alert_url` hoặc `drug_name+title` trong 7 ngày → trả về 
 
 ---
 
-## Module chi tiết `src/monitors/`
+## Các module trong `src/monitors/`
 
 | File | Vai trò |
 |---|---|
@@ -145,7 +147,7 @@ Tất cả endpoint đều yêu cầu `Authorization: Bearer <JWT>` hoặc cooki
 
 ---
 
-## Promote & Corpus Versioning
+## Duyệt và quản lý phiên bản corpus
 
 1. `promote_guideline_to_corpus(gid, reviewer_id)`:
    - Move `staging_path` → `PDF_DIR/<source>/filename.pdf`
@@ -167,7 +169,7 @@ Tất cả endpoint đều yêu cầu `Authorization: Bearer <JWT>` hoặc cooki
 
 ---
 
-## Vận hành & Troubleshooting
+## Vận hành và xử lý sự cố
 
 ```bash
 # Kiểm tra thủ công 1 nguồn (cần login)

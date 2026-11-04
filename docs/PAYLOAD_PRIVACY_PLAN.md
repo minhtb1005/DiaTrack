@@ -1,4 +1,4 @@
-# Kế hoạch kiểm soát payload NVIDIA — 02/11/2026
+# Kế hoạch kiểm soát dữ liệu gửi tới NVIDIA — 02/11/2026
 
 Trạng thái: đã triển khai một phần; chưa đạt toàn bộ cổng nghiệm thu. Bằng chứng và giới hạn: [PAYLOAD_PRIVACY_IMPLEMENTATION.md](PAYLOAD_PRIVACY_IMPLEMENTATION.md). Không thay tiêu chí hoặc trạng thái hoàn thành tác vụ 1–7.
 
@@ -17,9 +17,9 @@ Trạng thái: đã triển khai một phần; chưa đạt toàn bộ cổng ng
 
 ## Thực hiện theo thứ tự
 
-### 1. Capture offline tại ranh giới HTTP
+### 1. Ghi nhận request offline tại ranh giới HTTP
 
-- Tạo test transport chặn mạng cho OpenAI SDK và httpx embeddings. Capture payload ngay trước gửi, không gọi provider thật.
+- Tạo test transport chặn mạng cho client SDK tương thích OpenAI đang trỏ tới NVIDIA và cho httpx embeddings. Capture payload ngay trước gửi, không gọi provider thật.
 - Dùng DB/index/bộ nhớ thử riêng với dấu nhận diện tổng hợp khác nhau cho query, document, metadata, short-term, episodic, long-term, answer judge và GHO.
 - Kiểm tra sync, stream, embeddings query/document, judge, retry/đổi model; xác nhận mọi điểm gửi được capture. Chặn mọi request mạng ngoài transport, không cho fixture fallback sang index repo.
 - Lưu report loại trường và số lượng dấu nhận diện, không lưu khóa hoặc payload thật. Test lỗi cũng không dump payload/headers.
@@ -33,7 +33,7 @@ Trạng thái: đã triển khai một phần; chưa đạt toàn bộ cổng ng
 - Memory cũ không xác định chủ sở hữu không được đưa vào prompt; cách ly, không xóa tự động.
 - Đạt khi không có dấu nhận diện của A trong bất kỳ request gửi hoặc response của B.
 
-### 3. Chính sách dữ liệu và redact cục bộ
+### 3. Chính sách dữ liệu và làm sạch cục bộ
 
 - Định nghĩa các loại cần bỏ/thay: tên bệnh nhân/người thân, điện thoại, email, CCCD/CMND, mã bệnh án/BHYT, địa chỉ cụ thể, ngày sinh đầy đủ, username và URL chứa định danh/token.
 - Phân biệt tên tác giả/tài liệu công khai với tên bệnh nhân; giữ citation bằng ID ổn định không chứa PII. Không gửi đường dẫn máy cá nhân.
@@ -42,7 +42,7 @@ Trạng thái: đã triển khai một phần; chưa đạt toàn bộ cổng ng
 - Không tuyên bố đã ẩn danh tuyệt đối. Tổ hợp tuổi, địa điểm, thời điểm và bệnh sử vẫn có nguy cơ nhận diện lại. Nội dung không đủ chắc chắn phải bị chặn hoặc yêu cầu người dùng sửa trước khi gửi.
 - Đạt khi bộ gold tổng hợp có nhãn PII được loại hết các span bắt buộc, đồng thời giữ đúng dữ kiện y khoa; đo false-positive/false-negative và lưu các giới hạn còn lại.
 
-### 4. Chốt kiểm soát tại cả chat và embedding
+### 4. Kiểm soát cả chat và embedding
 
 - Thêm module dùng chung (dự kiến `src/shared/privacy.py`), gọi trước request chat và embeddings trong `src/shared/nvidia.py`.
 - Kiểm tra toàn bộ phần dữ liệu payload: messages system/user/assistant/tool, content dạng list, tool arguments/results, metadata/name/user và extra_body có thể chứa dữ liệu. Các cấu trúc chưa hỗ trợ bị từ chối, không âm thầm bỏ qua.
@@ -59,7 +59,7 @@ Trạng thái: đã triển khai một phần; chưa đạt toàn bộ cổng ng
 - Kiểm tra source bổ sung GHO, alias import `chat.*`/`src.chat.*` và mọi đường fallback; xác minh chính hàm pipeline gọi dùng index thử.
 - Đạt khi mọi nguồn đưa vào prompt có provenance và trạng thái xử lý; không có fallback sang kho ngoài danh sách thử.
 
-### 6. Xác minh offline rồi live, tiếp tục integration 1–7
+### 6. Xác minh offline trước khi chạy live và tiếp tục integration 1–7
 
 - Unit: số điện thoại có dấu cách/+84, email, ID, tên/địa chỉ có dấu và không dấu, Unicode, JSON lồng, metadata, URL; đối chứng 69/70/250/251/299/300 mg/dL và phủ định triệu chứng không bị đổi.
 - Integration offline: API → DB/index thật riêng → memory → retrieval → chat/judge/embedding transport capture; xác nhận phân quyền và concurrency A/B, mọi nhánh lỗi không gửi dữ liệu thô.

@@ -1,4 +1,6 @@
-# UI Review — Multi-Role Audit (desktop, light mode)
+# Rà soát giao diện theo vai trò trên desktop
+
+> Đây là kết quả của một lượt rà soát tại thời điểm chụp ảnh. Các lỗi bên dưới có thể đã được sửa; hãy đối chiếu giao diện và test hiện hành trước khi dùng làm trạng thái dự án.
 
 - Date: 2026-10-07. Scope: full function walkthrough as patient, doctor, admin (pharmacist excluded — admin covers the only pharmacist-gated screen, `/monitor/alerts`).
 - Accounts (from `scripts/seed_demo_users.py --force`, password `Demo@123` demo-only): `demo_patient_01` (user), `demo_doctor_01` (doctor, verified), `demo_admin_01` (admin, verified).
@@ -6,13 +8,13 @@
 - Method: real browsers flows (login form → submit readings → FQG chat → safeguard question → SOAP generate → quiz → queue click-through → tracing), one viewport screenshot per screen in `docs/demo/ui-review/` (1440×900, light).
 - This cycle is **report-only**: no UI code was changed for any finding below.
 
-## Severity scale
+## Mức độ ảnh hưởng
 
 - **Critical** — flow completely broken (crash, dead end, data loss, safety-relevant misdirection).
 - **Major** — works but misleads, erodes trust, or defeats the feature's purpose.
 - **Minor** — polish, copy, dev-text leakage, demo hygiene.
 
-## Summary (3 Critical, 7 Major, 12 Minor)
+## Kết quả: 3 lỗi nghiêm trọng, 7 lỗi lớn và 12 lỗi nhỏ
 
 | ID | Sev | Location (screenshot) | Issue | Proposal |
 |----|-----|------------------------|-------|----------|
@@ -39,7 +41,7 @@
 | m11 | Minor | Sparkline 90d (`patient-06-previsit.png`) | Sparse/flat rendering; anomaly dots hard to see at 90d scale. | Larger dots + y-zoom to data range. |
 | m12 | Minor | Previsit bottom (`patient-06-previsit.png`) | Raw JSON dump block shown to patients. | Move behind a `<details>` or admin-only. |
 
-## What works (verified live, keep as-is)
+## Phần đã chạy đúng và nên giữ nguyên
 
 - Login form for all 3 roles; httpOnly cookie session; correct RBAC denials (doctor→alerts message).
 - Spike red banner with exact safety text + chat/RAG lock; unlock on safe log.
@@ -50,7 +52,7 @@
 - Tracing table search/filter/pagination; memory user filter + table; prompts draft/dry-run layout; triage severity highlighting (KHẨN CẤP red).
 - Review pipeline end-to-end (query → pending → notification → history).
 
-## Environment notes (for reproducibility)
+## Môi trường dùng để tái hiện
 
 - Backend ran natively (`.\.venv\Scripts\python -m uvicorn ... :8000`); WSL was tried first per request but its system Python 3.12 has a corrupt `_ctypes` (stdlib reinstall unavailable), so the venv route failed. Fallback per approved plan.
 - Frontend ran natively (`npm run dev :3000`); WSL serves 200 inside WSL but Windows↔WSL TCP for :3000 was blocked on this host.
@@ -58,6 +60,6 @@
 - `.venv` needed `pip install -r requirements.txt` (was missing `python-jose`, which silently disabled auth/admin/chat/diabetes/triage/labs/voice/learn/vitals/monitors routers via fail-open import). No repo files changed.
 - Screenshots are honest captures of one audit pass; repeated runs accumulate demo logs (trend window holds ~10 consecutive runs before the limit-30 cascade math drifts — wipe + reseed per the iron rule before any re-shoot).
 
-## Out of scope (not covered)
+## Phần chưa được kiểm tra
 
 - Pharmacist role (admin covers `/monitor/alerts`); dark mode; mobile 375px; loan/streaming paths beyond one playground query; lesson audio playback (blocked by C1); review approve/decision click-through (blocked by C2).

@@ -1,6 +1,6 @@
-﻿# Base runtime for openai-only deploy (no torch/faiss/GPU).
-# Mirrors [project] dependencies in pyproject.toml + direct-use extras
-# (tiktoken, rank-bm25). Local embeddings: pip install .[local].
+# Base NVIDIA API runtime (không gồm torch/faiss/model local).
+# Mirrors [project] dependencies in pyproject.toml + direct-use extras.
+# Local embeddings hoặc Whisper STT: pip install -e ".[local]".
 openai>=2.5.0
 langchain>=0.3.27
 langchain-chroma>=0.2.6

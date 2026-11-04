@@ -1,9 +1,8 @@
-# Micro-Curriculum: 30 bài tiểu đường + kịch bản voice 7 ngày (VI)
+# Chương trình 30 bài học ngắn và kịch bản giọng nói bảy ngày
 
-## Tổng quan
-30 bài học nhỏ (micro-lessons), mỗi bài nghe khoảng 1 phút qua giọng
-người đồng hành đã chọn. Học 1 bài mỗi ngày trong 7 ngày đầu, sau đó học
-tiếp theo gợi ý của app (nhóm yếu nhất).
+## Cách học
+
+Chương trình có 30 bài, mỗi bài nghe khoảng một phút bằng giọng người đồng hành đã chọn. Người dùng học một bài mỗi ngày trong bảy ngày đầu; sau đó ứng dụng gợi ý bài thuộc nhóm kiến thức còn yếu.
 
 ## Nhóm bài (6 nhóm, 30 bài)
 - **Hiểu bệnh** (1.1–1.5): bệnh là gì, chỉ số mục tiêu mg/dL, HbA1c, vì sao đo đều, dùng máy đo.

@@ -1,6 +1,6 @@
-# Benchmark — Kết Quả Chạy Thực Tế
+# Benchmark — Kết quả lịch sử và cách chạy hiện hành
 
-> Chạy `scripts/run_benchmarks.py` với `OPENAI_API_KEY` thật (2026-09-06). Dataset mặc định `retrieval_evaluation.json` (legacy 20 câu) cho B1-B4, và verify riêng `diabetes_retrieval_evaluation.json` (15 câu DQ1-DQ15) để có số có ý nghĩa.
+> Các mục B1–B5 bên dưới là kết quả lịch sử chạy với OpenAI ngày 2026-09-06. Chúng không đại diện cho runtime NVIDIA/index đã xác minh hiện hành. Dùng lệnh reproduce để tạo report mới và luôn ghi provider, index, dataset, commit/diff.
 
 ## 0. Môi trường
 
@@ -12,7 +12,7 @@
 
 Kết quả lưu: `data/evaluation/results_benchmark_20260906_1920.json` (B1-B4, skip-judge) và `results_benchmark_20260826_2033.json` trước đó.
 
-## 1. B1 — Chunking Strategies (vector-only)
+## 1. B1 — So sánh cách chia chunk, chỉ dùng vector
 
 Chạy trên **legacy dataset 20 câu** (`retrieval_evaluation.json`) — nhãn `relevant_documents` đa số là WHO physical activity / sodium / water ... **không có trong corpus hiện tại** → tất cả 0, kèm warning `16 gold never matched`. Đây là lỗi nhãn legacy, không phải lỗi retriever.
 
@@ -35,7 +35,7 @@ Chạy trên **legacy dataset 20 câu** (`retrieval_evaluation.json`) — nhãn 
 - Chỉ `structure` có dữ liệu (33.6 MB Chroma). Các DB `sliding/semantic/hybrid` tồn tại (37-39 MB) nhưng `load_vectorstores` với `OPENAI` provider chỉ resolve `pdf_db_openai/structure` (1.7 MB), không có `sliding`/`semantic` cho OpenAI → trả về rỗng. Đây là gap đã biết, ghi trong `data_contract#Embedding Contract`.
 - Kết luận: dùng `structure` cho production; cần re-index `sliding/semantic` bằng OpenAI nếu muốn so sánh công bằng.
 
-## 2. B2 — Retriever Types (structure index)
+## 2. B2 — So sánh retriever trên structure index
 
 **Legacy 20 câu:**
 
@@ -53,7 +53,7 @@ Chạy trên **legacy dataset 20 câu** (`retrieval_evaluation.json`) — nhãn 
 
 BM25 thắng nhẹ về Recall/Hit nhưng hybrid thắng MRR (đưa đúng doc lên rank cao hơn). Phù hợp với `HYBRID_ALPHA=0.6`.
 
-## 3. B3 — Cross-encoder Rerank
+## 3. B3 — Xếp hạng lại bằng cross-encoder
 
 | Pipeline | Recall@5 | Hit@5 | MRR | avg_latency_s |
 |---|---|---|---|---|
@@ -62,7 +62,7 @@ BM25 thắng nhẹ về Recall/Hit nhưng hybrid thắng MRR (đưa đúng doc l
 
 Rerank `CrossEncoder ms-marco-MiniLM-L-6-v2` tốn ~4.8s mỗi query (CPU), nhưng trên diabetes dataset chưa đo lại do script mặc định dùng legacy. Dự kiến cải thiện MRR +5-10% khi chạy đúng dataset (cần verify).
 
-## 4. B4 — Latency (n=5, legacy questions variant)
+## 4. B4 — Độ trễ trên năm câu hỏi legacy
 
 | Stage | n | mean_s | p50_s | p95_s | min_s | max_s |
 |---|---|---|---|---|---|---|
@@ -82,11 +82,11 @@ Chạy với `--skip-judge` nên chưa có số mới. Kết quả cũ trong `re
 Cách chạy đầy đủ:
 ```bash
 python scripts/run_benchmarks.py --latency-n 10 --judge-n 5
-# hoặc chỉ judge
-python scripts/run_benchmarks.py --skip-judge false --judge-n 15 --latency-n 0
+# hoặc chỉ giảm phần latency; không truyền --skip-judge nếu muốn chạy judge
+python scripts/run_benchmarks.py --judge-n 15 --latency-n 0
 ```
 
-## 6. Reproduce
+## 6. Chạy lại benchmark
 
 ```bash
 # 1. B1-B3 retrieval (không cần LLM, chỉ cần Chroma)
@@ -94,15 +94,15 @@ python scripts/run_benchmarks.py --skip-judge --latency-n 0
 # warnings 16 gold never matched là expected cho legacy
 
 # 2. Diabetes-focused (đúng corpus)
-python -c "from src.evaluation import load_dataset, RetrievalEvaluator, HybridRetriever; ds=load_dataset('data/evaluation/diabetes_retrieval_evaluation.json'); print(RetrievalEvaluator({'hybrid':HybridRetriever()}).evaluate(ds,k=5))"
+python -c "from src.shared.evaluation import load_dataset, RetrievalEvaluator, HybridRetriever; ds=load_dataset('data/evaluation/diabetes_retrieval_evaluation.json'); print(RetrievalEvaluator({'hybrid':HybridRetriever()}).evaluate(ds,k=5))"
 # → {'hybrid': {'Recall@K':0.766, 'Hit@K':0.933, 'MRR':0.816}}
 
-# 3. Full với latency + judge (cần OPENAI_API_KEY, 15-20p)
+# 3. Full với latency + judge (cần cấu hình NVIDIA và index đã xác minh)
 python scripts/run_benchmarks.py --latency-n 10
 ls data/evaluation/results_benchmark_*.json
 ```
 
-## 8. B6-B8 — Service Benchmarks (triage / labs / solvers) — Gold v2
+## 8. B6–B8 — Benchmark triage, labs và solver trên Gold v2
 
 Gold v2 (2026-09-23): `bench_triage` **32** cases (24 + 8: 7 tier + 1
 redflag), `bench_labs` **29** cases (21 + 8 parse), `bench_solvers`
@@ -172,9 +172,9 @@ size `20..40`, và `pain_point` thuộc enum.
 Est: 0 LLM calls, 0 DB writes, thời gian ~1-2 phút (phần lớn là import
 lần đầu + GA-200 in-memory).
 
-## 7. Khuyến nghị
+## 7. Khuyến nghị hiện hành
 
 1. Đổi `DATASET_PATH` mặc định trong `run_benchmarks.py:36` từ `retrieval_evaluation.json` sang `diabetes_retrieval_evaluation.json` để tránh 0 toàn tập.
-2. Re-index `sliding/semantic/hybrid` bằng `EMBEDDING_PROVIDER=openai` để B1 có số so sánh công bằng.
-3. Tối ưu `CAGHybridCache` và `CrossEncoder` lazy-load để `cache_hit` <600ms.
-4. Thêm `B6` monitors benchmark (FDA cache hit rate, BYT scrape success).
+2. Chỉ so sánh strategy được build bằng cùng NVIDIA embedding model và cùng corpus đã audit.
+3. Báo latency cache cũ như lịch sử; pipeline cá nhân hiện bypass response cache.
+4. Thêm benchmark monitor (FDA cache hit rate, BYT scrape success) khi có fixture nguồn ổn định.

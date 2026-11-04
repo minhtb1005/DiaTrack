@@ -1,9 +1,8 @@
-# Kịch bản quay video demo (VI) — 4 phân cảnh + outro (~3,5 phút)
+# Kịch bản video demo gồm bốn phân cảnh (~3,5 phút)
 
-> Nguồn thật duy nhất cho bản quay tay. Bản robot (Playwright
-> `frontend/e2e/demo_recorder.spec.ts`) chạy cùng flow để lấy `.webm` nháp.
+> Đây là kịch bản chuẩn cho bản quay thủ công. Playwright dùng cùng luồng trong `frontend/e2e/demo_recorder.spec.ts` để tạo bản `.webm` nháp.
 
-## Checklist chuẩn bị (đúng thứ tự)
+## Chuẩn bị
 
 1. Chạy backend: `uvicorn src.api.main:app --port 8000` (Playwright chỉ tự bật FE `:3000`).
 2. Tạo tài khoản TRƯỚC: `python scripts/seed_demo_users.py --force`
@@ -27,7 +26,7 @@
 > Cảnh báo: mật khẩu demo mặc định `Demo@123` (đổi qua env `DEMO_PASSWORD`
 > hoặc `--password`) — chỉ dùng demo local, đổi ngay khi host public.
 
-## PC1 — Cảnh báo đỏ spike (patient `/tracker`, ~30s)
+## PC1 — Cảnh báo khi đường huyết tăng vọt (`/tracker`, khoảng 30 giây)
 
 - Thao tác: nhập Lúc đói `280` → Lưu.
 - Lời thoại: "Chỉ số 280 vượt ngưỡng 250 — hệ thống khóa chat ngay,
@@ -35,7 +34,7 @@
   luôn thắng mọi hội thoại."
 - Điểm cần thấy: banner đỏ + chữ cứng + chat FQG và nút RAG biến mất.
 
-## PC2 — Trend cascade + FQG + episodic memory (~60s)
+## PC2 — Xu hướng, FQG và episodic memory (khoảng 60 giây)
 
 - Thao tác: cascade đã đẩy ở bước 4 → nhập thêm 1 chỉ số Lúc đói an toàn
   (vd `140`) → chat hỏi "khẩu phần ăn không?" → trả lời
@@ -45,7 +44,7 @@
   để bác sĩ thấy ở phân cảnh 4."
 - Điểm cần thấy: banner cam Trend cascade + chat tự bật + confirm lưu.
 
-## PC3 — Safeguard ngoài phạm vi (~20s)
+## PC3 — Chặn câu hỏi ngoài phạm vi (khoảng 20 giây)
 
 - Thao tác: trong chat gõ "ho, uống kháng sinh chung với thuốc tiểu đường
   được không?" → Enter.
@@ -53,7 +52,7 @@
   trước mọi tra cứu guideline — không gọi RAG, không ghi followup."
 - Điểm cần thấy: cảnh báo đỏ "Ngoài phạm vi hỗ trợ".
 
-## PC4 — Doctor queue + pre-visit + audit trail (~60s)
+## PC4 — Hàng đợi bác sĩ, hồ sơ trước khám và audit trail (khoảng 60 giây)
 
 - Thao tác: đăng nhập `demo_doctor_01` → `/expert/patients` →
   `demo_patient_01` cờ đỏ lên đầu → mở hồ sơ → chọn 90 ngày → Tạo SOAP →
@@ -64,9 +63,7 @@
   Hồ sơ 90 ngày + SOAP: S trích đúng lời bệnh nhân, P để trống cho bác sĩ.
   Mọi nhận định đều click về log thô và trace RAG."
 
-## Outro — Slide kiến trúc Production (~30s)
+## Kết — Kiến trúc hiện hành (khoảng 30 giây)
 
-- Chiếu README §7 (Mermaid): Client → API Gateway → vLLM/SGLang
-  (continuous batching) → Llama-3-8B-AWQ + PagedAttention/KV Cache.
-- Lời thoại: "Demo chạy gpt-4o-mini qua API, không GPU. Production là
-  Llama-3-8B-AWQ + vLLM — FUTURE, NOT IN DEMO."
+- Chiếu README phần luồng xử lý và cổng deployment: Client → FastAPI → privacy/provenance gate → NVIDIA NIM → câu trả lời có nguồn hoặc chờ bác sĩ duyệt.
+- Lời thoại: "DiaTrack kiểm tra phạm vi, dữ liệu riêng tư và nguồn tài liệu trước khi gọi NVIDIA. Câu trả lời thiếu độ tin cậy được chuyển sang bác sĩ duyệt."

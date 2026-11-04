@@ -1,8 +1,10 @@
-# Kiểm Thử Tấn Công Backend — OWASP Top 10 2021
+# Kiểm thử bảo mật backend theo OWASP Top 10 2021
 
 > Nguồn: `tests/security/test_owasp_top10.py:1` (15 tests, `pytestmark = security`), `tests/conftest.py`, `tests/test_monitors.py:test_ssrf_allowlist`, `src/api/main.py:104`, `src/shared/config.py:194`, `scripts/crawl_guidelines.py:274`.
 
-## 1. Tổng quan
+> Đây là báo cáo của bộ test OWASP Web tại thời điểm được ghi. Một số tên test, dòng code và provider có thể đã đổi; hãy đối chiếu code hiện hành trước khi dùng làm bằng chứng bảo mật.
+
+## 1. Phạm vi kiểm thử
 
 | Thuộc tính | Giá trị |
 |---|---|
@@ -38,14 +40,14 @@ pytest tests/security/test_owasp_top10.py::test_a01_user_isolation -v
 | **A09 Logging/Monitoring** | `test_a09_logging_present` | `owasp:162` | Mock `rag_chat` + `evaluate_rag` → `POST /query` | `langsmith` hoặc `timings` trong resp | Tracing 7 spans + `prompt_version` |
 | **A10 SSRF** | `test_a10_ssrf_crawler_rejects_private_ips` | `owasp:179` | `download_file("http://127.0.0.1:8000/secret.pdf")` + `file:///etc/passwd` | `ok is False` | `scripts/crawl_guidelines.py:274` check `127./10./192.168./172.16-31.` |
 
-## 3. Helpers & Fixtures
+## 3. Helper và fixture
 
 `tests/conftest.py`:
 - `client: TestClient(app)` scope module
 - `make_user(username?, password?, role?)` → `POST /auth/register` → `POST /auth/login-json` → `{user, token}`
 - `auth_header: {token, user}` cho `owasp_user` role `user`
 
-## 4. SSRF Mở Rộng — Monitors
+## 4. Kiểm thử SSRF cho monitor
 
 `tests/test_monitors.py:test_ssrf_allowlist` bổ sung:
 - `is_url_allowed("https://iris.who.int/...") True`
@@ -56,11 +58,11 @@ pytest tests/security/test_owasp_top10.py::test_a01_user_isolation -v
 
 `src/monitors/router.py` tất cả `check` đều `assert_url_allowed` trước `HEAD/GET`.
 
-## 5. Chưa phủ (gap cho OWASP LLM)
+## 5. Phần chưa được kiểm thử theo OWASP LLM
 
 File này chỉ phủ OWASP **2021 Web**, không phủ **LLM Top 10 2023/2025** (prompt injection indirect, output handling, data poisoning, DoS, supply chain, sensitive disclosure, prompt leakage, excessive agency, overreliance, model theft, vector weakness). Xem `docs/owasp_llm_top10_gap_analysis.md`.
 
-## 6. Chạy & CI
+## 6. Chạy local và CI
 
 ```bash
 # Tất cả security
@@ -74,7 +76,7 @@ pytest tests/test_monitors.py -k ssrf -v
 pytest -m security --tb=short --maxfail=1
 ```
 
-## 7. Khuyến nghị bổ sung
+## 7. Kiểm thử cần bổ sung
 
 1. `test_a03_xss_notes_escaped` hiện assert **lưu raw xss** — cần đổi thành assert **output escaped** qua `format_answer_for_ui` hoặc frontend `lib/api.ts` sanitize.
 2. Thêm `test_rate_limit` cho `/v1/query` (chưa có).

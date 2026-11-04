@@ -1,8 +1,8 @@
-# Đánh Giá Hệ Thống — Retrieval & LLM-as-Judge
+# Đánh giá retrieval và LLM-as-Judge
 
-> Code: `src/shared/evaluation.py`, `src/reviews/evaluator.py`, `src/shared/observability/tracing_db.py:118`. Thuật ngữ RAG/CAG xem Glossary ở `docs/architecture_diagram.md`.
+> Code: `src/shared/evaluation.py`, `src/reviews/evaluator.py`, `src/shared/observability/tracing_db.py:118`. Thuật ngữ RAG xem Glossary ở `docs/architecture_diagram.md`.
 
-> **Mục tiêu đọc-xong-làm-được:** giải thích Recall/Hit/MRR bằng ví dụ đời thường, kể được 4 tiêu chí judge, chạy pytest đúng file.
+> Đọc xong tài liệu này, bạn có thể giải thích Recall, Hit và MRR, nêu bốn tiêu chí của judge và chạy đúng nhóm kiểm thử.
 
 ## 1. Tập dữ liệu
 
@@ -15,7 +15,7 @@
 
 Chuẩn hóa multi-schema: thử lần lượt `relevant_documents → gold_sources → supporting_docs`, trả list string.
 
-## 2. Metrics Retrieval
+## 2. Chỉ số retrieval
 
 Ví dụ đời thường: có 10 quả táo chín cần hái (tài liệu đúng), bạn với tay hái 5 quả (top K=5).
 
@@ -25,7 +25,7 @@ Ví dụ đời thường: có 10 quả táo chín cần hái (tài liệu đún
 
 Code (`src/shared/evaluation.py:90`): so tên file chuẩn hóa (bỏ `.pdf`, lower, thay ký tự lạ bằng `_`) rồi tính 3 số trên. Có cảnh báo `matched_gold` khi đáp án vàng chưa từng khớp doc nào (nghi nhãn sai).
 
-## 3. Retrieval Interface
+## 3. Giao diện retrieval
 
 `HybridRetriever.retrieve(query)` gọi `retrieve_context` (BM25 từ khóa + vector ngữ nghĩa, alpha 0.6) trên Chroma theo strategy. Muốn đổi strategy thì truyền `strategy="structure"` khi khởi tạo.
 
@@ -50,10 +50,10 @@ Bảng `ragas_evaluations` (`tracing_db.py:118`) lưu 5 điểm (4 trên + fluen
 
 `scripts/run_benchmarks.py:228`: retrieve → format context → LLM sinh (`temp 0.2`) → LLM judge (`temp 0`) → parse JSON → trung bình 4 điểm. Output vào `results_benchmark_*.json`.
 
-## 5. Prompt Versioning & Tracing
+## 5. Phiên bản prompt và tracing
 
 - Bảng `prompts`: mỗi tone 1 version active, version = sha8(text). Registry 12 tones ở `src/shared/prompt_manager.py:31`.
-- Mỗi `rag_chat` ghi 7 spans (`cache_check → ... → format_answer`) + `total_latency_ms` + `prompt_version` vào `tracing.db`. Giữ 30 ngày, xem ở trang admin tracing.
+- Mỗi `rag_chat` ghi spans từ `cache_check` tới `format_answer` + `total_latency_ms` + `prompt_version` vào `tracing.db`. `cache_check` hiện luôn miss vì response cache cá nhân bị bypass. Giữ 30 ngày, xem ở trang admin tracing.
 
 ## 6. Feedback
 
@@ -65,7 +65,7 @@ Bảng `feedback` (`tracing_db.py:133`): UI 👍/👎 gắn `trace_id`, lưu `sc
 <summary>Mở rộng: lệnh chạy chi tiết (click để mở)</summary>
 
 ```bash
-python -m src.evaluation
+python -m src.shared.evaluation
 pytest tests/test_anomaly_detector.py tests/test_soap_summary.py tests/test_api_diabetes.py tests/test_glucose_tracker.py -v
 python scripts/run_benchmarks.py --latency-n 10 --judge-n 5
 python scripts/run_benchmarks.py --skip-judge
@@ -80,7 +80,7 @@ python scripts/run_benchmarks.py --skip-judge
 - Fingerprint/hash định nghĩa ở `docs/data_contract.md`; ở đây dùng `normalize_doc_name` để khớp `source_id` với đáp án vàng.
 - Số `Recall@5/Hit@5/MRR` và `avg_Faithfulness` điền sang `docs/benchmark.md`.
 
-### Checklist tự kiểm tra
+### Tự kiểm tra
 
 - [ ] Kể ví 10 quả táo cho cả 3 metrics không nhìn tài liệu.
 - [ ] Liệt kê 4 tiêu chí judge + ngưỡng 3.5 + ai nhận review khi fail.

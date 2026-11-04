@@ -312,7 +312,7 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
 - Phụ thuộc: 23
 - Chấp nhận:
   - [x] `tests/test_booking_confirmation.py` đạt trong regression 59 pass/0 fail.
-  - [x] Test chức năng: Giữ chỗ rồi bệnh nhân xác nhận, role điều phối nurse/admin duyệt mới thành lịch chính thức.
+  - [x] Test chức năng: Giữ chỗ rồi bệnh nhân xác nhận, role `receptionist`/admin duyệt mới thành lịch chính thức.
   - [x] Test an toàn: Người khác không xác nhận/duyệt; red-flag không vào luồng; unique index chống trùng slot.
 
   - [ ] Integration UI/API thật (tác vụ 24): Bệnh nhân giữ chỗ rồi xác nhận qua UI, lễ tân có quyền duyệt ở phiên khác; tải lại chỉ thấy lịch chính thức sau duyệt. Hai bệnh nhân cùng yêu cầu một slot qua API thật phải chỉ có một lịch hợp lệ, kiểm tra DB; người khác không xác nhận/duyệt hộ trái quyền. Red-flag không đi qua luồng đặt lịch thường.
@@ -338,7 +338,7 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
 - Chấp nhận:
   - [x] `tests/test_booking_audit.py` đạt trong regression 59 pass/0 fail.
   - [x] Test chức năng: Tính tải/tỷ lệ lịch có nguồn; confidence <0,6 tạo ca người xử lý.
-  - [x] Test an toàn: Confidence do rule trả rõ; nurse/admin mới xem dashboard; danh sách ca không trả patient ID.
+  - [x] Test an toàn: Confidence do rule trả rõ; `receptionist`/admin mới xem dashboard; danh sách ca không trả patient ID.
 
   - [ ] Integration UI/API thật (tác vụ 26): Tạo lịch đã duyệt, lịch chờ và ca cần người xử lý qua UI/API thật; mở dashboard lễ tân, đối chiếu tải công việc/tỷ lệ đúng khoa với tập thử có kết quả tính sẵn. Ca thiếu dữ kiện/độ tin cậy được chuyển người thật, xử lý rồi tải lại thấy trạng thái/audit bền vững; người trái quyền không đọc chi tiết, báo cáo tổng hợp không lộ PHI hoặc bịa nguồn/độ tin cậy.
   - Bằng chứng nền 04/11/2026: dashboard receptionist UI hiện số lịch chờ, duyệt và tải lại về 0 trên SQLite thật; unit test xác minh ca confidence thấp, aggregate không patient ID và user bị 403. Chưa có browser case đủ ba loại lịch để đối chiếu toàn bộ metric, task giữ partial.

@@ -1,19 +1,20 @@
-# Voice Design — VinGroup Voicebot interim + Daily Missing-Metrics UX
+# Thiết kế giọng nói và luồng nhắc chỉ số hằng ngày
 
-## Provider matrix (interim, demo local)
+## So sánh provider cho demo local
 
 | Direction | Default (ships) | Optional (same interface) | Future (VinGroup enterprise) |
 |---|---|---|---|
-| STT | OpenAI Whisper API (`whisper-1`, key server-side) | phoSTT stub (`PhoSTTStub`, Zipformer-vi CPU — enable per note below) | ViVoice STT (VinBase API, needs enterprise contract) |
+| STT | Mock xác định cho CI; runtime chỉ bật STT thật khi đặt `VOICE_STT_PROVIDER=whisper` | Whisper đa ngôn ngữ chạy local qua Transformers và ffmpeg; model mặc định `openai/whisper-tiny` | ViVoice STT hoặc provider tiếng Việt đã được duyệt |
 | TTS | **Server Piper vi (default, `VOICE_TTS_PROVIDER=piper`)** — lazy per-region download, fail-open to browser | `kokoro` env seam (voicepacks speaker-named, needs manual wire — NOT recommended, over budget) | ViVoice TTS / VieNeu / ZeroTTS |
 
 Swap engines without touching dialog brain: `src/voice/providers.py`
 (`transcribe(audio_bytes)->text`, `speak(text,voice_region)->bytes|None`).
 Seam: `VOICE_TTS_PROVIDER=piper|kokoro|none` (default `piper`).
-No `piper-tts`/onnxruntime deps in `requirements.txt` (25 lines intact) —
-optional installs only (below) + lazy imports; CI runs `none`/mocked.
+STT seam: `VOICE_STT_PROVIDER=mock|whisper` (mặc định `mock`). Whisper dùng
+Transformers đã có trong môi trường và cần `ffmpeg` trên `PATH`; model được tải
+vào cache local, không commit vào repo. CI giữ mock để không tải model hoặc gọi mạng.
 
-## Server TTS spike (Step-0, 2026-09-26 — winner: Piper)
+## Thử nghiệm TTS trên server ngày 26/09/2026
 - **Piper-vi (WINNER, wired)**: 3 official voices, `rhasspy/piper-voices`
   (espeak voice `vi`; `piper-tts` wheel embeds espeak-ng, no system install):
   `Bac → vi_VN-vais1000-medium` (female, ~64MB),
@@ -32,7 +33,7 @@ optional installs only (below) + lazy imports; CI runs `none`/mocked.
   `KokoroProvider.speak()->None`); inference wire lands only if user picks it.
 - Unknown `voice_region` → `Bac` fallback (`_norm_region`).
 
-## A/B listen (user picks winner — samples to %TEMP%, NEVER commit audio)
+## Nghe thử A/B
 ```powershell
 # 1) login (session cookie, demo account)
 $u = @{username='demo_patient_01';password='Demo@123'} | ConvertTo-Json
@@ -54,17 +55,18 @@ To switch default after listening: `VOICE_TTS_PROVIDER=kokoro`
 2. First `/v1/voice/speak` call auto-downloads the region voice;
    missing dep/model returns `None` → fail-open text-only (+ browser fallback).
 
-### Enabling phoSTT (fallback local, CPU-only)
-1. Install phoSTT deps + download Zipformer-vi model.
-2. Implement `PhoSTTStub.transcribe()` (raise guides you).
-3. Point `get_stt_provider()` fallback at it. CI keeps mock (no-key).
+### Bật Whisper local cho STT
 
-### Enabling Piper (server TTS)
-1. `pip install piper-tts` (optional, NOT in requirements.txt).
-2. First `/v1/voice/speak` call auto-downloads the region voice;
-   missing dep/model returns `None` → fail-open text-only (+ browser fallback).
+1. Cài nhóm dependency local bằng `pip install -e ".[local]"`, cài `ffmpeg`
+   và bảo đảm lệnh có trên `PATH`.
+2. Đặt `VOICE_STT_PROVIDER=whisper`; có thể đổi model bằng `VOICE_STT_MODEL`.
+3. Lần khởi tạo đầu tải model từ Hugging Face. Audio được giải mã trong bộ nhớ
+   qua pipe ffmpeg rồi mới đưa vào pipeline; endpoint không ghi file tạm.
+4. `whisper-tiny` chỉ chứng minh đường tích hợp. Kiểm thử 04/11/2026 trả transcript
+   không rỗng nhưng nhận sai câu chứa giá trị 142, nên chưa đạt gate độ chính xác
+   lâm sàng và không được tự lưu chỉ số nếu người dùng chưa xác nhận.
 
-## Voice personas (2026-09-27 — user-approved, elderly companionship)
+## Nhân vật giọng nói được duyệt ngày 27/09/2026
 - 3 personas, name + voice + avatar only (no per-persona dialog, no medical authority):
   `Cô Lan` (Bắc, DEFAULT) / `Cô Hương` (Trung) / `Chú Sáu` (Nam).
 - Split-brain rule (D1): frontend `lib/personas.ts` is display-only
@@ -83,17 +85,16 @@ To switch default after listening: `VOICE_TTS_PROVIDER=kokoro`
 - Tests (D6): `VOICE_TTS_PROVIDER=none` + `available=False` force-mock
   (`tests/test_voice_persona.py`); no real-audio e2e.
 
-## Safety (binding)
+## Yêu cầu an toàn bắt buộc
 - Numbers from speech MUST confirm before save: TTS reads back
   ("Bác vừa nói 126 lúc đói, đúng không?") → big buttons **"Đúng, lưu" /
   "Nói lại"** (≥44px) → existing `POST /v1/glucose` (panic/red-flag run).
 - `check_red_flag` runs on the STT transcript BEFORE confirm/save.
 - `vn_parse` is no-guess: ambiguous → re-speak, never average/guess.
-- Transcript-only: audio tmp + deleted, never persisted/logged.
-- Keys server-side only — proof: `grep OPENAI_API_KEY|TYPESAFE|VinBase frontend/ = 0`
-  (enforced by `tests/test_voice_api.py::test_frontend_has_no_server_keys`).
+- Transcript-only: audio được xử lý trong bộ nhớ, không persisted/logged.
+- Mọi key chỉ nằm ở server. `tests/test_voice_api.py::test_frontend_has_no_server_keys` kiểm tra frontend không chứa key của provider.
 
-## Daily missing-metrics UX (elderly-first)
+## Nhắc chỉ số còn thiếu hằng ngày
 - Required slots per patient: `GET/POST /v1/voice/prefs`
   (default `[fasting, post_meal_2h]`, sidecar `metadata/voice_prefs.json`).
 - `GET /v1/voice/daily-check` is stateless read-only (today in

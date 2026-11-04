@@ -1,53 +1,35 @@
-"""Lab-report Q&A (Nura) — hieu phieu xet nghiem dai thao duong.
+# Dữ liệu xét nghiệm theo đợt dựa trên phương pháp Synthea
 
-Doc-only: nghien cuu cach Synthea sinh phieu XN dai thao duong theo dot
-(batch longitudinal) va anh xa sang Faker seed hien co (khong chay Java).
+Tài liệu này mô tả cách Synthea tạo phiếu xét nghiệm đái tháo đường theo thời gian và cách ánh xạ phương pháp đó sang bộ seed Faker hiện có. Dự án không chạy Java hoặc Synthea CLI.
 
-> Demo-only. Khong phai du lieu benh nhan that. Khong dung cho chan doan.
-> Khung: "Synthea-batch-inspired Faker modulation" — hoc phuong phap
-> Synthea, implement bang Python/Faker + SQLite thuan.
+> Chỉ dùng cho demo. Đây không phải dữ liệu bệnh nhân thật và không được dùng để chẩn đoán. Phần triển khai dùng Python, Faker và SQLite.
 
-## 1. Synthea sinh phieu XN dai thao duong theo dot nhu the nao
+## 1. Cách Synthea tạo phiếu xét nghiệm theo đợt
 
-- **Encounters dinh ky**: moi dot kham (wellness/chronic-care/follow-up)
-  sinh 1 encounter; observations chi sinh khi co encounter (khong phai
-  daily nhu glucose fingerstick). Do la ly do phieu XN thua hon
-  time-series do duong huyet hang ngay.
-- **Observations LOINC**: moi chi so trong phieu la 1 observation
-  (DATE, PATIENT, ENCOUNTER, CODE-LOINC, VALUE, UNITS). Panel dai thao
-  duong gom HbA1c (4548-4), glucose (1558-6), lipid (TG 2571-8 / TC
-  2093-3 / LDL 18262-6 / HDL 18263-4), than (creatinine 2160-0 / eGFR
-  33914-3), gan (AST 1920-8 / ALT 1742-6).
-- **Longitudinal**: lap lai encounters theo lich (vd 3 thang/lan) tao
-  trend HbA1c/eGFR theo thoi gian; conditions/meds co START/STOP nen
-  phieu sau phan anh dieu tri truoc.
-- **Validation kieu JAMIA Table-2**: tune xac suat de phan bo quan the
-  khop thuc te, khong ep tung ca the (giong `SYNTHETIC_SYNTHEA_METHOD.md`).
+- **Lần khám định kỳ:** mỗi lần khám wellness, chronic-care hoặc follow-up tạo một encounter. Observation chỉ được tạo khi có encounter, thay vì hằng ngày như dữ liệu đo đường huyết tại nhà. Vì vậy phiếu xét nghiệm thưa hơn chuỗi đường huyết.
+- **Observation theo LOINC:** mỗi chỉ số là một observation gồm `DATE`, `PATIENT`, `ENCOUNTER`, `CODE-LOINC`, `VALUE` và `UNITS`. Panel đái tháo đường gồm HbA1c (`4548-4`), glucose (`1558-6`), lipid (`2571-8`, `2093-3`, `18262-6`, `18263-4`), thận (`2160-0`, `33914-3`) và gan (`1920-8`, `1742-6`).
+- **Dữ liệu theo thời gian:** các encounter lặp lại, chẳng hạn ba tháng một lần, tạo xu hướng HbA1c và eGFR. Conditions và medications có `START`/`STOP`, nên phiếu sau có thể phản ánh lần điều trị trước.
+- **Kiểm tra phân bố:** điều chỉnh xác suất chuyển trạng thái để phân bố quần thể gần dữ liệu tham chiếu; không ép từng bệnh nhân khớp phân bố. Cách làm này giống `SYNTHETIC_SYNTHEA_METHOD.md`.
 
-## 2. Anh xa sang Faker seed hien co (`scripts/seed_lab_data.py`)
+## 2. Ánh xạ sang bộ seed Faker hiện có
 
-| Synthea | Ta (`src/labs/` + seed) |
+| Synthea | DiaTrack (`src/labs/` và seed) |
 |---|---|
-| Encounter dinh ky | 2-4 reports/BN/90 ngay tai moc 30/60/90 (+45 khi can dot thu 4), jitter +-2 ngay |
-| Observation LOINC | 10 observations/report (`lab_observations`: report_id, loinc, value, unit, ref_low/high, flag) |
-| Longitudinal trend | `sampled_at` cach nhau giup trend HbA1c/FPG/eGFR doc duoc qua `get_history` |
-| Conditions/meds START/STOP | Khong schema moi — nam trong notes/sidecar nhu cycle truoc (defer care-engine) |
-| Determinism | `random.Random(seed)` + `--reset` scoped `syn_patient_%` + `--dry-run` |
+| Encounter định kỳ | 2–4 report cho mỗi bệnh nhân trong 90 ngày, ở các mốc 30/60/90 ngày và thêm ngày 45 khi cần đợt thứ tư; mỗi mốc lệch tối đa hai ngày |
+| Observation LOINC | 10 observation cho mỗi report trong `lab_observations`: `report_id`, `loinc`, `value`, `unit`, `ref_low`, `ref_high`, `flag` |
+| Xu hướng theo thời gian | `sampled_at` cách nhau để `get_history` đọc được xu hướng HbA1c, FPG và eGFR |
+| `START`/`STOP` của bệnh và thuốc | Không thêm schema; dữ liệu nằm trong notes hoặc sidecar như đợt trước, còn care engine được hoãn |
+| Tái lập dữ liệu | `random.Random(seed)`, `--reset` chỉ áp dụng cho `syn_patient_%`, và `--dry-run` |
 
-Tables (`src/labs/store.py`, reuse `vitals/base_tracker` pattern):
-`lab_reports(report_id, user_id, sampled_at, facility, visit_no)` +
-`lab_observations(report_id, loinc, name, value, unit, ref_low, ref_high, flag)`.
-DB rieng `metadata/labs.db` (`LAB_DB_PATH` trong `shared/config.py`) —
-khong nhoi vao `glucose_logs.db`, khong cham episodic/glucose/B4.
+Schema nằm trong `src/labs/store.py` và dùng lại mẫu của `vitals/base_tracker`:
 
-## 3. Chuan tham chieu VN + FLAG QD3312
+- `lab_reports(report_id, user_id, sampled_at, facility, visit_no)`
+- `lab_observations(report_id, loinc, name, value, unit, ref_low, ref_high, flag)`
 
-- Chuan: **BYT QD5481/2020** (thay the QD3319/2017) + muc tieu HbA1c < 7%
-  (BYT QD5481 + ADA 2024). Ref ranges trong `src/labs/lab_thresholds.py`
-  theo nguong lab pho bien, muc tieu ĐTĐ theo QD5481.
-- **FLAG QD3312**: corpus `data/raw/pdfs/byt/` chi co **QD3319 + QD5481 +
-  QD3192 (THA)** — KHONG co file QD3312 (grep 3312 = 0 hit ngoai
-  WORKFLOW_STATE plan-text). Kha nang user nham QD3312 = QD3319.
-  Implementor KHONG che so QD3312; can user xac nhan so QD dung truoc
-  khi khoa nguong B2/B3. Panic examples chi dung gia tri IN-PANEL
-  (vd HbA1c > 12%, glucose doi > 300 mg/dL, eGFR < 15) — khong Kali/Na+.
+DB riêng là `metadata/labs.db`, cấu hình qua `LAB_DB_PATH` trong `src/shared/config.py`. Dữ liệu không được ghi chung vào `glucose_logs.db` và không thay đổi episodic memory, glucose hoặc B4.
+
+## 3. Nguồn tham chiếu và điểm chưa rõ về QĐ3312
+
+- Nguồn tham chiếu được ghi là BYT QĐ5481/2020, thay QĐ3319/2017, cùng mục tiêu HbA1c dưới 7% trong BYT QĐ5481 và ADA 2024. Các khoảng tham chiếu nằm trong `src/labs/lab_thresholds.py`.
+- Corpus `data/raw/pdfs/byt/` chỉ có QĐ3319, QĐ5481 và QĐ3192 về tăng huyết áp; không có QĐ3312. Có khả năng số QĐ3312 được ghi nhầm thành QĐ3319, nhưng cần người dùng xác nhận trước khi khóa ngưỡng B2/B3.
+- Không tự tạo nguồn hoặc ngưỡng cho QĐ3312. Ví dụ panic chỉ dùng giá trị có trong panel, như HbA1c trên 12%, glucose đói trên 300 mg/dL hoặc eGFR dưới 15; không dùng kali hoặc natri.

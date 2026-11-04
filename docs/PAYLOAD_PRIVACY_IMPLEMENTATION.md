@@ -1,4 +1,4 @@
-# Payload privacy — triển khai và bằng chứng 02/11/2026
+# Kiểm soát dữ liệu gửi ra ngoài — triển khai và bằng chứng 02/11/2026
 
 Trạng thái: **partial; chưa xác minh đầy đủ toàn kế hoạch**. Không đổi nghiệm thu 1–7.
 
@@ -13,7 +13,7 @@ Trạng thái: **partial; chưa xác minh đầy đủ toàn kế hoạch**. Kh�
 - Judge, SOAP, rollup, retriever trim và monitor summary làm sạch trước phần truncate liên quan. PrivacyError không được chuyển thành thành công LLM/heuristic ở các caller đã sửa; red-flag deterministic vẫn chạy trước RAG.
 - `scripts/audit_payload_privacy.py`: SQLite read-only, chỉ đường dẫn được chọn, không fallback; report hash ID, loại/số phát hiện, provenance do người chạy khai báo; không xuất giá trị gốc hoặc đường dẫn nguồn. BLOB không được giải mã, được ghi `uninspected_blob`.
 
-## Ma trận kiểm tra HTTP offline
+## Ma trận kiểm tra request HTTP offline
 
 | Nguồn/nhánh | Request đích | Bằng chứng |
 |---|---|---|
@@ -42,7 +42,7 @@ Hàng GHO đầu tiên chỉ kiểm tra nội dung có nhãn GHO tại gate, **c
 4. Chưa benchmark retrieval/answer sau thay đổi nội dung embedding, chưa live NVIDIA, chưa Playwright 1–7 hay full backend suite. Các cổng này vẫn mở; không đánh dấu done.
 5. Dữ liệu sức khỏe đã giảm định danh vẫn có nguy cơ tái nhận diện; chính sách lưu giữ của provider chưa được đánh giá.
 
-## Xác minh tên/địa chỉ và provenance — 02/11/2026 15:56 +07
+## Xác minh tên, địa chỉ và nguồn dữ liệu — 02/11/2026 15:56 +07
 
 - Active index: 25.077 chunk, 44 source ID. Chỉ **360** chunk thuộc 4 source có local binary khớp SHA-256 với binary tải từ trang chính thức (WHO Classification, WHO HEARTS-D, WHO PEN, BYT QĐ3319). **5.223** chunk thuộc ADA 2024/BYT QĐ5481 chưa đối chiếu được binary và **19.494** chunk ngoài manifest/scope; cả 24.717 chunk bị cổng runtime từ chối nếu được chọn làm context.
 - ADA 2024 chỉ xác minh trang/tên ấn phẩm; BYT QĐ5481 chỉ xác minh trang công bố do redirect tải hỏng. Hai source giữ `approved_for_external_send=false`; không suy provenance từ filename.
@@ -58,7 +58,7 @@ Hàng GHO đầu tiên chỉ kiểm tra nội dung có nhãn GHO tại gate, **c
 - Sau đó mới mở rộng gold tên/địa chỉ, audit persisted memory và GHO injected. NVIDIA live smoke là cổng cuối, chỉ dùng dữ liệu tổng hợp và chỉ chạy khi toàn bộ cổng offline trước đó đạt.
 - ADA 2024 và BYT QĐ5481 vẫn `approved_for_external_send=false` cho tới khi binary chính thức khớp SHA-256; không whitelist tạm.
 
-## Index sạch và live smoke — 02/11/2026 16:26 +07
+## Index sạch và kiểm tra live — 02/11/2026 16:26 +07
 
 - Serving mới: `embeddings/pdf_db_nvidia_verified_20261102/hybrid_section_semantic`; index cũ giữ nguyên. Rollback bằng `NVIDIA_PDF_DB_DIR=<repo>/embeddings/pdf_db_nvidia` cùng manifest cũ, không rebuild/xóa dữ liệu.
 - Builder chỉ đọc bốn PDF có binary hash khớp, chunk trực tiếp theo trang và ghi source/content/chunk hash. Audit độc lập đạt 452/452 chunk, 0 invalid, vector 2.048 chiều; sidecar SHA-256 `828b3c2448f16ffe088ab7b9743dc0488479cdc9b22eeff573f9e47209744223`.
@@ -69,7 +69,7 @@ Hàng GHO đầu tiên chỉ kiểm tra nội dung có nhãn GHO tại gate, **c
 - Live smoke cuối `2026-11-02T16:26:05+07`, câu tổng hợp, provenance valid, nhận answer. Exact sanitized payload local: `test-results/verified-live-smoke-payload.json`, không chứa key.
 - Lịch sử lỗi giữ lại: hai lượt đầu dừng trước chat do ký tự vô hình/prompt ghép; lượt ba chat thành công nhưng lỗi namespace Pydantic sau response. Lượt cuối hoàn tất report.
 
-## Deployment, preflight, gold và legacy quarantine — 02/11/2026 21:27 +07
+## Deployment, kiểm tra trước khi chạy, gold set và cách ly dữ liệu cũ — 02/11/2026 21:27 +07
 
 - Bundle `deployment/verified-rag-assets-20261102.zip` chứa đúng index 452 chunk và bốn PDF nguồn, SHA-256 `eca27169aa713db004dd2247e35fefdd54fa4289c868fa9916b508d1e4acf7e6`, 11.205.908 byte. Startup gọi `validate_serving_index()` và fail khi config directory, sidecar, source hash hoặc Chroma row không khớp.
 - Span-gold `data/evaluation/privacy_span_gold_vi.json`: 40 positive + 12 negative, review thủ công, tách tên có dấu/không dấu/viết tắt và địa chỉ có dấu/không dấu. Lượt đầu phát hiện 1 FN + 1 FP; policy `2026-11-02.3` sửa root cause, lượt cuối FN=0/FP=0 trong tập. Không suy rộng thành NER đầy đủ.

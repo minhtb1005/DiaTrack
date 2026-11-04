@@ -1,4 +1,4 @@
-# Giao Diện Dashboard — Frontend Next.js
+# Dashboard DiaTrack trên Next.js
 
 > Stack: `Next.js 14 App Router` + `Tailwind` + `Recharts` + `lib/api.ts` authFetch + `lib/auth.tsx` Context. Nguồn: `frontend/app/**`, `frontend/lib/**`, `src/admin/*`, `src/monitors/router.py`.
 
@@ -106,7 +106,7 @@ Chưa login → `tracker/page.tsx:52` hiện `Cần đăng nhập → Link /logi
 
 `adminListUsers(role)` + `adminUpdateUser`, `adminVerifyExpert` → toggle `is_verified`.
 
-## 4. Trang mới — Monitor (stub tạo ở batch cuối)
+## 4. Trang monitor
 
 ### `/monitor/guidelines` (cho specialist/doctor/admin)
 
@@ -123,7 +123,7 @@ Chưa login → `tracker/page.tsx:52` hiện `Cần đăng nhập → Link /logi
 
 **UI stub** sẽ là `use client` page đơn giản, gọi `authFetch` với `NEXT_PUBLIC_API_URL`, xử lý `401→login`, hiện `pending` count badge như `expert/queue`.
 
-## 5. API binding matrix
+## 5. Liên kết giữa giao diện và API
 
 | Page | API | Method | Role |
 |---|---|---|---|
@@ -138,7 +138,7 @@ Chưa login → `tracker/page.tsx:52` hiện `Cần đăng nhập → Link /logi
 | Monitor Guidelines | `GET /monitors/guidelines`, `POST /check/guidelines`, `POST /guidelines/{gid}/decision` | GET/POST | specialist/doctor/admin |
 | Monitor Alerts | `GET /monitors/alerts`, `POST /alerts/{aid}/decision` | GET/POST | pharmacist/admin |
 
-## 6. Error & Empty states
+## 6. Trạng thái lỗi và dữ liệu rỗng
 
 - `401` → redirect `/login` (authFetch đã refresh 1 lần).
 - `403` → toast `Requires role ...`.
@@ -155,7 +155,7 @@ Chưa login → `tracker/page.tsx:52` hiện `Cần đăng nhập → Link /logi
 
 Chạy: `cd frontend && npm run test:e2e` (cần `npm run dev` 3000 + FastAPI 8000).
 
-## 8. Roadmap gap (ghi để không quên)
+## 8. Việc còn thiếu
 
 - `frontend/app/monitor` chưa tồn tại trước batch cuối — API đã sẵn, chỉ thiếu UI.
 - Chưa có `WebSocket` realtime cho `monitor_pending` — hiện polling `getNotifications` + badge.

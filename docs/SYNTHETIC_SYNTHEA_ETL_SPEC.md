@@ -1,10 +1,10 @@
-# Đặc tả ETL Synthea → DiaTrack (doc-only, không implement trong cycle này)
+# Đặc tả ETL từ Synthea sang DiaTrack
 
-> Trạng thái: **tài liệu kiến trúc**. Repo KHÔNG chứa Java/Gradle/parser/fixture/CSV
+> Trạng thái: **chỉ là thiết kế, chưa triển khai**. Repo không chứa Java, Gradle, parser, fixture hoặc CSV
 > Synthea. Demo/scale hiện tại dùng Faker (`scripts/seed_synthetic_data.py`).
-> Tài liệu này trả lời phỏng vấn "tại sao không chạy Synthea thật".
+> Tài liệu ghi lại lý do dự án chưa chạy Synthea trực tiếp.
 
-## 1. Trade-off: Synthea thật vs Faker custom
+## 1. So sánh Synthea và Faker tùy chỉnh
 
 | Tiêu chí | Synthea (MIT, FHIR) + module Diabetes | Faker custom (hiện tại) |
 |---|---|---|
@@ -55,7 +55,7 @@ body truncate ~470 chars trước rồi mới gắn tag ở cuối (tránh trunc
 nuốt prefix); FQG followup (`source=None`) không tag nên notes cũ không bao
 giờ bị gắn sai.
 
-## 4. Scale rationale (Faker middle-scale)
+## 4. Lý do chọn quy mô dữ liệu Faker hiện tại
 
 - Flags: `--n-patients/--n-doctors/--hospitals` (default 30/5/1 byte-identical,
   tests cũ làm gate) + `--days/--skip-b4` (scale demo `--days 30 --skip-b4`

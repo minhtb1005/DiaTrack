@@ -1,12 +1,9 @@
-# Phương pháp Synthea áp dụng vào seed Faker (không chạy Java)
+# Áp dụng phương pháp Synthea vào dữ liệu Faker
 
 > Demo-only. Không phải dữ liệu bệnh nhân thật. Không dùng cho chẩn đoán.
-> Khung diễn giải: **"Synthea-method-inspired Faker modulation"** — học phương
-> pháp Synthea, implement lại bằng Python/Faker thuần. Không mâu thuẫn với
-> `docs/SYNTHETIC_DATA.md` và `docs/SYNTHETIC_SYNTHEA_ETL_SPEC.md` (cả hai vẫn
-> đúng: Synthea CLI thật vẫn doc-only; demo vẫn chạy `seed_synthetic_data.py`).
+> Cách tiếp cận: học phương pháp của Synthea rồi triển khai lại bằng Python/Faker, không chạy Java. Synthea CLI vẫn chỉ nằm trong thiết kế; demo chạy `seed_synthetic_data.py` như mô tả trong `docs/SYNTHETIC_DATA.md` và `docs/SYNTHETIC_SYNTHEA_ETL_SPEC.md`.
 
-## 1. Synthea làm gì (tóm tắt method)
+## 1. Các nguyên tắc lấy từ Synthea
 
 - **PADARSER**: không dùng EHR thật (privacy by construction). Số liệu công
   khai + clinical guidelines/care maps + coding dictionaries được bắn thẳng
@@ -24,7 +21,7 @@
 - **Validation kiểu JAMIA Table 2**: tune transition probabilities để
   **phân bố quần thể** khớp thực tế, không ép từng cá thể.
 
-## 2. Mapping Synthea-concept → implementation của ta
+## 2. Ánh xạ khái niệm Synthea sang phần triển khai
 
 | Synthea | Ta (`disease_engine.py` + `modules/diabetes_vn.json`) |
 |---|---|
@@ -38,22 +35,20 @@
 | Encounter-driven obs | Dawn-spike giữ làm condition-gated morning rule (demo-critical) |
 | Validation Table-2 | Assert phân bố ở scale seed (bands rộng ±15pp), không ép cá thể |
 
-## 3. Non-goals (显式, không làm trong cycle này)
+## 3. Ngoài phạm vi của đợt triển khai này
 
-No Java/Gradle, no FHIR parse, no CSV import/commit, no schema DB mới,
-no Delay/Counter/Encounter/Procedure/CarePlan/Death/CallSubmodule/table-lookup
-ở engine v1 (thêm khi bệnh thứ 2 cần).
+Phiên bản engine đầu tiên không có Java, Gradle, parser FHIR, import CSV, schema DB mới hoặc các thành phần Delay, Counter, Encounter, Procedure, CarePlan, Death, CallSubmodule và table lookup. Chỉ bổ sung khi phạm vi được mở rộng hợp lệ.
 
-## 4. Nguồn số liệu: Sourced vs Assumed
+## 4. Số liệu có nguồn và giả định
 
-**Sourced** (có nguồn ngoài):
+**Có nguồn ngoài:**
 
 - ĐTĐ Việt Nam ~7.3% người lớn (GHO/BYT) — bối cảnh hiệu chỉnh phenotypes.
 - Mục tiêu HbA1c < 7% (QĐ BYT 5481/2020 + ADA 2024) — Assessment, không đổi.
 - Toán ramp-week 100 → 114 (+14%) → 126 (+10.5%) nằm trong band detector
   10–15% (`anomaly_detector.py:118`) — đã verify bằng test recorder.
 
-**Assumed** (giả định demo, ghi trong từng `remarks` của JSON):
+**Giả định cho demo, được ghi trong `remarks` của JSON:**
 
 - Phenotype weights 1/3–1/3–1/3 (giữ block-thirds cho benchmark coverage).
 - Drift budget ±2 mg/dL/tuần; mọi `p` distributed; staged-complication rates;

@@ -1,4 +1,4 @@
-# Dữ liệu tổng hợp (Synthetic Data) — Demo đa bệnh nhân / đa bác sĩ
+# Dữ liệu tổng hợp cho demo nhiều bệnh nhân và bác sĩ
 
 > Demo-only. Không phải dữ liệu bệnh nhân thật. Không dùng cho chẩn đoán.
 
@@ -17,7 +17,7 @@ custom script thắng vì 3 lý do:
 Kết luận: giữ Synthea trong tầm ngắm khi cần quần thể FHIR lớn; demo hiện tại
 dùng custom cho nhanh và khớp logic product.
 
-## 3 Archetypes
+## Ba nhóm bệnh nhân mẫu
 
 | Archetype | Fasting 06:00 | Post-meal 13:00 | Spike | Quên thuốc |
 |---|---|---|---|---|
@@ -30,7 +30,7 @@ Chung: 4 logs/ngày (06:00 `fasting` / 13:00 `post_meal_2h` / 18:00 `pre_meal` /
 demo). 5 bác sĩ: Nội tiết ×2, Biến chứng ĐTĐ ×1, Dinh dưỡng ×2; mỗi bác sĩ
 quản 6 bệnh nhân (PCP round-robin).
 
-## Lệnh seed / demo
+## Tạo dữ liệu và chạy demo
 
 ```bash
 python scripts/seed_synthetic_data.py --dry-run          # đếm ~10800, không ghi
@@ -42,7 +42,5 @@ comorbidity, PCP, archetype) + `metadata/synthetic_roster.json` (5 bác sĩ +
 giờ làm việc). Helper đọc sidecar (fail-open): `src/scheduling/synthetic_roster.py`
 (`get_patient_display_name` / `get_patient_pcp` / `query_doctor_availability`).
 
-Demo: login admin/doctor → `/expert/patients` thấy 30 bệnh nhân tên tiếng Việt,
-sort critical → trend → watch → safe → click vào xem sparkline 90d + SOAP.
-Chat check-in tuần spike (B4): có `OPENAI_API_KEY` thì GPT-4o-mini diễn đạt,
-không có thì template deterministic — CI vẫn xanh.
+Demo: đăng nhập bằng vai trò admin hoặc bác sĩ, mở `/expert/patients` để xem 30 bệnh nhân có tên tiếng Việt. Danh sách được xếp theo thứ tự critical → trend → watch → safe; chọn một bệnh nhân để xem biểu đồ 90 ngày và SOAP.
+Chat check-in cho tuần có spike (B4) dùng provider khi đã cấu hình; nếu provider không khả dụng, hệ thống dùng mẫu deterministic để CI không phụ thuộc mạng.

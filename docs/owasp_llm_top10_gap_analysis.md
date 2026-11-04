@@ -1,6 +1,8 @@
-# Phân Tích Khoảng Trống OWASP LLM Top 10 — 2025 Revision
+# Khoảng trống so với OWASP LLM Top 10:2025
 
-> So sánh **OWASP LLM Top 10 2025** (đổi `LLM07 Insecure Plugin Design → LLM07 System Prompt Leakage`, thêm `LLM09 Vector/Embedding Weakness`, cập nhật `LLM10 Unbounded Consumption`) với coverage hiện có `tests/security/test_owasp_top10.py` (2021 Web) + `tests/test_monitors.py`. Ngôn ngữ TIẾNG VIỆT, severity theo CVSS-like.
+> Tài liệu đối chiếu **OWASP LLM Top 10 2025** với phạm vi kiểm thử hiện có trong `tests/security/test_owasp_top10.py` và `tests/test_monitors.py`. Mức độ nghiêm trọng dùng thang gần với CVSS.
+
+> Đây là phân tích khoảng trống tại thời điểm lập tài liệu. Các mục ghi “chưa có” có thể đã được triển khai sau đó; phải đối chiếu test và code hiện hành trước khi dùng làm kết luận.
 
 ## 0. Tóm tắt
 
@@ -8,7 +10,7 @@
 |---|---|---|---|---|
 | 10 | 2 (partial) | 8 | 0 | 10 files `test_llm0*.py` |
 
-Coverage hiện tại chỉ 2/10 partial (A03 prompt injection mock, A10 SSRF). Cần tạo `tests/security/test_owasp_llm_top10.py` với 10 cases.
+Phạm vi hiện tại mới bao phủ một phần 2/10 mục: A03 bằng prompt injection mock và A10 bằng SSRF. Nhóm còn lại cần được kiểm tra trong `tests/security/test_owasp_llm_top10.py`.
 
 ## 1. Bảng chi tiết 2025
 
