@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from src.auth.dependencies import get_current_user, require_role
 from src.care_store import connect, dump, load, now, row, uid
 from src.diabetes.nutrition_lookup import _load_foods
+from src.diabetes.glucose_tracker import GLUCOSE_DB_PATH
 
 router = APIRouter(prefix="/v1/nutrition", tags=["nutrition-workflow"])
 
@@ -35,6 +36,10 @@ class MealLogIn(BaseModel):
     eaten_at: str
     plan_id: str | None = None
     glucose_log_id: int | None = None
+
+
+class PlanEditIn(BaseModel):
+    foods: list[FoodPortion] = Field(min_length=1)
 
 
 def _profile(patient_id: str) -> dict[str, Any] | None:
@@ -111,6 +116,19 @@ def approve_plan(plan_id: str, user=Depends(require_role("specialist", "doctor",
     return get_plan(plan_id, user)
 
 
+@router.put("/meal-plans/{plan_id}")
+def edit_plan(plan_id: str, payload: PlanEditIn, user=Depends(require_role("specialist", "doctor", "admin"))):
+    with connect() as c:
+        plan = row(c.execute("SELECT * FROM meal_plans WHERE id=?", (plan_id,)).fetchone())
+        if not plan:
+            raise HTTPException(404, "Meal plan not found")
+        if plan["status"] != "draft":
+            raise HTTPException(409, "Only draft meal plans can be edited")
+        meals = _resolve_foods(payload.foods, plan["patient_id"])
+        c.execute("UPDATE meal_plans SET meals_json=?,version=version+1 WHERE id=?", (dump(meals), plan_id))
+    return get_plan(plan_id, user)
+
+
 @router.get("/meal-plans/{plan_id}")
 def get_plan(plan_id: str, user=Depends(get_current_user)):
     with connect() as c:
@@ -125,11 +143,27 @@ def get_plan(plan_id: str, user=Depends(get_current_user)):
 @router.post("/meal-logs")
 def create_meal_log(payload: MealLogIn, user=Depends(get_current_user)):
     _check_owner(payload.patient_id, user)
+    if payload.glucose_log_id is not None:
+        import sqlite3
+        with sqlite3.connect(str(GLUCOSE_DB_PATH)) as glucose_db:
+            linked = glucose_db.execute("SELECT 1 FROM glucose_logs WHERE id=? AND user_id=?", (payload.glucose_log_id, payload.patient_id)).fetchone()
+        if not linked:
+            raise HTTPException(422, "Glucose log does not belong to this patient")
     foods = _resolve_foods(payload.foods, payload.patient_id)
     log_id = uid()
     with connect() as c:
         c.execute("INSERT INTO meal_logs VALUES(?,?,?,?,?,?,?)", (log_id, payload.patient_id, payload.plan_id, dump(foods), payload.eaten_at, payload.glucose_log_id, now()))
     return {"id": log_id, "patient_id": payload.patient_id, "foods": foods, "eaten_at": payload.eaten_at, "glucose_log_id": payload.glucose_log_id, "interpretation": "Liên kết thời điểm chỉ để đối chiếu; không chứng minh nguyên nhân hoặc chẩn đoán."}
+
+
+@router.get("/meal-logs/{patient_id}")
+def list_meal_logs(patient_id: str, user=Depends(get_current_user)):
+    _check_owner(patient_id, user)
+    with connect() as c:
+        logs = [row(item) for item in c.execute("SELECT * FROM meal_logs WHERE patient_id=? ORDER BY eaten_at DESC", (patient_id,)).fetchall()]
+    for item in logs:
+        item["foods"] = load(item.pop("food_json"))
+    return {"logs": logs, "interpretation": "Liên kết chỉ để đối chiếu; không chứng minh nguyên nhân hoặc chẩn đoán."}
 
 
 @router.get("/meal-plans/{plan_id}/grocery-list")

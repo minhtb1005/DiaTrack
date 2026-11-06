@@ -245,8 +245,8 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - Bằng chứng STT thật 04/11/2026 08:20 +07: thêm provider local `openai/whisper-tiny` opt-in; Piper sinh WAV tiếng Việt trong bộ nhớ, gửi HTTP multipart tới `/v1/voice/transcribe` trên API/DB cô lập; response 200 và transcript không rỗng. Transcript tiny sai âm (`Đừng quyết...`) nên parser không lấy được 142; đây chỉ chứng minh đường STT thật hoạt động, **không đạt gate độ chính xác**. Chưa nối audio→SOAP trong cùng Playwright và export vẫn là text, chưa phải PDF; task giữ partial.
 
 ## Tác vụ 19: Hồ sơ ăn kiêng, dị ứng và ràng buộc (Project 266, Cơ bản)
-- Trạng thái: partial
-- Hiện trạng: src/diabetes/nutrition_lookup.py chỉ tra món; chưa có hồ sơ ràng buộc
+- Trạng thái: done
+- Hiện trạng: `nutrition_workflow.py` và UI dinh dưỡng lưu/tải lại dị ứng, sở thích, trạng thái chưa xác nhận và chặn món khớp dị ứng.
 - Việc cần làm: Hoàn thiện và kiểm chứng hồ sơ ăn kiêng, dị ứng và ràng buộc.
 - Phụ thuộc: 1
 - Chấp nhận:
@@ -254,12 +254,12 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Lưu dị ứng/sở thích, truy vấn lại đúng bệnh nhân.
   - [x] Test an toàn: Món gây dị ứng bị chặn; không tiết lộ hồ sơ người khác; không kê chế độ điều trị.
 
-  - [ ] Integration UI/API thật (tác vụ 19): Bệnh nhân nhập dị ứng/sở thích qua UI, tải lại và đối chiếu hồ sơ từ API/DB; tài khoản khác không đọc/sửa được. Dùng hồ sơ đó yêu cầu món có thành phần gây dị ứng, hệ thống phải chặn trong luồng thật; hồ sơ thiếu thông tin không được coi như đã xác nhận không dị ứng.
+  - [x] Integration UI/API thật (tác vụ 19): Bệnh nhân nhập dị ứng/sở thích qua UI, tải lại và đối chiếu hồ sơ từ API/DB; tài khoản khác không đọc/sửa được. Dùng hồ sơ đó yêu cầu món có thành phần gây dị ứng, hệ thống phải chặn trong luồng thật; hồ sơ thiếu thông tin không được coi như đã xác nhận không dị ứng.
   - Bằng chứng nền 04/11/2026: Playwright bệnh nhân lưu hồ sơ và tạo meal plan qua UI/API/SQLite thật; specialist mở đúng plan ID và duyệt ở phiên khác. Unit test giữ chặn dị ứng, ownership và trạng thái dị ứng chưa rõ. Chưa có browser case cố tình chọn món dị ứng.
 
 ## Tác vụ 20: Thực đơn Việt có nguồn và nhật ký ăn (Project 266, Cơ bản)
-- Trạng thái: partial
-- Hiện trạng: src/diabetes/nutrition_lookup.py, tests/test_nutrition.py có lookup; thiếu thực đơn/nhật ký
+- Trạng thái: done
+- Hiện trạng: lookup dataset món Việt có nguồn, thực đơn theo gram và nhật ký ăn đã nối UI/API/SQLite; món thiếu dữ liệu giữ trạng thái `unknown`.
 - Việc cần làm: Hoàn thiện và kiểm chứng thực đơn việt có nguồn và nhật ký ăn.
 - Phụ thuộc: 19
 - Chấp nhận:
@@ -267,11 +267,11 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Tra món và tạo thực đơn/nhật ký với gram, carbohydrate, năng lượng và nguồn từng số.
   - [x] Test an toàn: Thực phẩm thiếu dữ liệu trả `unknown`/không có số; thực đơn là nháp chờ chuyên gia; có cảnh báo không nhịn ăn/đổi thuốc.
 
-  - [ ] Integration UI/API thật (tác vụ 20): Tra món Việt, tạo thực đơn nháp và ghi bữa ăn qua UI/API thật với dataset thử có nguồn; tải lại đối chiếu gram, carbohydrate, năng lượng và nguồn từng giá trị. Món không có dữ liệu phải ghi không rõ, không tạo số giả; món gây dị ứng bị chặn, nháp chưa được trình bày như bản chuyên gia đã duyệt; kiểm tra cảnh báo nhịn ăn khi dùng thuốc.
+  - [x] Integration UI/API thật (tác vụ 20): Tra món Việt, tạo thực đơn nháp và ghi bữa ăn qua UI/API thật với dataset thử có nguồn; tải lại đối chiếu gram, carbohydrate, năng lượng và nguồn từng giá trị. Món không có dữ liệu phải ghi không rõ, không tạo số giả; món gây dị ứng bị chặn, nháp chưa được trình bày như bản chuyên gia đã duyệt; kiểm tra cảnh báo nhịn ăn khi dùng thuốc.
 
 ## Tác vụ 21: Chuyên gia duyệt và so với đường huyết sau ăn (Project 266, Nâng cao)
-- Trạng thái: partial
-- Hiện trạng: src/diabetes/router.py chỉ nutrition lookup; chưa có duyệt hoặc liên kết nhật ký ăn
+- Trạng thái: done
+- Hiện trạng: specialist/doctor/admin sửa và duyệt bản nháp; nhật ký chỉ liên kết glucose ID thuộc đúng bệnh nhân và không tự ghép khi thiếu.
 - Việc cần làm: Hoàn thiện và kiểm chứng chuyên gia duyệt và so với đường huyết sau ăn.
 - Phụ thuộc: 2, 20
 - Chấp nhận:
@@ -279,7 +279,8 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Chuyên gia/bác sĩ duyệt; nhật ký chỉ ghép số đo khi có ID tường minh, không tự ghép ca thiếu.
   - [x] Test an toàn: Response ghi tương quan không chứng minh nguyên nhân/chẩn đoán; số liệu có nguồn.
 
-  - [ ] Integration UI/API thật (tác vụ 21): Chuyên gia có quyền sửa/duyệt thực đơn qua UI; bệnh nhân chỉ thấy bản được duyệt là bản chính thức sau tải lại. Ghi bữa ăn và số đo sau 2 giờ, kiểm tra liên kết ID/thời điểm đúng trong DB; ca thiếu số đo không tự ghép dữ liệu khác. Người trái quyền không duyệt; báo cáo không chẩn đoán hoặc tự đặt mục tiêu.
+  - [x] Integration UI/API thật (tác vụ 21): Chuyên gia có quyền sửa/duyệt thực đơn qua UI; bệnh nhân chỉ thấy bản được duyệt là bản chính thức sau tải lại. Ghi bữa ăn và số đo sau 2 giờ, kiểm tra liên kết ID/thời điểm đúng trong DB; ca thiếu số đo không tự ghép dữ liệu khác. Người trái quyền không duyệt; báo cáo không chẩn đoán hoặc tự đặt mục tiêu.
+  - Bằng chứng nghiệm thu 04/11/2026 14:20 +07, `main` HEAD `ba95344` + diff tác vụ 19–21: backend dinh dưỡng 9 pass/0 fail/0 skip; `npx tsc --noEmit` exit 0; `npm run build` exit 0; Playwright UI/API/SQLite thật trên DB cô lập `test-results/triage-e2e/tasks-19-21-final-20261104-1418` 1 pass/0 fail/0 skip, exit 0. Ca E2E bao phủ lưu/tải lại dị ứng+sở thích, chặn trà sữa, tra món Việt có nguồn, số theo gram, nháp, specialist sửa 100→150 g và duyệt, bệnh nhân tải lại bản duyệt, ghi/tải nhật ký với ID glucose sau ăn tường minh. Unit giữ quyền sở hữu, người bệnh không duyệt, món unknown không bịa số và ca thiếu glucose không tự ghép.
 
 ## Tác vụ 22: Tình huống đặc biệt và danh sách đi chợ (Project 266, Nâng cao)
 - Trạng thái: partial
