@@ -284,8 +284,8 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - Bằng chứng nghiệm thu 04/11/2026 14:20 +07, `main` HEAD `ba95344` + diff tác vụ 19–21: backend dinh dưỡng 9 pass/0 fail/0 skip; `npx tsc --noEmit` exit 0; `npm run build` exit 0; Playwright UI/API/SQLite thật trên DB cô lập `test-results/triage-e2e/tasks-19-21-final-20261104-1418` 1 pass/0 fail/0 skip, exit 0. Ca E2E bao phủ lưu/tải lại dị ứng+sở thích, chặn trà sữa, tra món Việt có nguồn, số theo gram, nháp, specialist sửa 100→150 g và duyệt, bệnh nhân tải lại bản duyệt, ghi/tải nhật ký với ID glucose sau ăn tường minh. Unit giữ quyền sở hữu, người bệnh không duyệt, món unknown không bịa số và ca thiếu glucose không tự ghép.
 
 ## Tác vụ 22: Tình huống đặc biệt và danh sách đi chợ (Project 266, Nâng cao)
-- Trạng thái: partial
-- Hiện trạng: chưa thấy API thực đơn cá nhân hóa trong src/diabetes/router.py
+- Trạng thái: done
+- Hiện trạng: UI/API thực đơn hỗ trợ tình huống, duyệt chuyên gia và danh sách mua theo phiên bản đã duyệt.
 - Việc cần làm: Hoàn thiện và kiểm chứng tình huống đặc biệt và danh sách đi chợ.
 - Phụ thuộc: 20, 21
 - Chấp nhận:
@@ -293,11 +293,11 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Tết/ăn chay là scenario của nháp; danh sách mua chỉ sinh từ đúng phiên bản đã duyệt.
   - [x] Test an toàn: Dị ứng vẫn bị chặn; ngoài CSDL ghi không rõ, không bịa dinh dưỡng.
 
-  - [ ] Integration UI/API thật (tác vụ 22): Chọn tình huống Tết/ăn chay qua UI, tạo lựa chọn từ dataset thử có nguồn, chuyên gia duyệt rồi sinh danh sách mua. Đối chiếu thành phần/số lượng với đúng phiên bản duyệt; đổi bản nháp không làm thay danh sách chính thức. Dị ứng vẫn bị chặn; nguyên liệu ngoài dataset ghi không rõ, không bịa dinh dưỡng.
+  - [x] Integration UI/API thật (tác vụ 22): Chọn tình huống Tết/ăn chay qua UI, tạo lựa chọn từ dataset thử có nguồn, chuyên gia duyệt rồi sinh danh sách mua. Đối chiếu thành phần/số lượng với đúng phiên bản duyệt; đổi bản nháp không làm thay danh sách chính thức. Dị ứng vẫn bị chặn; nguyên liệu ngoài dataset ghi không rõ, không bịa dinh dưỡng.
 
 ## Tác vụ 23: Gợi ý khoa và lịch trống có nguồn (Project 258-booking, Cơ bản)
-- Trạng thái: partial
-- Hiện trạng: src/triage/router.py, src/scheduling/slot_generator.py, tests/test_triage.py; chưa có trích nguồn danh mục khoa hoàn chỉnh
+- Trạng thái: done
+- Hiện trạng: UI/API mở được roster có nguồn, lọc slot đã giữ và hiển thị hết lịch/red-flag đúng nhánh.
 - Việc cần làm: Hoàn thiện và kiểm chứng gợi ý khoa và lịch trống có nguồn.
 - Phụ thuộc: 7
 - Chấp nhận:
@@ -305,11 +305,11 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Nhu cầu mắt/thận/nội tiết trả khoa trong roster và giờ trống mô phỏng.
   - [x] Test an toàn: Không bịa bác sĩ/khoa; red-flag chuyển 115 và không trả slot.
 
-  - [ ] Integration UI/API thật (tác vụ 23): Bệnh nhân nhập nhu cầu mắt/thận/nội tiết qua UI; đối chiếu khoa, bác sĩ và giờ trống trả từ API thật với danh mục/lịch mô phỏng trong DB thử, nguồn mở được. Không có slot thì báo hết lịch, không bịa; nhập red-flag phải nhận cảnh báo 115 thay lịch thường.
+  - [x] Integration UI/API thật (tác vụ 23): Bệnh nhân nhập nhu cầu mắt/thận/nội tiết qua UI; đối chiếu khoa, bác sĩ và giờ trống trả từ API thật với danh mục/lịch mô phỏng trong DB thử, nguồn mở được. Không có slot thì báo hết lịch, không bịa; nhập red-flag phải nhận cảnh báo 115 thay lịch thường.
 
 ## Tác vụ 24: Bệnh nhân xác nhận và lễ tân duyệt đặt lịch (Project 258-booking, Cơ bản)
-- Trạng thái: partial
-- Hiện trạng: src/triage/router.py trả gợi ý slot; chưa thấy API giữ chỗ/xác nhận/duyệt
+- Trạng thái: done
+- Hiện trạng: giữ chỗ/xác nhận/duyệt chạy qua hai phiên UI và SQLite cách ly; unique slot xử lý cạnh tranh.
 - Việc cần làm: Hoàn thiện và kiểm chứng bệnh nhân xác nhận và lễ tân duyệt đặt lịch.
 - Phụ thuộc: 23
 - Chấp nhận:
@@ -317,12 +317,12 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Giữ chỗ rồi bệnh nhân xác nhận, role `receptionist`/admin duyệt mới thành lịch chính thức.
   - [x] Test an toàn: Người khác không xác nhận/duyệt; red-flag không vào luồng; unique index chống trùng slot.
 
-  - [ ] Integration UI/API thật (tác vụ 24): Bệnh nhân giữ chỗ rồi xác nhận qua UI, lễ tân có quyền duyệt ở phiên khác; tải lại chỉ thấy lịch chính thức sau duyệt. Hai bệnh nhân cùng yêu cầu một slot qua API thật phải chỉ có một lịch hợp lệ, kiểm tra DB; người khác không xác nhận/duyệt hộ trái quyền. Red-flag không đi qua luồng đặt lịch thường.
+  - [x] Integration UI/API thật (tác vụ 24): Bệnh nhân giữ chỗ rồi xác nhận qua UI, lễ tân có quyền duyệt ở phiên khác; tải lại chỉ thấy lịch chính thức sau duyệt. Hai bệnh nhân cùng yêu cầu một slot qua API thật phải chỉ có một lịch hợp lệ, kiểm tra DB; người khác không xác nhận/duyệt hộ trái quyền. Red-flag không đi qua luồng đặt lịch thường.
   - [x] Integration nền 04/11/2026: thêm role `receptionist` xuyên schema/migration/admin UI; bệnh nhân giữ chỗ và xác nhận, receptionist đăng nhập phiên khác, thấy dashboard chờ và duyệt qua UI. Unique slot/ownership/red-flag được test API. Playwright chung 5 pass/0 fail.
 
 ## Tác vụ 25: Xung đột lịch, đổi lịch và nhắc hẹn (Project 258-booking, Nâng cao)
-- Trạng thái: partial
-- Hiện trạng: src/scheduling/solvers.py, slot_generator.py có chọn slot; chưa có booking persisted/notification
+- Trạng thái: done
+- Hiện trạng: đổi lịch persisted, slot bận bị loại khỏi gợi ý và nhắc hẹn in-app theo consent/cửa sổ 24 giờ.
 - Việc cần làm: Hoàn thiện và kiểm chứng xung đột lịch, đổi lịch và nhắc hẹn.
 - Phụ thuộc: 24
 - Chấp nhận:
@@ -330,11 +330,11 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Slot bận trả lựa chọn khác; điều phối duyệt đổi; reminder nội bộ chỉ gửi khi consent và idempotent.
   - [x] Test an toàn: Reminder chỉ giữ patient ID/kênh/giờ, lịch cũ chỉ đổi sau duyệt; cấp cứu không vào queue thường.
 
-  - [ ] Integration UI/API thật (tác vụ 25): Tạo lịch đã duyệt rồi gây xung đột slot trong dữ liệu thử; UI đề xuất giờ khác, bệnh nhân yêu cầu đổi và lễ tân duyệt, kiểm tra DB không giữ hai lịch chính thức cho cùng yêu cầu. Chạy nhắc theo thời gian kiểm soát bằng kênh thử đã duyệt: có consent mới gửi, đúng người/giờ và không gửi trùng; không dùng mock response để chứng minh giao thông báo. Red-flag chuyển hỗ trợ khẩn.
+  - [x] Integration UI/API thật (tác vụ 25): Tạo lịch đã duyệt rồi gây xung đột slot trong dữ liệu thử; UI đề xuất giờ khác, bệnh nhân yêu cầu đổi và lễ tân duyệt, kiểm tra DB không giữ hai lịch chính thức cho cùng yêu cầu. Chạy nhắc theo thời gian kiểm soát bằng kênh thử đã duyệt: có consent mới gửi, đúng người/giờ và không gửi trùng; không dùng mock response để chứng minh giao thông báo. Red-flag chuyển hỗ trợ khẩn.
 
 ## Tác vụ 26: Dashboard điều phối và chuyển người thật (Project 258-booking, Nâng cao)
-- Trạng thái: partial
-- Hiện trạng: chưa thấy dashboard booking trong frontend/app/ hoặc audit đặt lịch trong src/triage/router.py
+- Trạng thái: done
+- Hiện trạng: dashboard receptionist/admin có metric nguồn/tải, hàng chờ và xử lý ca cần người với audit bền vững.
 - Việc cần làm: Hoàn thiện và kiểm chứng dashboard điều phối và chuyển người thật.
 - Phụ thuộc: 24, 25
 - Chấp nhận:
@@ -342,8 +342,10 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Tính tải/tỷ lệ lịch có nguồn; confidence <0,6 tạo ca người xử lý.
   - [x] Test an toàn: Confidence do rule trả rõ; `receptionist`/admin mới xem dashboard; danh sách ca không trả patient ID.
 
-  - [ ] Integration UI/API thật (tác vụ 26): Tạo lịch đã duyệt, lịch chờ và ca cần người xử lý qua UI/API thật; mở dashboard lễ tân, đối chiếu tải công việc/tỷ lệ đúng khoa với tập thử có kết quả tính sẵn. Ca thiếu dữ kiện/độ tin cậy được chuyển người thật, xử lý rồi tải lại thấy trạng thái/audit bền vững; người trái quyền không đọc chi tiết, báo cáo tổng hợp không lộ PHI hoặc bịa nguồn/độ tin cậy.
+  - [x] Integration UI/API thật (tác vụ 26): Tạo lịch đã duyệt, lịch chờ và ca cần người xử lý qua UI/API thật; mở dashboard lễ tân, đối chiếu tải công việc/tỷ lệ đúng khoa với tập thử có kết quả tính sẵn. Ca thiếu dữ kiện/độ tin cậy được chuyển người thật, xử lý rồi tải lại thấy trạng thái/audit bền vững; người trái quyền không đọc chi tiết, báo cáo tổng hợp không lộ PHI hoặc bịa nguồn/độ tin cậy.
   - Bằng chứng nền 04/11/2026: dashboard receptionist UI hiện số lịch chờ, duyệt và tải lại về 0 trên SQLite thật; unit test xác minh ca confidence thấp, aggregate không patient ID và user bị 403. Chưa có browser case đủ ba loại lịch để đối chiếu toàn bộ metric, task giữ partial.
+
+- Bằng chứng nghiệm thu 08/11/2026 10:12 +07: code chưa commit trên `main`/HEAD `27f5634`; `pytest` tập trung 6 pass, `npx tsc --noEmit` pass, `npm run build` pass, Playwright integration dùng API/UI/SQLite cách ly 5 pass/0 fail. Full regression 676 test đã khởi chạy nhưng dừng sớm do thời lượng, không dùng làm bằng chứng cho snapshot này.
 
 ## Thứ tự đề xuất
 

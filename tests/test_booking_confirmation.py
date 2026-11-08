@@ -10,7 +10,10 @@ def test_hold_confirm_then_coordinator_approves_and_slot_is_unique(client, make_
     assert held.status_code == 200, held.text
     booking_id = held.json()["id"]
     assert client.post(f"/v1/bookings/{booking_id}/confirm", headers=headers(other_token)).status_code == 404
-    assert client.post("/v1/bookings/hold", json=payload, headers=headers(other_token)).status_code == 409
+    conflict_response = client.post("/v1/bookings/hold", json=payload, headers=headers(other_token))
+    assert conflict_response.status_code == 409
+    conflict = conflict_response.json()["detail"]
+    assert all(slot["date"] != payload["slot_date"] or slot["time"] != payload["slot_time"] for doctor in conflict["alternatives"] for slot in doctor["slots"] if doctor["doctor_id"] == payload["doctor_id"])
     assert client.post(f"/v1/bookings/{booking_id}/confirm", headers=headers(token)).status_code == 200
     _, coord_token = coordinator()
     approved = client.post(f"/v1/bookings/{booking_id}/approve", headers=headers(coord_token))

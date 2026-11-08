@@ -44,6 +44,11 @@ def main() -> None:
             os.environ[_key] = ""
     os.environ["COOKIE_SECURE"] = "false"
     os.environ["COOKIE_SAMESITE"] = "lax"
+    from datetime import datetime, timedelta
+    from src.scheduling.slot_generator import match_doctors
+    first_booking_slot = match_doctors(specialty_code="Endocrinology_General")[0]["slots"][0]
+    appointment = datetime.fromisoformat(f"{first_booking_slot['date']}T{first_booking_slot['time']}:00+07:00")
+    os.environ["BOOKING_REMINDER_NOW"] = (appointment - timedelta(hours=1)).isoformat()
 
     if live_rag:
         manifest = json.loads((root / "src/shared/corpus_provenance.json").read_text(encoding="utf-8"))

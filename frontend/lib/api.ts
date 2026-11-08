@@ -93,6 +93,7 @@ export const createMealPlan = (body:any) => apiPost("/v1/nutrition/meal-plans", 
 export const editMealPlan = (id:string, body:any) => apiPost(`/v1/nutrition/meal-plans/${id}`, body, "edit meal plan", "PUT");
 export const approveMealPlan = (id:string) => apiPost(`/v1/nutrition/meal-plans/${id}/approve`);
 export const getMealPlan = (id:string) => apiGet(`/v1/nutrition/meal-plans/${id}`);
+export const getGroceryList = (id:string) => apiGet(`/v1/nutrition/meal-plans/${id}/grocery-list`);
 export const createMealLog = (body:any) => apiPost("/v1/nutrition/meal-logs", body);
 export const getMealLogs = (id:string) => apiGet(`/v1/nutrition/meal-logs/${id}`);
 export const suggestBooking = (need:string) => apiPost("/v1/bookings/suggest", {need});
@@ -100,6 +101,9 @@ export const holdBooking = (body:any) => apiPost("/v1/bookings/hold", body);
 export const confirmBooking = (id:string) => apiPost(`/v1/bookings/${id}/confirm`);
 export const approveBooking = (id:string) => apiPost(`/v1/bookings/${id}/approve`);
 export const bookingDashboard = () => apiGet("/v1/bookings/coordination/dashboard");
+export const getBooking = (id:string) => apiGet(`/v1/bookings/${id}`);
+export const runBookingReminders = () => apiPost("/v1/bookings/reminders/run");
+export const resolveBookingHumanReview = (id:string) => apiPost(`/v1/bookings/${id}/human-review`);
 
 // SSE streaming for POST /v1/query/stream — yields {event, data} via callback
 export async function queryRagStream(
