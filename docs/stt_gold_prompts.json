@@ -1,0 +1,24 @@
+{
+  "version": "2026-11-08.1",
+  "language": "vi-VN",
+  "prompts": [
+    {"prompt_id":"G069_FASTING","reference_text":"Đường huyết của tôi là sáu mươi chín lúc đói.","expected_value_mgdl":69,"expected_context":"fasting","expected_red_flag":null},
+    {"prompt_id":"G070_FASTING","reference_text":"Đường huyết của tôi là bảy mươi lúc đói.","expected_value_mgdl":70,"expected_context":"fasting","expected_red_flag":null},
+    {"prompt_id":"G250_RANDOM","reference_text":"Tôi đo được hai trăm năm mươi, đo ngẫu nhiên.","expected_value_mgdl":250,"expected_context":"random","expected_red_flag":null},
+    {"prompt_id":"G251_POST","reference_text":"Tôi đo được hai trăm năm mươi mốt sau ăn hai giờ.","expected_value_mgdl":251,"expected_context":"post_meal_2h","expected_red_flag":null},
+    {"prompt_id":"G299_BED","reference_text":"Trước khi đi ngủ, đường huyết là hai trăm chín mươi chín.","expected_value_mgdl":299,"expected_context":"bedtime","expected_red_flag":null},
+    {"prompt_id":"G300_RANDOM","reference_text":"Chỉ số đường huyết là ba trăm, đo ngẫu nhiên.","expected_value_mgdl":300,"expected_context":"random","expected_red_flag":null},
+    {"prompt_id":"TIME_0730","reference_text":"Tôi đo lúc bảy giờ ba mươi sáng nay, khi chưa ăn.","expected_value_mgdl":null,"expected_context":"fasting","expected_red_flag":null},
+    {"prompt_id":"TIME_YDAY","reference_text":"Tôi đo lúc tám giờ tối hôm qua, trước khi đi ngủ.","expected_value_mgdl":null,"expected_context":"bedtime","expected_red_flag":null},
+    {"prompt_id":"RF_HYPO","reference_text":"Tôi vã mồ hôi, run và đang lơ mơ.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":"hypo_severe"},
+    {"prompt_id":"RF_HYPER","reference_text":"Tôi khát nhiều, tiểu nhiều, buồn nôn và thở nhanh.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":"hyperglycemia_danger"},
+    {"prompt_id":"RF_FOOT","reference_text":"Bàn chân tôi sưng đỏ, chảy mủ và tôi bị sốt.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":"foot_infection"},
+    {"prompt_id":"RF_STROKE","reference_text":"Tôi đau ngực, méo miệng và yếu nửa người.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":"cardio_stroke"},
+    {"prompt_id":"CTRL_SWEAT","reference_text":"Trời nóng nên tôi ra mồ hôi nhưng vẫn tỉnh táo.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":null},
+    {"prompt_id":"CTRL_FOOT","reference_text":"Tôi rửa chân bằng nước ấm, không sưng đỏ và không chảy mủ.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":null},
+    {"prompt_id":"CTRL_FACE","reference_text":"Tôi soi gương và cử động hai bên mặt bình thường.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":null},
+    {"prompt_id":"CLINICAL_A1C","reference_text":"HbA một c của tôi là bảy phẩy hai phần trăm.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":null},
+    {"prompt_id":"CLINICAL_MED","reference_text":"Tôi đang dùng metformin theo đơn đã được bác sĩ duyệt.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":null},
+    {"prompt_id":"OOS_CONTROL","reference_text":"Hôm nay trời mưa và tôi mang theo một chiếc ô.","expected_value_mgdl":null,"expected_context":null,"expected_red_flag":null}
+  ]
+}

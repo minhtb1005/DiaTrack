@@ -45,7 +45,7 @@ Tất cả cần login; user thường chỉ được thao tác trên `user_id` 
 - `POST /v1/glucose`: `{"user_id": "...", "value_mgdl": 145, "context": "fasting"}` (`value 20..800`, context: fasting/pre_meal/post_meal_2h/bedtime/random). Trả thêm `classification` (`low` <70, `no_alert` 70–250, `alert_high` >250 và <300, `critical` ≥300), `message`, `anomaly {spike|trend|none}`, `follow_up_questions[]`. `no_alert` chỉ nghĩa là chưa chạm ngưỡng cảnh báo của hệ thống, không xác nhận đạt mục tiêu cá nhân. GET log cũ tính lại nhãn từ giá trị đo; dữ liệu gốc không bị sửa.
 - Ngưỡng cảnh báo sản phẩm: <70 cần liên hệ y tế, >250 cần liên hệ bác sĩ, ≥300 cần liên hệ y tế ngay; dấu hiệu nặng gọi 115. Mốc xét nghiệm lúc đói ≥126 và OGTT 2 giờ ≥200 là tiêu chuẩn chẩn đoán trong phòng xét nghiệm, không dùng để chẩn đoán từ một lần đo tại nhà. Xem nguồn và giới hạn từng mốc ở `docs/project_requirements.json#scope_rules.threshold_evidence`.
 - `GET /v1/glucose/{user_id}?limit=50&days=14`: trả `logs[]` với `classification` và `message` được tính lại từ giá trị gốc, cùng `stats` (trung bình, streak) + `should_escalate` (có số đo <70 hoặc ≥300 trong các log gần nhất). Nhãn hiển thị cũ không tự kích hoạt chuyển ca.
-- `POST /v1/voice/transcribe`: trả `parse` (giá trị và bối cảnh), `measurement_time` (ISO 8601 +07:00 khi nghe rõ giờ và buổi đo) và cảnh báo red-flag. Luồng voice hỏi lại giờ đo nếu thiếu hoặc mơ hồ; chỉ gọi `POST /v1/glucose` với `measured_at` sau khi bệnh nhân xác nhận. Không tự gán giờ hiện tại cho bản ghi voice. Khi mất micro hoặc STT, người dùng có thể nhập thủ công.
+- `POST /v1/voice/transcribe`: trả `parse` (giá trị và bối cảnh), `measurement_time` (ISO 8601 +07:00 khi nghe rõ giờ và buổi đo), `numeric_alert_pending` và cảnh báo red-flag triệu chứng. `ambiguous=true` không được áp ngưỡng số. Số <70/≥300 chỉ đặt `numeric_alert_pending=true`, được đọc lại và không tạo cảnh báo số cho tới khi bệnh nhân bấm “Đúng, lưu”; lúc đó `POST /v1/glucose` mới áp ngưỡng. Red-flag triệu chứng vẫn cảnh báo khẩn trước xác nhận. Luồng voice hỏi lại giờ đo nếu thiếu; không tự gán giờ hiện tại. Khi mất micro hoặc STT, người dùng có thể nhập thủ công.
 - STT mặc định là mock xác định cho test. Runtime local chỉ dùng Whisper thật khi đặt `VOICE_STT_PROVIDER=whisper`; cần ffmpeg và model trong cache. Transcript không rỗng không đồng nghĩa số được nhận đúng, vì vậy giá trị và thời điểm luôn phải qua bước xác nhận.
 
 ### 5.2–5.5 Module legacy ngoài phạm vi
@@ -62,7 +62,7 @@ Tất cả cần login; user thường chỉ được thao tác trên `user_id` 
 
 ### Workflow SOAP, dinh dưỡng và đặt lịch
 
-- `/v1/soap/drafts`: bệnh nhân tạo nháp từ transcript; doctor/admin mở, sửa, nhập Plan và ký. Bản đã ký bất biến; `/export` chỉ xuất bản đã ký.
+- `/v1/soap/drafts`: bệnh nhân tạo nháp từ transcript hoặc audio được STT rồi xác nhận; doctor/admin mở, sửa, nhập Plan và ký. `/review` trả đối chiếu thuốc đã duyệt/HbA1c đã ghi, gợi ý ICD tham khảo có nguồn, diff và audit. Bản đã ký bất biến; `/export` chỉ cho doctor/admin tải PDF của bản đã ký và PDF được sinh trong bộ nhớ.
 - `/v1/nutrition/profile`, `/meal-plans`, `/meal-logs`: hồ sơ dị ứng thuộc bệnh nhân; số dinh dưỡng lấy từ dataset có nguồn, món không biết trả `nutrition=null`; specialist/doctor/admin duyệt meal plan.
 - `/v1/bookings/suggest`, `/hold`, `/{id}/confirm`: bệnh nhân tìm slot, giữ chỗ và xác nhận. Chỉ `receptionist`/admin duyệt, chạy reminder và xem `/coordination/dashboard`; unique index ngăn hai lịch đang hiệu lực dùng cùng slot.
 

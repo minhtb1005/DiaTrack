@@ -188,10 +188,6 @@ const FqgChat = (p: any) => {
     }
     if (data?.parse && !data.parse.ambiguous) {
       if (transcript) setMessages((prev)=>[...prev, { role: "user", text: transcript }]);
-      if (data.parse.value < 70 || data.parse.value >= 300) {
-        setMessages((prev)=>[...prev, { role: "emg", text: CRITICAL_TEXT }]);
-        await playServerAudio(CRITICAL_TEXT, { persona });
-      }
       const missingTime = !data.measurement_time;
       setVoicePending({ parse: data.parse, transcript, awaitingTime: missingTime, measured_at: data.measurement_time || null });
       const prompt = missingTime ? "Bác đo đường huyết lúc mấy giờ? Con thấy bác chưa điền nên con điền hộ. Ví dụ: lúc 7 giờ sáng hôm nay." : `${data.parse.confirm_text} Giờ đo ${new Date(data.measurement_time).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.`;
@@ -243,6 +239,11 @@ const FqgChat = (p: any) => {
     try {
       const rec: any = await logGlucose({ user_id: effectiveId, value_mgdl: voicePending.parse.value, context: voicePending.parse.context, measured_at: voicePending.measured_at });
       setMessages((prev)=>[...prev, { role: "sys", text: `Đã lưu ${rec.value_mgdl} mg/dL (${rec.context}).` }]);
+      if (["low", "critical"].includes(rec.classification)) {
+        const warning = rec.message || CRITICAL_TEXT;
+        setMessages((prev)=>[...prev, { role: "emg", text: warning }]);
+        await playServerAudio(warning, { persona });
+      }
       try { await (onAnomaly?.(rec.anomaly, rec.follow_up_questions, rec)); } catch { /* fail-open */ }
       setVoicePending(null);
       // Loop paused on the confirm card: resume listening once the user saved.

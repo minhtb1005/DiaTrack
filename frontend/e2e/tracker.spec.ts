@@ -366,6 +366,42 @@ test.describe('Tracker A — Guided UI', () => {
     await expect.poll(() => saved?.measured_at).toBe('2026-10-30T07:00:00+07:00');
   });
 
+  test('numeric voice warning appears only after readback confirmation', async ({ page }) => {
+    await page.addInitScript(() => {
+      const g = navigator as any;
+      if (!g.mediaDevices) g.mediaDevices = {};
+      g.mediaDevices.getUserMedia = async () => ({ getTracks: () => [] });
+      (window as any).MediaRecorder = class { onstop: any = null; start() {} stop() { this.onstop?.(); } };
+    });
+    await mockSession(page);
+    await mockGlucoseGet(page, []);
+    let writes = 0;
+    await page.route('**/v1/voice/transcribe', route => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify({
+        text: '65 lúc đói lúc 7 giờ sáng', emergency: false, numeric_alert_pending: true,
+        parse: { value: 65, context: 'fasting', ambiguous: false, confirm_text: 'Bác vừa nói 65 lúc đói, đúng không?' },
+        measurement_time: '2026-11-08T07:00:00+07:00',
+      }),
+    }));
+    await page.route('**/v1/voice/speak', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ audio_available: false, text: '' }) }));
+    await page.route('**/v1/glucose', async route => {
+      if (route.request().method() === 'POST') {
+        writes++;
+        const body = route.request().postDataJSON();
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...body, id: 1, classification: 'low', message: 'Liên hệ cơ sở y tế ngay.', anomaly: { type: 'none' }, follow_up_questions: [] }) });
+      } else await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ logs: [], stats: {} }) });
+    });
+    await page.goto('/tracker#voice-entry');
+    await page.getByTestId('mic-btn').click();
+    await page.getByTestId('mic-btn').click();
+    await expect(page.getByRole('button', { name: 'Xác nhận đúng, lưu chỉ số' })).toBeVisible();
+    await expect(page.getByText('Liên hệ cơ sở y tế ngay.')).toBeHidden();
+    expect(writes).toBe(0);
+    await page.getByRole('button', { name: 'Xác nhận đúng, lưu chỉ số' }).click();
+    await expect(page.getByText('Liên hệ cơ sở y tế ngay.')).toBeVisible();
+    expect(writes).toBe(1);
+  });
+
   test('voice STT failure shows sys message and no auto-send', async ({ page }) => {
     await page.addInitScript(() => {
       const g = navigator as any;

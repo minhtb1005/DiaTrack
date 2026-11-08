@@ -84,6 +84,22 @@ def test_transcribe_redflag_before_confirm(client, voice_iso, monkeypatch):
     assert "115" in body.get("message", "")
 
 
+def test_numeric_alert_waits_for_readback_confirmation(client, voice_iso, monkeypatch):
+    import uuid
+    import src.voice.providers as prov
+
+    class NumericSTT:
+        def transcribe(self, audio_bytes, content_type=""):
+            return "65 luc doi"
+
+    monkeypatch.setattr(prov, "get_stt_provider", lambda: NumericSTT())
+    _login(client, f"vv_{uuid.uuid4().hex[:6]}")
+    body = client.post("/v1/voice/transcribe", files={"audio": AUDIO}).json()
+    assert body["parse"]["ambiguous"] is False
+    assert body["numeric_alert_pending"] is True
+    assert body["emergency"] is False
+
+
 def test_transcribe_422_empty_and_oversize(client, voice_iso):
     import uuid
     _login(client, f"vv_{uuid.uuid4().hex[:6]}")

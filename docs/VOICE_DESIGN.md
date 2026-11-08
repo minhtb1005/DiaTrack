@@ -86,13 +86,19 @@ To switch default after listening: `VOICE_TTS_PROVIDER=kokoro`
   (`tests/test_voice_persona.py`); no real-audio e2e.
 
 ## Yêu cầu an toàn bắt buộc
-- Numbers from speech MUST confirm before save: TTS reads back
+- Numbers from speech MUST confirm before save or numeric alert: `ambiguous=true`
+  never enters numeric thresholds. TTS reads back
   ("Bác vừa nói 126 lúc đói, đúng không?") → big buttons **"Đúng, lưu" /
   "Nói lại"** (≥44px) → existing `POST /v1/glucose` (panic/red-flag run).
-- `check_red_flag` runs on the STT transcript BEFORE confirm/save.
+- Symptom `check_red_flag` runs on the STT transcript BEFORE confirm/save.
+  Numeric <70/≥300 runs only in `POST /v1/glucose` after “Đúng, lưu”.
 - `vn_parse` is no-guess: ambiguous → re-speak, never average/guess.
 - Transcript-only: audio được xử lý trong bộ nhớ, không persisted/logged.
 - Mọi key chỉ nằm ở server. `tests/test_voice_api.py::test_frontend_has_no_server_keys` kiểm tra frontend không chứa key của provider.
+
+Gold audio người thật và điều kiện chuyển sang benchmark provider được quy định ở
+[`docs/stt_gold_collection.md`](stt_gold_collection.md). Không thay audio người thật
+bằng Piper khi tuyên bố chất lượng STT.
 
 ## Nhắc chỉ số còn thiếu hằng ngày
 - Required slots per patient: `GET/POST /v1/voice/prefs`

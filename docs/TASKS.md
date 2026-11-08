@@ -194,7 +194,7 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [ ] Integration UI/API thật (tác vụ 14): Bệnh nhân báo triệu chứng nặng qua UI, người phụ trách nhận ca thật và cảnh báo khẩn hiện ngay. Với lịch không phản hồi, chạy scheduler thử theo thời gian kiểm soát và giới hạn retry đã được duyệt; đối chiếu số lần gửi trong DB/kênh thử. Yêu cầu đổi lịch chỉ có hiệu lực sau bác sĩ duyệt, báo cáo giữ phiên bản trước/sau; không gửi người thân thiếu consent, không tự ngưng thuốc.
 
 ## Tác vụ 15: Nhập transcript và soạn SOAP có mục thiếu (Project 262, Cơ bản)
-- Trạng thái: partial
+- Trạng thái: done
 - Hiện trạng: src/diabetes/soap_summary.py, router.py, tests/test_soap_summary.py: SOAP từ logs; chưa nhận transcript/đánh dấu thiếu có cấu trúc
 - Việc cần làm: Hoàn thiện và kiểm chứng nhập transcript và soạn soap có mục thiếu.
 - Phụ thuộc: 1
@@ -203,11 +203,11 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Transcript + log tạo nháp S/O/A, trường không có ghi “chưa ghi nhận”.
   - [x] Test an toàn: Không tự chẩn đoán; Plan trống; S/O/A liên kết transcript/log gốc.
 
-  - [ ] Integration UI/API thật (tác vụ 15): Nhập transcript tổng hợp và log thử qua UI, tạo SOAP qua API thật; đối chiếu S/O/A với đoạn transcript/log có thể mở lại. Trường thiếu ghi chưa ghi nhận, Plan trống; tải lại không lẫn bệnh nhân; trường hợp transcript mâu thuẫn hoặc thiếu không được tự bịa dữ kiện/chẩn đoán.
+  - [x] Integration UI/API thật (tác vụ 15): Nhập transcript tổng hợp và log thử qua UI, tạo SOAP qua API thật; đối chiếu S/O/A với đoạn transcript/log có thể mở lại. Trường thiếu ghi chưa ghi nhận, Plan trống; tải lại không lẫn bệnh nhân; trường hợp transcript mâu thuẫn hoặc thiếu không được tự bịa dữ kiện/chẩn đoán.
   - [x] Integration nền UI/API/SQLite thật 04/11/2026: bệnh nhân có log 142 mg/dL nhập transcript trên `/soap`, UI hiện S/O/A, evidence log và Plan khóa; bác sĩ mở cùng note ID ở phiên khác, nhập Plan, lưu và ký; DB/API tải lại `signed`. Nằm trong Playwright 5 pass/0 fail, 1,3 phút. Các ca transcript mâu thuẫn chuyên biệt vẫn do unit guard bao phủ, chưa có case browser riêng.
 
 ## Tác vụ 16: Bác sĩ sửa, ký duyệt rồi lưu (Project 262, Cơ bản)
-- Trạng thái: partial
+- Trạng thái: done
 - Hiện trạng: src/diabetes/router.py chỉ generate/markdown; chưa có editor + trạng thái duyệt
 - Việc cần làm: Hoàn thiện và kiểm chứng bác sĩ sửa, ký duyệt rồi lưu.
 - Phụ thuộc: 15
@@ -216,11 +216,11 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Bác sĩ chỉnh nháp, ký duyệt, bản cuối bất biến và xem lại được.
   - [x] Test an toàn: Bệnh nhân/AI không ký; Plan chỉ bác sĩ nhập; PHI phân quyền.
 
-  - [ ] Integration UI/API thật (tác vụ 16): Bác sĩ có quyền mở nháp, sửa S/O/A và nhập Plan, ký duyệt rồi tải lại bản cuối từ DB thử. Gửi yêu cầu sửa trực tiếp bản đã ký bị từ chối; lưu dấu vết người ký/thời điểm. Bệnh nhân và tài khoản trái quyền không ký, sửa Plan hoặc đọc hồ sơ khác.
+  - [x] Integration UI/API thật (tác vụ 16): Bác sĩ có quyền mở nháp, sửa S/O/A và nhập Plan, ký duyệt rồi tải lại bản cuối từ DB thử. Gửi yêu cầu sửa trực tiếp bản đã ký bị từ chối; lưu dấu vết người ký/thời điểm. Bệnh nhân và tài khoản trái quyền không ký, sửa Plan hoặc đọc hồ sơ khác.
   - [x] Integration nền 04/11/2026: hai browser context bệnh nhân/bác sĩ dùng API và SQLite cô lập; bệnh nhân thấy Plan disabled, bác sĩ sửa/ký và API xác nhận bản `signed`. Unit test xác minh sửa bản ký trả 409 và bệnh nhân ký trả 403. Playwright chung 5 pass.
 
 ## Tác vụ 17: ICD tham khảo, so sánh bản nháp, audit (Project 262, Nâng cao)
-- Trạng thái: partial
+- Trạng thái: done
 - Hiện trạng: chưa thấy endpoint ICD/editor diff/audit trong src/diabetes/router.py
 - Việc cần làm: Hoàn thiện và kiểm chứng icd tham khảo, so sánh bản nháp, audit.
 - Phụ thuộc: 16
@@ -229,20 +229,21 @@ Ngưỡng và câu từ chối dùng đúng `scope_rules` trong `docs/project_re
   - [x] Test chức năng: Gợi ý E11.x có nguồn WHO; audit giữ trước/sau và người sửa.
   - [x] Test an toàn: Mã chỉ tham khảo, bác sĩ kiểm chứng; không tự thêm mã vào SOAP.
 
-  - [ ] Integration UI/API thật (tác vụ 17): Dùng hồ sơ thử có dữ kiện đủ và thiếu, bác sĩ mở gợi ý ICD có nguồn, chỉnh nháp và so sánh với bản duyệt qua UI; diff/audit phải khớp dữ liệu trước/sau trong DB. Mã E11.x chỉ là tham khảo có nguồn tra được, không tự thêm chẩn đoán; người trái quyền không đọc audit hồ sơ.
+  - [x] Integration UI/API thật (tác vụ 17): Dùng hồ sơ thử có dữ kiện đủ và thiếu, bác sĩ mở gợi ý ICD có nguồn, chỉnh nháp và so sánh với bản duyệt qua UI; diff/audit phải khớp dữ liệu trước/sau trong DB. Mã E11.x chỉ là tham khảo có nguồn tra được, không tự thêm chẩn đoán; người trái quyền không đọc audit hồ sơ.
 
 ## Tác vụ 18: Thoại→text, kiểm tra hồ sơ và xuất bản bàn giao (Project 262, Nâng cao)
-- Trạng thái: partial
+- Trạng thái: done
 - Hiện trạng: src/voice/router.py có voice chung; chưa nối transcript khám/SOAP, kiểm tra thiếu và PDF
 - Việc cần làm: Hoàn thiện và kiểm chứng thoại→text, kiểm tra hồ sơ và xuất bản bàn giao.
 - Phụ thuộc: 16, 17
 - Chấp nhận:
   - [x] `tests/test_soap_export.py` đạt trong regression 59 pass/0 fail; chỉ bản ký và role bác sĩ/admin xuất được.
-  - [ ] Test chức năng: Transcript mô phỏng được duyệt, đối chiếu HbA1c/thuốc trước, xuất bản cuối.
-  - [ ] Test an toàn: Thiếu dữ kiện phải cảnh báo; không bịa; xuất chỉ bản đã ký cho người có quyền.
+  - [x] Test chức năng: Transcript mô phỏng được duyệt, đối chiếu HbA1c/thuốc trước, xuất bản cuối.
+  - [x] Test an toàn: Thiếu dữ kiện phải cảnh báo; không bịa; xuất chỉ bản đã ký cho người có quyền.
 
-  - [ ] Integration UI/API thật (tác vụ 18): Nạp audio tổng hợp vào luồng thoại thật, nhận transcript qua dịch vụ STT thử, bác sĩ sửa/xác nhận rồi tạo SOAP, đối chiếu thuốc/HbA1c có sẵn và cảnh báo phần thiếu. Ký bản cuối, xuất tài liệu bàn giao và kiểm tra nội dung/file tải về khớp bản đã ký; bản nháp hoặc người trái quyền không xuất được. Thiếu STT/kênh xuất thì ghi chưa xác minh, không thay bằng mock response.
+  - [x] Integration UI/API thật (tác vụ 18): Nạp audio tổng hợp vào luồng thoại thật, nhận transcript qua dịch vụ STT thử, bác sĩ sửa/xác nhận rồi tạo SOAP, đối chiếu thuốc/HbA1c có sẵn và cảnh báo phần thiếu. Ký bản cuối, xuất tài liệu bàn giao và kiểm tra nội dung/file tải về khớp bản đã ký; bản nháp hoặc người trái quyền không xuất được. Thiếu STT/kênh xuất thì ghi chưa xác minh, không thay bằng mock response.
   - Bằng chứng STT thật 04/11/2026 08:20 +07: thêm provider local `openai/whisper-tiny` opt-in; Piper sinh WAV tiếng Việt trong bộ nhớ, gửi HTTP multipart tới `/v1/voice/transcribe` trên API/DB cô lập; response 200 và transcript không rỗng. Transcript tiny sai âm (`Đừng quyết...`) nên parser không lấy được 142; đây chỉ chứng minh đường STT thật hoạt động, **không đạt gate độ chính xác**. Chưa nối audio→SOAP trong cùng Playwright và export vẫn là text, chưa phải PDF; task giữ partial.
+  - Bằng chứng nghiệm thu 08/11/2026 08:15 +07, `main` HEAD `8a9669e` + diff tác vụ 15–18: audio Piper tổng hợp đi qua Whisper local `openai/whisper-tiny` và `/v1/voice/transcribe` thật; bác sĩ sửa/xác nhận transcript, tạo SOAP có log 142 mg/dL, đối chiếu lịch metformin đã duyệt và HbA1c 7,2%, mở nguồn WHO ICD, xem diff/audit, nhập Plan, ký rồi xuất PDF trong bộ nhớ. Playwright tập trung trên API/Next/SQLite cô lập → 1 pass/0 fail/0 skip, exit 0, 35,3s; bệnh nhân export nhận 403. Backend SOAP 12 pass/0 fail/0 skip; test PDF cuối mở lại file và đối chiếu Plan đã ký → 1 pass/0 fail, 33,26s; TypeScript, production build và `git diff --check` exit 0. Lượt regression chung ngay trước đó 5 pass; lượt Whisper chung sau đó có ca SOAP pass nhưng một regression dinh dưỡng ngoài phạm vi fail do kỳ vọng chặn dị ứng không khớp trạng thái UI, nên không dùng lượt đó làm bằng chứng suite chung.
 
 ## Tác vụ 19: Hồ sơ ăn kiêng, dị ứng và ràng buộc (Project 266, Cơ bản)
 - Trạng thái: done

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import html
 import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from src.auth.dependencies import get_current_user, require_role
@@ -36,6 +37,28 @@ def _public(note: dict[str, Any]) -> dict[str, Any]:
     note["missing"] = load(note.pop("missing_json"))
     note["evidence"] = load(note.pop("evidence_json"))
     return note
+
+
+def _clinical_checks(patient_id: str, transcript: str) -> dict[str, Any]:
+    """Compare only recorded facts; absence stays explicit and is never inferred."""
+    from src.medications.router import connection as medication_connection
+
+    with medication_connection() as c:
+        medicines = [
+            load(r["payload"])["medicine"]
+            for r in c.execute(
+                "SELECT payload FROM plans WHERE patient_id=? AND status='approved'",
+                (patient_id,),
+            )
+        ]
+    hba1c = re.search(r"\b(?:hba1c|a1c)\s*(?:là|:|=)?\s*(\d+(?:[.,]\d+)?)\s*%", transcript, re.I)
+    return {
+        "approved_medications": medicines,
+        "medication_status": "recorded" if medicines else "missing",
+        "hba1c": hba1c.group(1).replace(",", ".") + "%" if hba1c else None,
+        "hba1c_status": "transcript_only" if hba1c else "missing",
+        "warning": "Chỉ đối chiếu dữ liệu đã ghi; bác sĩ phải xác minh, không dùng để tự đổi thuốc hoặc chẩn đoán.",
+    }
 
 
 @router.post("/drafts")
@@ -113,12 +136,37 @@ def review_note(note_id: str, user=Depends(require_role("doctor", "admin"))):
     note = get_note(note_id, user)
     with connect() as c:
         audit = [dict(r) for r in c.execute("SELECT actor_id,action,before_json,after_json,created_at FROM soap_audit WHERE note_id=? ORDER BY created_at", (note_id,))]
-    return {"note": note, "icd_suggestions": [{"code": "E11.x", "label": "Đái tháo đường týp 2 — chỉ tham khảo, bác sĩ kiểm chứng", "source": ICD_SOURCE}], "audit": audit}
+    for item in audit:
+        item["before"] = load(item.pop("before_json")) if item["before_json"] else None
+        item["after"] = load(item.pop("after_json")) if item["after_json"] else None
+    created = next((item["after"] for item in audit if item["action"] == "created"), {})
+    fields = ("subjective", "objective", "assessment", "plan")
+    diff = [{"field": key, "before": created.get(key, ""), "after": note[key]} for key in fields if created.get(key, "") != note[key]]
+    return {
+        "note": note,
+        "icd_suggestions": [{"code": "E11.x", "label": "Đái tháo đường týp 2 — chỉ tham khảo, bác sĩ kiểm chứng; không tự thêm vào SOAP", "source": ICD_SOURCE}],
+        "clinical_checks": _clinical_checks(note["patient_id"], note["transcript"]),
+        "diff": diff,
+        "audit": audit,
+    }
 
 
-@router.get("/drafts/{note_id}/export", response_class=PlainTextResponse)
+@router.get("/drafts/{note_id}/export")
 def export_note(note_id: str, user=Depends(require_role("doctor", "admin"))):
     note = get_note(note_id, user)
     if note["status"] != "signed":
         raise HTTPException(409, "Only signed SOAP notes can be exported")
-    return "\n".join(["SOAP BÀN GIAO", f"S: {note['subjective']}", f"O: {note['objective']}", f"A: {note['assessment']}", f"P: {note['plan']}", f"Ký bởi: {note['signed_by']} lúc {note['signed_at']}"])
+    try:
+        import fitz
+    except ImportError as exc:  # pragma: no cover - deployment dependency guard
+        raise HTTPException(503, "PDF export is unavailable") from exc
+    parts = ["<h1>SOAP BÀN GIAO</h1>"]
+    for label, key in (("S", "subjective"), ("O", "objective"), ("A", "assessment"), ("P", "plan")):
+        parts.append(f"<p><b>{label}:</b> {html.escape(note[key])}</p>")
+    parts.append(f"<p><b>Ký bởi:</b> {html.escape(note['signed_by'])} lúc {html.escape(note['signed_at'])}</p>")
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_htmlbox(fitz.Rect(36, 36, 559, 806), "".join(parts))
+    content = document.tobytes(garbage=4, deflate=True)
+    document.close()
+    return Response(content, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="soap-{note_id}.pdf"'})

@@ -26,8 +26,15 @@ def test_transcript_returns_clock_and_glucose_separately(monkeypatch):
     assert result["emergency"] is False
 
 
-def test_numeric_danger_warns_before_context_or_clock(monkeypatch):
+def test_ambiguous_numeric_danger_does_not_warn_before_confirmation(monkeypatch):
     result = _transcribe(monkeypatch, "65")
     assert result["parse"]["reason"] == "no_context"
-    assert result["emergency"] is True
-    assert result["red_flag_type"] == "glucose_low"
+    assert result["emergency"] is False
+    assert result["numeric_alert_pending"] is False
+
+
+def test_clear_numeric_danger_is_pending_until_confirmation(monkeypatch):
+    result = _transcribe(monkeypatch, "65 lúc đói")
+    assert result["parse"]["ambiguous"] is False
+    assert result["emergency"] is False
+    assert result["numeric_alert_pending"] is True

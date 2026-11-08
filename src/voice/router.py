@@ -1,8 +1,8 @@
 """Voice router — POST /v1/voice/transcribe|speak, GET /v1/voice/daily-check.
 
-Safety ordering (D7): STT transcript runs check_red_flag BEFORE confirm/save
-(even when the number is not parsed yet); numeric panic still flows through
-POST /v1/glucose anomaly on save, like manual entry. Keys server-side only
+Safety ordering (D7): symptom red flags run BEFORE confirm/save. Numeric
+thresholds run only after explicit read-back confirmation through POST
+/v1/glucose, like manual entry. Keys server-side only
 (grep any API key in frontend/ must be 0).
 Transcript-only (D6): audio hits tmp + deleted immediately, never persisted,
 never logged. No duplicate write path: save goes via POST /v1/glucose.
@@ -97,15 +97,13 @@ async def transcribe_voice(audio: UploadFile = File(...),
                         "message": rf.get("message", "")})
     except Exception:
         pass
-    # A numeric red flag must not wait for context or measurement time.
-    value = out.get("parse", {}).get("value")
-    if not out["emergency"] and isinstance(value, (int, float)):
-        if value < 70:
-            out.update({"emergency": True, "red_flag_type": "glucose_low",
-                        "message": "Chỉ số dưới 70 mg/dL — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."})
-        elif value >= 300:
-            out.update({"emergency": True, "red_flag_type": "glucose_critical_high",
-                        "message": "Chỉ số từ 300 mg/dL — liên hệ cơ sở y tế ngay; nếu có triệu chứng nặng, gọi 115."})
+    parsed = out.get("parse", {})
+    value = parsed.get("value")
+    out["numeric_alert_pending"] = bool(
+        not parsed.get("ambiguous", True)
+        and isinstance(value, (int, float))
+        and (value < 70 or value >= 300)
+    )
     return out
 
 

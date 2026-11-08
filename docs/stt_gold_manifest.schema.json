@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DiaTrack private STT gold manifest row",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "recording_id", "participant_code", "prompt_id", "audio_sha256",
+    "reference_text", "region", "age_band", "device_class", "condition",
+    "consent_version", "consent_scope", "consented_at", "withdrawn"
+  ],
+  "properties": {
+    "recording_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$"},
+    "participant_code": {"type": "string", "pattern": "^P[A-Za-z0-9_-]{5,31}$"},
+    "prompt_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{3,64}$"},
+    "audio_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reference_text": {"type": "string", "minLength": 1, "maxLength": 500},
+    "expected_value_mgdl": {"type": ["integer", "null"], "minimum": 20, "maximum": 800},
+    "expected_context": {"type": ["string", "null"], "enum": ["fasting", "pre_meal", "post_meal_2h", "bedtime", "random", null]},
+    "expected_red_flag": {"type": ["string", "null"], "enum": ["hypo_severe", "hyperglycemia_danger", "foot_infection", "cardio_stroke", null]},
+    "region": {"type": "string", "enum": ["north", "central", "south"]},
+    "age_band": {"type": "string", "enum": ["18-39", "40-59", "60-69", "70+"]},
+    "device_class": {"type": "string", "enum": ["android_phone", "iphone", "laptop", "external_microphone", "other"]},
+    "condition": {"type": "string", "enum": ["quiet", "household_noise"]},
+    "noise_note": {"type": ["string", "null"], "maxLength": 200},
+    "consent_version": {"type": "string", "minLength": 1, "maxLength": 40},
+    "consent_scope": {"type": "string", "const": "benchmark_only"},
+    "consented_at": {"type": "string", "format": "date-time"},
+    "withdrawn": {"type": "boolean", "const": false},
+    "take_confirmed": {"type": "boolean"}
+  }
+}

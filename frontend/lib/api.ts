@@ -86,6 +86,7 @@ export const createSoapDraft = (body:any) => apiPost("/v1/soap/drafts", body);
 export const editSoapDraft = (id:string, body:any) => apiPost(`/v1/soap/drafts/${id}`, body, "edit SOAP", "PUT");
 export const signSoapDraft = (id:string) => apiPost(`/v1/soap/drafts/${id}/sign`);
 export const getSoapDraft = (id:string) => apiGet(`/v1/soap/drafts/${id}`);
+export const reviewSoapDraft = (id:string) => apiGet(`/v1/soap/drafts/${id}/review`);
 export const saveNutritionProfile = (body:any) => apiPost("/v1/nutrition/profile", body, "nutrition profile", "PUT");
 export const getNutritionProfile = (id:string) => apiGet(`/v1/nutrition/profile/${id}`);
 export const createMealPlan = (body:any) => apiPost("/v1/nutrition/meal-plans", body);

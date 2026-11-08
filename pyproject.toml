@@ -30,6 +30,7 @@ dependencies = [
     "requests>=2.31.0",
     "python-dotenv>=1.0.0",
     "faker>=24.0.0",
+    "pymupdf>=1.24.0",
 ]
 
 [build-system]
@@ -87,4 +88,7 @@ notebooks = [
     "matplotlib>=3.10.7",
     "seaborn>=0.13.2",
     "tqdm>=4.67.1",
+]
+evaluation = [
+    "datasets>=4.3.0",
 ]
