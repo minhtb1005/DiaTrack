@@ -30,7 +30,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install pytest fastapi httpx bcrypt python-jose python-multipart python-dotenv openai
+      - run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install pytest fastapi httpx bcrypt python-jose python-multipart python-dotenv openai requests "transformers<5" "sentence-transformers<6" "langchain-chroma==0.2.6" "langchain-huggingface<1" "langchain-community==0.3.31" "langchain-openai==0.3.35"
       - run: |
           python scripts/run_feature_pilot.py
           git rev-parse HEAD > test-results/feature-pilot/glucose.xml.sha
