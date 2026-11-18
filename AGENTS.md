@@ -27,6 +27,12 @@ Agent chính bàn giao ID feature/use case, hợp đồng, tiêu chí, snapshot 
 3. Triển khai → test liên quan → thao tác UI nếu ảnh hưởng UI → ghi bằng chứng → cập nhật state. Chỉ hoàn thành khi hành vi thực tế đạt tiêu chí và hết lỗi chặn; video demo/cảm giác hài lòng không thay kiểm thử.
 4. Cập nhật feature và tiêu chí trong `feature_list.json` kèm lệnh/kết quả. Đối chiếu từng use case trước khi viết test và trước khi chuyển `done`; `historical_check` không thay bằng chứng trên code hiện hành. Bàn giao mục tiêu, file/commit/PR, bằng chứng, giới hạn, rủi ro, việc mở và bước tiếp theo.
 
+## Kiểm tra PR thí điểm
+
+Dùng `python scripts/feature_status.py --base <SHA-nhánh-gốc>` và `python scripts/test_feature_status.py`. Thay đổi code/test khai danh sách ID ở `affected_features` cấp đầu của ledger. Khi cập nhật feature partial, ghi đường dẫn file tracked vào `implementation_ref` và các ID còn mở vào `remaining_criteria`. Khi blocked, ghi cả nguyên nhân và điều kiện tiếp tục. Phạm vi thí điểm chỉ xác minh tự động T01-AC02. Các tiêu chí chưa có ánh xạ bằng chứng sẽ chặn đề nghị done mới.
+
+Workflow đọc quyết định duyệt hợp đồng từ GitHub review trên đúng commit, của người khác tác giả PR thuộc biến repository `PRODUCT_REVIEWERS` (các login cách nhau bằng khoảng trắng). Khi chưa cấu hình người duyệt, cổng từ chối sửa hợp đồng. Bản QA thí điểm ghi snapshot các file đã duyệt, CI chạy lại test trên checkout của PR và lưu JUnit theo commit. Quyền sửa cổng và bảo vệ main thuộc bước 5.
+
 ## Xác minh
 
 Dùng Python `.venv` trên Windows; không in/commit secret hoặc dữ liệu bệnh nhân. Cấu hình container nằm ở [Compose](docker-compose.yml), [Dockerfile backend](Dockerfile) và [Dockerfile frontend](frontend/Dockerfile); đọc cấu hình thực tế trước khi vận hành, không suy ra build đã đạt từ việc có file.
