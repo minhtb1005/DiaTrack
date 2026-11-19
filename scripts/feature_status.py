@@ -2,12 +2,13 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 BASELINE = "ac8c88d19b34de4fdc6e097d4e015ea98c602762"
-OWNERSHIP = ("tests.test_api_diabetes.TestDiabetesAPI", "test_glucose_110_roundtrip_and_ownership")
+
 
 
 def require(condition, message):
@@ -24,13 +25,33 @@ def indexed(rows):
     return result
 
 
-def verify(ac, snapshot, report, review):
-    require(ac == "T01-AC02", f"{ac}: no approved evidence mapping")
+def test_nodes(criterion):
+    nodes = criterion.get("tests", [])
+    pattern = r"tests/(?:\w+/)*test_\w+\.py::(?:\w+::)?test_\w+"
+    require(isinstance(nodes, list) and all(isinstance(n, str) and re.fullmatch(pattern, n) for n in nodes),
+            f"{criterion['id']}: expected explicit pytest test IDs")
+    return nodes
+
+
+def verify(criterion, snapshot, report, review):
+    ac = criterion["id"]
+    nodes = test_nodes(criterion)
+    require(nodes, f"{ac}: no tests mapped")
     require(report and report["snapshot"] == snapshot, f"{ac}: missing or stale report")
     root = ET.parse(report["junit"]).getroot()
-    cases = [c for c in root.iter("testcase") if (c.get("classname"), c.get("name")) == OWNERSHIP]
-    require(len(cases) == 1 and not any(cases[0].find(tag) is not None for tag in ("failure", "error", "skipped")), f"{ac}: ownership test absent or unsuccessful")
-    require(review and review["snapshot"] == snapshot and ac in review["approved"], f"{ac}: independent QA missing")
+    for node in nodes:
+        path, *classes, name = node.split("::")
+        classname = ".".join([path[:-3].replace("/", "."), *classes])
+        cases = [c for c in root.iter("testcase") if (c.get("classname"), c.get("name")) == (classname, name)]
+        require(len(cases) == 1 and not any(cases[0].find(tag) is not None for tag in ("failure", "error", "skipped")),
+                f"{ac}: {node} absent or unsuccessful")
+    if criterion.get("requires_qa", True):
+        require(review and review["snapshot"] == snapshot and ac in review["approved"], f"{ac}: independent QA missing")
+
+
+def contract(feature):
+    return (feature["use_cases"], feature["dependencies"],
+            [{k: v for k, v in c.items() if k not in ("tests", "requires_qa")} for c in feature["acceptance_criteria"]])
 
 
 def validate(base, current, snapshot, report=None, review=None, product_approved=False, affected=()):
@@ -56,10 +77,25 @@ def validate(base, current, snapshot, report=None, review=None, product_approved
         seen.update(ac); seen.update(uc)
         require(all(u["acceptance_criterion"] in ac for u in uc.values()), f"{key}: dangling criterion")
         prior = old.get(key, {})
-        contract_changed = prior and any(prior[k] != f[k] for k in ("use_cases","acceptance_criteria","dependencies"))
+        contract_changed = prior and contract(prior) != contract(f)
         require(not contract_changed or product_approved, f"{key}: contract needs product review")
+        prior_ac = indexed(prior.get("acceptance_criteria", []))
+        weakened = False
+        for cid, criterion in ac.items():
+            nodes = test_nodes(criterion)
+            require(type(criterion.get("requires_qa", True)) is bool, f"{cid}: invalid QA flag")
+            previous = prior_ac.get(cid, {})
+            old_nodes = test_nodes(previous) if previous else []
+            if nodes != old_nodes or criterion.get("requires_qa", True) != previous.get("requires_qa", True):
+                if set(old_nodes) - set(nodes) or (previous.get("requires_qa", True) and not criterion.get("requires_qa", True)):
+                    weakened = True
+                    require(product_approved, f"{cid}: weakening verification needs product review")
         if status == "blocked":
             require(isinstance(f.get("blocked_reason"), str) and f["blocked_reason"].strip(), f"{key}: missing blocker")
+        if prior and not weakened and key not in affected and f["status"] == prior["status"] and contract(prior) == contract(f):
+            # Adding coverage to a historical done feature does not re-accept the whole feature.
+            if all(f.get(k) == prior.get(k) for k in set(f) | set(prior) if k != "acceptance_criteria"):
+                continue
         if f == prior and key not in affected:
             continue
         if status == "partial":
@@ -69,7 +105,7 @@ def validate(base, current, snapshot, report=None, review=None, product_approved
             errors = []
             for aid in ac:
                 try:
-                    verify(aid, snapshot, report, review)
+                    verify(ac[aid], snapshot, report, review)
                 except ValueError as error:
                     errors.append(str(error))
             require(not errors, " | ".join(errors))
@@ -82,13 +118,20 @@ def git(*args):
 def pilot_evidence(snapshot, junit):
     require(Path(str(junit) + ".sha").read_text().strip() == snapshot, "Stale pilot snapshot")
     review = json.loads(Path("docs/feature-pilot-qa.json").read_text())
-    expected = {"src", "tests/conftest.py", "tests/test_api_diabetes.py", "tests/__init__.py", "pyproject.toml", "scripts/run_feature_pilot.py"}
-    if set(review["reviewed_files"]) != expected:
-        raise SystemExit("QA scope incomplete")
-    for path, blob in review["reviewed_files"].items():
-        if git("rev-parse","HEAD:"+path) != blob:
-            raise SystemExit("QA snapshot changed: " + path)
-    return {"snapshot": snapshot, "junit": junit}, {"snapshot": snapshot, "approved": review["approved"]}
+    files = review["reviewed_files"]
+    approved = []
+    ledger = json.loads(Path("feature_list.json").read_text(encoding="utf8"))
+    for f in ledger["features"]:
+        for c in f["acceptance_criteria"]:
+            nodes = test_nodes(c)
+            if not nodes or c["id"] not in review["approved"] or review.get("reviewed_tests", {}).get(c["id"]) != nodes:
+                continue
+            expected = {"src", "tests/conftest.py", "pyproject.toml", "scripts/run_feature_pilot.py",
+                        *(node.split("::")[0] for node in nodes)}
+            if expected <= files.keys() and all(git("rev-parse", "HEAD:" + path) == blob for path, blob in files.items()):
+                approved.append(c["id"])
+    return {"snapshot": snapshot, "junit": junit}, {"snapshot": snapshot, "approved": approved}
+
 
 
 if __name__ == "__main__":
@@ -115,5 +158,21 @@ if __name__ == "__main__":
     approved = any(name in approvers and name != os.environ.get("PR_AUTHOR") and r["state"] == "APPROVED" and r["commit_id"] == git("rev-parse", "HEAD") for name, r in decisions.items())
     snapshot = git("rev-parse", "HEAD")
     report, qa = pilot_evidence(snapshot, args.pilot_report) if args.pilot_report else (None, None)
+    if report:
+        outcomes = {}
+        for f in current["features"]:
+            for c in f["acceptance_criteria"]:
+                if not test_nodes(c):
+                    outcomes[c["id"]] = "unmapped"
+                    continue
+                try:
+                    verify(c, snapshot, report, qa)
+                    outcomes[c["id"]] = "passed"
+                except ValueError as error:
+                    outcomes[c["id"]] = str(error)
+        result = {"snapshot": snapshot, "criteria": outcomes}
+        args.pilot_report.with_name("criteria.json").write_text(json.dumps(result, indent=2), encoding="utf8")
+        failures = [v for v in outcomes.values() if v not in ("passed", "unmapped")]
+        require(not failures, " | ".join(failures))
     validate(json.loads(git("show", base_ref + ":feature_list.json")), current, snapshot, report, qa, approved, affected)
     print("Feature status check passed")

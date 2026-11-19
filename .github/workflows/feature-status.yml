@@ -11,6 +11,17 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install pytest fastapi httpx bcrypt python-jose python-multipart python-dotenv openai requests "transformers<5" "sentence-transformers<6" "langchain-chroma==0.2.6" "langchain-huggingface<1" "langchain-community==0.3.31" "langchain-openai==0.3.35"
+      - name: Run tests selected by criterion
+        id: mapped_tests
+        continue-on-error: true
+        run: python scripts/run_feature_pilot.py
+      - run: git rev-parse HEAD > test-results/feature-pilot/glucose.xml.sha
       - name: Check proposed feature changes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -19,26 +30,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           export PR_REVIEWS="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" | jq -c 'add // []')"
-          python scripts/feature_status.py --base "${{ github.event.pull_request.base.sha }}"
+          python scripts/feature_status.py --pilot-report test-results/feature-pilot/glucose.xml --base "${{ github.event.pull_request.base.sha }}"
       - run: python scripts/test_feature_status.py
-  ownership:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install pytest fastapi httpx bcrypt python-jose python-multipart python-dotenv openai requests "transformers<5" "sentence-transformers<6" "langchain-chroma==0.2.6" "langchain-huggingface<1" "langchain-community==0.3.31" "langchain-openai==0.3.35"
-      - run: |
-          python scripts/run_feature_pilot.py
-          git rev-parse HEAD > test-results/feature-pilot/glucose.xml.sha
-      - run: python scripts/test_feature_status.py --pilot-report test-results/feature-pilot/glucose.xml
+      - if: steps.mapped_tests.outcome == 'failure'
+        run: exit 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: glucose-ownership-${{ github.event.pull_request.head.sha }}
-          path: test-results/feature-pilot/glucose.xml
+          path: test-results/feature-pilot/

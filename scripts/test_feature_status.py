@@ -1,10 +1,9 @@
 import copy
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
-from feature_status import validate, verify, git, pilot_evidence
+from feature_status import validate, verify, git
 
 ledger = json.loads(Path("feature_list.json").read_text(encoding="utf8"))
 sha = git("rev-parse", "HEAD")
@@ -41,19 +40,38 @@ class Gate(unittest.TestCase):
             review = {"snapshot": sha, "approved": ["T01-AC02"]}
             path.write_text(case.format("<skipped/>"))
             with self.assertRaisesRegex(ValueError, "unsuccessful"):
-                verify("T01-AC02", sha, report, review)
+                verify(ledger["features"][0]["acceptance_criteria"][1], sha, report, review)
             path.write_text(case.format(""))
             with self.assertRaisesRegex(ValueError, "stale"):
-                verify("T01-AC02", "other", report, review)
+                verify(ledger["features"][0]["acceptance_criteria"][1], "other", report, review)
             with self.assertRaisesRegex(ValueError, "independent QA"):
-                verify("T01-AC02", sha, report, None)
-            verify("T01-AC02", sha, report, review)
+                verify(ledger["features"][0]["acceptance_criteria"][1], sha, report, None)
+            verify(ledger["features"][0]["acceptance_criteria"][1], sha, report, review)
+
+
+    def test_done_requires_all_declared_tests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "junit.xml")
+            report = {"snapshot": sha, "junit": path}
+            f = {"id": "example", "status": "todo", "dependencies": [],
+                 "acceptance_criteria": [{"id": "a", "tests": ["tests/test_demo.py::test_a", "tests/test_demo.py::test_b"], "requires_qa": False}],
+                 "use_cases": [{"id": "u", "acceptance_criterion": "a"}]}
+            base = {"features": [f]}
+            changed = copy.deepcopy(base)
+            changed["features"][0]["status"] = "done"
+            case = '<testcase classname="tests.test_demo" name="test_{}"/>'
+            path.write_text(case.format("a"))
+            with self.assertRaisesRegex(ValueError, "test_b"):
+                validate(base, changed, sha, report)
+            path.write_text("<testsuite>" + case.format("a") + case.format("b") + "</testsuite>")
+            validate(base, changed, sha, report)
+
+    def test_removing_a_mapped_test_needs_review(self):
+        changed = copy.deepcopy(ledger)
+        changed["features"][0]["acceptance_criteria"][1]["tests"] = []
+        with self.assertRaisesRegex(ValueError, "weakening verification"):
+            validate(ledger, changed, sha)
 
 
 if __name__ == "__main__":
-    if "--pilot-report" in sys.argv:
-        # CI generates this report in the immediately preceding step.
-        verify("T01-AC02", sha, *pilot_evidence(sha, Path(sys.argv[-1])))
-        print("T01-AC02 passed with independently reviewed inputs")
-    else:
-        unittest.main()
+    unittest.main()
