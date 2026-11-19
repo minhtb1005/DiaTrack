@@ -5,12 +5,12 @@
 - Chỉ đái tháo đường týp 2. Nguồn phạm vi hiện hành: `docs/project_requirements.json` (`scope_rules` và 6 project): `258-triage`, `260` (thuốc), `262` (SOAP), `264` (đường huyết tại nhà), `266` (dinh dưỡng), `258-booking`.
 - Đề 267 và 273 không nằm trong JSON hiện hành; chỉ thêm khi người dùng sửa nguồn phạm vi. Bệnh khác chỉ là bệnh đi kèm hoặc biến chứng.
 - Giữ ràng buộc an toàn: không chẩn đoán, kê đơn/đổi/ngưng liều; red-flag luôn chuyển hỗ trợ y tế; ngoài phạm vi trả câu từ chối cố định. Plan của SOAP dành cho bác sĩ.
-- Khi có `docs/TASKS.md`, dùng file này làm danh sách tác vụ, trạng thái và tiêu chí chấp nhận. Không ghi tiến độ vào README; không tự hạ tiêu chí để đạt. Tiêu chí sai/thiếu: ghi vào state và báo người dùng.
+- Dùng `feature_list.json` làm danh sách tính năng, use case, trạng thái và tiêu chí chấp nhận. `docs/TASKS_ARCHIVE.md` chỉ là bằng chứng lịch sử, không cập nhật trạng thái ở đó. Không ghi tiến độ vào README; không tự hạ tiêu chí để đạt. Tiêu chí sai/thiếu: ghi vào state và báo người dùng.
 
 ## Bắt đầu phiên
 
 1. Đọc file này, yêu cầu mới nhất, `docs/project_requirements.json` (đặc biệt `scope_rules`) và [README](README.md); xem [bản đồ repo](README.md#repository-map).
-2. Đọc `docs/TASKS.md` nếu có; chọn tác vụ theo thứ tự đề xuất, trừ khi người dùng giao việc khác.
+2. Đọc `feature_list.json`; tiếp tục feature `in_progress` nếu có. Nếu không, chọn một feature `partial` hoặc `todo` theo `priority` và `dependencies`, trừ khi người dùng giao việc khác. Chỉ một feature được `in_progress` (WIP = 1); các feature `partial` là backlog chưa đạt, không phải đang triển khai đồng thời.
 3. Đọc **Trạng thái hiện hành** và mục liên quan trong `WORKFLOW_STATE.md` local, nếu có.
 4. Đối chiếu `git status`, code, test và hợp đồng liên quan trước khi tin ghi chú; giữ nguyên thay đổi có sẵn.
 
@@ -18,10 +18,20 @@ Nếu thiếu tài liệu tác vụ, ghi nhận và chỉ hỏi khi thiếu thô
 
 ## Vòng làm việc
 
+Mặc định một agent lập kế hoạch, triển khai và tự xác minh một feature. Khi thay đổi tác động tới phân quyền, cách ly dữ liệu giữa bệnh nhân hoặc cảnh báo khẩn, agent chính giao QA cho một agent độc lập trong ngữ cảnh mới. Nếu không có agent độc lập, ghi rõ giới hạn và để bước QA mở.
+
+Agent chính bàn giao ID feature/use case, hợp đồng, tiêu chí, snapshot code, lệnh kiểm tra và vị trí bằng chứng. QA kiểm tra trên cùng snapshot bằng dữ liệu tổng hợp, trả kết quả kỳ vọng/thực tế và giới hạn theo từng tiêu chí. Sai hành vi thì chuyển lại cho người triển khai. Mâu thuẫn hợp đồng thì chuyển lại cho người lập kế hoạch. Agent chính ghi kết quả vào `evidence` và cập nhật trạng thái theo WIP = 1. Chỉ tách Planner riêng khi được giao hoặc khi chạy thí nghiệm ba vai.
+
 1. Chốt phạm vi nhỏ: đầu vào/đầu ra, lỗi, tiêu chí xong; với sức khỏe thêm nguồn dẫn và đường xử lý an toàn.
 2. Đọc tài liệu phù hợp: [API](docs/api_contract.md), [dữ liệu](docs/data_contract.md), [kiến trúc](docs/architecture_diagram.md), [đánh giá](docs/evaluation.md). Giữ hợp đồng và nguồn dẫn; sửa UI thì cập nhật test/selector.
 3. Triển khai → test liên quan → thao tác UI nếu ảnh hưởng UI → ghi bằng chứng → cập nhật state. Chỉ hoàn thành khi hành vi thực tế đạt tiêu chí và hết lỗi chặn; video demo/cảm giác hài lòng không thay kiểm thử.
-4. Nếu có `docs/TASKS.md`, cập nhật tác vụ và tiêu chí đã đạt kèm lệnh/kết quả. Bàn giao mục tiêu, file/commit/PR, bằng chứng, giới hạn, rủi ro, việc mở và bước tiếp theo.
+4. Cập nhật feature và tiêu chí trong `feature_list.json` kèm lệnh/kết quả. Đối chiếu từng use case trước khi viết test và trước khi chuyển `done`; `historical_check` không thay bằng chứng trên code hiện hành. Bàn giao mục tiêu, file/commit/PR, bằng chứng, giới hạn, rủi ro, việc mở và bước tiếp theo.
+
+## Kiểm tra PR thí điểm
+
+Dùng `python scripts/feature_status.py --base <SHA-nhánh-gốc>` và `python scripts/test_feature_status.py`. Thay đổi code/test khai danh sách ID ở `affected_features` cấp đầu của ledger. Khi cập nhật feature partial, ghi đường dẫn file tracked vào `implementation_ref` và các ID còn mở vào `remaining_criteria`. Khi blocked, ghi cả nguyên nhân và điều kiện tiếp tục. Mỗi tiêu chí khai báo mảng `tests` chứa pytest node ID cụ thể. Mảng rỗng nghĩa là chưa ánh xạ. CI chạy các test đã khai báo một lần trong môi trường tổng hợp, lưu JUnit và criteria.json theo commit, rồi dùng báo cáo đó khi xét done. Chỉ gắn test bao phủ đủ tiêu chí. Trường `requires_qa` mặc định true; chỉ đặt false khi tiêu chí không cần QA độc lập. Hiện T01-AC02 đã được ánh xạ và QA. Các tiêu chí chưa có ánh xạ bằng chứng sẽ chặn đề nghị done mới.
+
+Workflow đọc quyết định duyệt hợp đồng từ GitHub review trên đúng commit, của người khác tác giả PR thuộc biến repository `PRODUCT_REVIEWERS` (các login cách nhau bằng khoảng trắng). Khi chưa cấu hình người duyệt, cổng từ chối sửa hợp đồng. Bản QA thí điểm ghi snapshot các file đã duyệt, CI chạy lại test trên checkout của PR và lưu JUnit theo commit. Quyền sửa cổng và bảo vệ main thuộc bước 5.
 
 ## Xác minh
 

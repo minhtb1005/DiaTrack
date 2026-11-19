@@ -1,0 +1,22 @@
+{
+  "limits": "Synthetic API and SQLite only. Clinical corpus preflight stubbed.",
+  "time": "2026-11-19T20:04:36+07:00",
+  "reviewer": "independent QA qa_mapping",
+  "result": "1 passed, 0 skipped, 128.09 s. A stored and retrieved a fasting 110 mg/dL reading with its timestamp. B received 403 for GET and POST. Invalid inputs received 422. The stored row and row count remained unchanged.",
+  "reviewed_tests": {
+    "T01-AC02": [
+      "tests/test_api_diabetes.py::TestDiabetesAPI::test_glucose_110_roundtrip_and_ownership"
+    ]
+  },
+  "reviewed_files": {
+    "src": "94fa991d0e3b59c479687c9aff28baa4da21ae9c",
+    "tests/conftest.py": "75ed3559f149d9471499c74744741b921da1767b",
+    "tests/test_api_diabetes.py": "c9cb3b818c909bce7221bb5461c50552a4f85690",
+    "tests/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "pyproject.toml": "7e29d7e75a7ef0b95887ace63d3b1c4dc9c1480c",
+    "scripts/run_feature_pilot.py": "5fef7ff92ba474388e411e4de060a94b147a6501"
+  },
+  "approved": [
+    "T01-AC02"
+  ]
+}

@@ -1,0 +1,2077 @@
+{
+  "schema_version": 1,
+  "scope_source": "docs/project_requirements.json",
+  "wip_limit": 1,
+  "status_values": [
+    "todo",
+    "in_progress",
+    "partial",
+    "blocked",
+    "done"
+  ],
+  "selection_rule": "Tiếp tục feature in_progress duy nhất. Nếu không có, chọn một feature partial hoặc todo theo priority có dependencies done, rồi đặt in_progress. partial là backlog chưa đạt, không tính WIP. Nếu blocked, ghi lý do và chờ quyết định; không tự chuyển feature khác. User giao việc khác được ưu tiên và phải ghi lý do chuyển.",
+  "verification_rule": "historical_check và docs/TASKS_ARCHIVE.md là lịch sử, không xác minh code hiện hành. Chỉ chuyển done khi mọi use case và acceptance criterion đạt bằng test thực chạy trên snapshot hiện hành; ghi lệnh, kết quả, thời điểm +07, SHA/diff, môi trường và giới hạn. Nếu code liên quan đổi, chạy lại kiểm tra bị ảnh hưởng. Sau mỗi lần kiểm tra, thêm vào evidence các ID tiêu chí, snapshot code, thời điểm kèm múi giờ, lệnh thực chạy, kết quả, nơi tra cứu và giới hạn. Khi chuyển blocked, ghi nguyên nhân và điều kiện gỡ chặn vào blocked_reason. Dùng null khi chưa có blocker được ghi nhận.",
+  "safety_rule": "Giữ scope_rules, không chẩn đoán hoặc tự đổi thuốc/liều; red-flag chuyển hỗ trợ y tế; ngoài phạm vi trả câu cố định; SOAP Plan dành cho bác sĩ. Test UI/API thật dùng DB/index cô lập và không mock endpoint thuộc luồng.",
+  "migration_source": "docs/TASKS_ARCHIVE.md",
+  "migration_notes": [
+    "Tác vụ 18 hạ từ done xuống partial vì bằng chứng trong nguồn tự mâu thuẫn.",
+    "Một số dòng historical_check=true chưa chứng minh toàn bộ use case trên HEAD hiện hành; giữ trạng thái khác theo nguồn và phải xác minh lại khi đụng đến.",
+    "Mục payload privacy được giữ riêng vì nằm ngoài 26 tác vụ có số."
+  ],
+  "features": [
+    {
+      "id": "task-1",
+      "project": "264",
+      "level": "Cơ bản",
+      "description": "Nhật ký đường huyết và phân quyền",
+      "status": "done",
+      "priority": 1,
+      "dependencies": [],
+      "use_cases": [
+        {
+          "id": "T01-UC01",
+          "scenario": "Bệnh nhân A lưu số đo 110 mg/dL lúc đói, khai báo thời điểm đo `2026-11-03T07:15:00+07:00`; API và DB lưu đúng ID bệnh nhân A cùng thời điểm đó, đọc lại giữ nguyên; bệnh nhân B không thể đọc hoặc ghi thay.",
+          "acceptance_criterion": "T01-AC02",
+          "test_targets": [
+            "tests/test_api_diabetes.py"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T01-UC02",
+          "scenario": "Bệnh nhân A gửi số đo thiếu hoặc giá trị không hợp lệ: API trả 422 và không thêm/sửa bản ghi; khi chỉ có một số đo, thông điệp không được kết luận chẩn đoán.",
+          "acceptance_criterion": "T01-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_glucose_tracker.py -q --basetemp=test-results/tmp-task-1 -o cache_dir=test-results/pytest-cache",
+            "pytest tests/test_api_diabetes.py::TestDiabetesAPI::test_glucose_110_roundtrip_and_ownership -q --basetemp=test-results/tmp-task-1-auth-db-20261103 -o cache_dir=test-results/pytest-cache-task-1"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T01-UC03",
+          "scenario": "Bệnh nhân A nhập 110 mg/dL trên tracker rồi tải lại trang: UI, GET API và hàng DB cùng hiển thị số đo, thời điểm và chủ sở hữu đã nhập; bệnh nhân B không đọc/ghi được số đo của A.",
+          "acceptance_criterion": "T01-AC04",
+          "test_targets": [
+            "tests/test_api_diabetes.py"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T01-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_glucose_tracker.py -q --basetemp=test-results/tmp-task-1 -o cache_dir=test-results/pytest-cache` → 20 pass, 0 fail, exit 0; `test-results/task-1-acceptance.log`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T01-AC02",
+          "description": "Test chức năng: `tests/test_api_diabetes.py::TestDiabetesAPI::test_glucose_110_roundtrip_and_ownership` nhập 110 mg/dL lúc đói; API trả đúng người, thời điểm, giá trị (đơn vị hợp đồng API là mg/dL) và đọc lại được; 1 pass, 12 deselected, `test-results/task-1-api-final.log`.",
+          "historical_check": true,
+          "tests": [
+            "tests/test_api_diabetes.py::TestDiabetesAPI::test_glucose_110_roundtrip_and_ownership"
+          ],
+          "requires_qa": true
+        },
+        {
+          "id": "T01-AC03",
+          "description": "Test an toàn: Cùng test API xác nhận người khác bị 403, giá trị thiếu/sai bị 422; test `test_single_reading_message_does_not_diagnose` xác nhận không suy ra chẩn đoán từ một chỉ số. Playwright `tracker.spec.ts` hiện 8 case pass theo output nhưng tiến trình không tự thoát, đã ngắt; chưa tính là suite pass sạch.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T01-AC04",
+          "description": "Integration UI/API thật: Playwright backend thật + DB thử cô lập đã nhập 110 mg/dL qua tracker và đọc lại sau tải trang (14 pass/0 fail, 02/11/2026 22:30 +07, bằng chứng đầu file). Bổ sung API/DB 03/11/2026 07:31 +07: cố định `measured_at=2026-11-03T07:15:00+07:00`, đối chiếu response, GET và hàng SQLite; bệnh nhân thứ hai đọc/ghi dữ liệu người đầu đều 403; payload thiếu/sai đều 422; số hàng và record gốc không đổi sau toàn bộ request bị từ chối. `pytest tests/test_api_diabetes.py::TestDiabetesAPI::test_glucose_110_roundtrip_and_ownership -q --basetemp=test-results/tmp-task-1-auth-db-20261103 -o cache_dir=test-results/pytest-cache-task-1` → 1 pass/0 fail/0 skip, exit 0, 130.60s; `main` HEAD `f65619f62fe7fc3df477a1669363ef81a2ce1371` + working tree dirty. Không mock `/v1/auth/*` hoặc `/v1/glucose*`.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_glucose_tracker.py -q --basetemp=test-results/tmp-task-1 -o cache_dir=test-results/pytest-cache",
+        "pytest tests/test_api_diabetes.py::TestDiabetesAPI::test_glucose_110_roundtrip_and_ownership -q --basetemp=test-results/tmp-task-1-auth-db-20261103 -o cache_dir=test-results/pytest-cache-task-1"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-2",
+      "project": "264",
+      "level": "Cơ bản",
+      "description": "Ngưỡng nguy hiểm và cảnh báo",
+      "status": "done",
+      "priority": 2,
+      "dependencies": [
+        "task-1"
+      ],
+      "use_cases": [
+        {
+          "id": "T02-UC01",
+          "scenario": "Bệnh nhân nhập 69, 110, 280 hoặc 300 mg/dL: 69 và 300 được báo khẩn, 110 không báo khẩn, còn 280 chỉ được nhắc liên hệ bác sĩ.",
+          "acceptance_criterion": "T02-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_anomaly_detector.py -q --basetemp=test-results/tmp-task-2 -o cache_dir=test-results/pytest-cache",
+            "npx tsc --noEmit",
+            "npm run test:e2e -- e2e/tasks-1-7-live.spec.ts -g \"tracker displays real API safety classifications\" --workers=1 --timeout=120000 --reporter=list"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T02-UC02",
+          "scenario": "Tại các biên 69/70/250/251/299/300 mg/dL, cảnh báo phải theo `scope_rules`: dưới 70 hoặc từ 300 trở lên yêu cầu hỗ trợ y tế ngay; trên 250 nhưng dưới 300 không được gắn cấp cứu; mọi thông điệp không khuyên tự đổi liều.",
+          "acceptance_criterion": "T02-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_anomaly_detector.py -q --basetemp=test-results/tmp-task-2 -o cache_dir=test-results/pytest-cache",
+            "npx tsc --noEmit",
+            "npm run test:e2e -- e2e/tasks-1-7-live.spec.ts -g \"tracker displays real API safety classifications\" --workers=1 --timeout=120000 --reporter=list"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T02-UC03",
+          "scenario": "Bệnh nhân lần lượt lưu 69/70/250/251/299/300 mg/dL qua tracker và tải lại sau mỗi lần: banner, nhãn và thông điệp trên UI phải khớp GET API và bản ghi DB; không dùng phản hồi API giả cho luồng này.",
+          "acceptance_criterion": "T02-AC04",
+          "test_targets": [
+            "e2e/tasks-1-7-live.spec.ts"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T02-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_anomaly_detector.py -q --basetemp=test-results/tmp-task-2 -o cache_dir=test-results/pytest-cache` → 19 pass, 0 fail, exit 0; `test-results/task-2-acceptance.log`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T02-AC02",
+          "description": "Test chức năng: API `-k glucose_urgent_boundaries` → 1 pass, 13 deselected, exit 0; 69 và 300 báo khẩn, 110 không khẩn, 280 chỉ báo liên hệ bác sĩ; `test-results/task-2-api.log`. UI Playwright hai ca 280/300 → 2 pass, exit 0 khi dùng máy chủ frontend đã chạy sẵn.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T02-AC03",
+          "description": "Test an toàn: Thông báo <70 và ≥300 yêu cầu liên hệ cơ sở y tế ngay; mọi spike nhắc không tự đổi liều thuốc/insulin. Test các biên 69/70/250/251/299/300 lấy từ `scope_rules`; `npx tsc --noEmit` exit 0. Giới hạn: chưa chạy toàn bộ API/RAG; Playwright cần frontend chạy sẵn để tiến trình kết thúc sạch trên máy này.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T02-AC04",
+          "description": "Integration UI/API thật: 03/11/2026 07:45 +07, Playwright ghi lần lượt 69, 70, 250, 251, 299, 300 mg/dL qua tracker vào DB thử cô lập, chờ POST thật rồi tải lại sau từng giá trị; đối chiếu GET `/v1/glucose` trả nhãn + thông điệp. 69/300 hiện banner và yêu cầu liên hệ cơ sở y tế ngay; 251/299 chỉ yêu cầu liên hệ bác sĩ, không có banner/khóa cấp cứu; 70/250 không bị gán cảnh báo khẩn; mọi thông điệp không khuyên tự đổi liều. Không mock `/v1/glucose*`. `npm run test:e2e -- e2e/tasks-1-7-live.spec.ts -g \"tracker displays real API safety classifications\" --workers=1 --timeout=120000 --reporter=list` → 1 pass/0 fail/0 skip, exit 0, 31,4s; backend thật cổng 8114, Next dev 3114, DB `test-results/triage-e2e/task-2-final-20261103-074352-726`. Backend tập trung 68 pass/9 deselected, TypeScript và production build exit 0. Code: `main` HEAD `f65619f62fe7fc3df477a1669363ef81a2ce1371` + working tree dirty.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_anomaly_detector.py -q --basetemp=test-results/tmp-task-2 -o cache_dir=test-results/pytest-cache",
+        "npx tsc --noEmit",
+        "npm run test:e2e -- e2e/tasks-1-7-live.spec.ts -g \"tracker displays real API safety classifications\" --workers=1 --timeout=120000 --reporter=list"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-3",
+      "project": "264",
+      "level": "Cơ bản",
+      "description": "Xu hướng, nhắc đo/tái khám và hướng dẫn có nguồn",
+      "status": "done",
+      "priority": 3,
+      "dependencies": [
+        "task-1",
+        "task-2"
+      ],
+      "use_cases": [
+        {
+          "id": "T03-UC01",
+          "scenario": "Bệnh nhân có số đo ở hai ngày khác nhau: tracker hiển thị cả log và tóm tắt xu hướng; lịch đo hoặc tái khám đến hạn vẫn hiện sau tải lại và có thể xóa.",
+          "acceptance_criterion": "T03-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_glucose_tracker.py -q --basetemp=test-results/tmp-task-3 -o cache_dir=test-results/pytest-cache",
+            "npm run build",
+            "npx tsc --noEmit",
+            "npm run test:e2e -- e2e/tasks-1-7-live.spec.ts -g \"fixed-day real readings\" --workers=1 --timeout=120000 --reporter=list"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T03-UC02",
+          "scenario": "Khi diễn giải thiếu tên/ID nguồn hoặc trang hợp lệ, UI không hiện lời khuyên; khi đủ nguồn, UI hiện tài liệu, trang và liên kết tới log gốc. Câu hỏi ngoài phạm vi nhận đúng câu từ chối trong `scope_rules`.",
+          "acceptance_criterion": "T03-AC03",
+          "test_targets": [
+            "tests/test_scope_guard.py"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T03-UC03",
+          "scenario": "Bệnh nhân lưu 110 và 140 mg/dL vào hai ngày cố định: tracker hiển thị 2 số đo, min 110, max 140; mỗi liên kết xu hướng mở đúng log ID. Lịch nhắc lưu trên thiết bị, còn sau tải lại và không được mô tả như thông báo do backend gửi.",
+          "acceptance_criterion": "T03-AC04",
+          "test_targets": [
+            "e2e/tasks-1-7-live.spec.ts"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T03-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_glucose_tracker.py -q --basetemp=test-results/tmp-task-3 -o cache_dir=test-results/pytest-cache` → 20 pass, 0 fail, exit 0; `test-results/task-3-acceptance.log`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T03-AC02",
+          "description": "Test chức năng: Playwright `tracker.spec.ts -g \"multiple days|explain trend|due reminders\"` → 3 pass, exit 0; hai ngày đo hiện trong tóm tắt/log gốc, lịch đo và tái khám đến hạn hiện khi mở trang, tồn tại sau tải lại và xóa được. `npm run build` exit 0, log `test-results/task-3-build.log`; `npx tsc --noEmit` exit 0.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T03-AC03",
+          "description": "Test an toàn: Diễn giải AI không hiển thị khi thiếu metadata nguồn; có nguồn thì hiện tên tài liệu/trang và link về log. `tests/test_scope_guard.py` → 2 pass, API ngoài phạm vi → 1 pass ở `test-results/task-3-scope.log` và 1 pass ở `test-results/task-3-demo.log`, đúng câu cố định `scope_rules`. `git diff --check` exit 0. Giới hạn: lịch nhắc lưu trên thiết bị, chỉ hiện khi trang mở; test UI dùng mock API; không thay mục tiêu lâm sàng do bác sĩ đặt.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T03-AC04",
+          "description": "Integration UI/API thật: 03/11/2026 08:17 +07, tạo 110 và 140 mg/dL tại hai ngày cố định 01–02/11/2026 qua API thật, mở tracker và xác nhận tóm tắt 2 chỉ số/min 110/max 140; từng link xu hướng dùng đúng ID có trong GET `/v1/glucose/{user_id}` và dẫn tới log UI tương ứng. Lịch đo/tái khám lưu trong `localStorage`, còn và hiện đến hạn sau reload; listener xác nhận thao tác lịch không phát request ghi backend, UI ghi rõ backend không gửi thông báo. `npm run test:e2e -- e2e/tasks-1-7-live.spec.ts -g \"fixed-day real readings\" --workers=1 --timeout=120000 --reporter=list` → 1 pass/0 fail/0 skip, exit 0, DB cô lập `test-results/triage-e2e/task-3-20261103-081351-227`, backend thật 8113/Next dev 3113. Diễn giải chỉ hiện khi context có tên/id nguồn và trang nguyên dương; case nguồn hợp lệ hiện `WHO_HEARTS-D_2020.pdf, trang 12`, case thiếu trang ẩn lời khuyên. Ba UI case đều in `ok` nhưng runner mock treo lúc dọn web server và bị ngắt nên không tính suite exit 0. Backend tập trung 69 pass/8 deselected; `npx tsc --noEmit` và production build `.next-task-3` exit 0. Câu ngoài phạm vi đúng `scope_rules.out_of_scope_reply` nằm trong backend focused pass và integration thật đã pass ngày 02/11. Code: `main` HEAD `f65619f62fe7fc3df477a1669363ef81a2ce1371` + working tree dirty.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_glucose_tracker.py -q --basetemp=test-results/tmp-task-3 -o cache_dir=test-results/pytest-cache",
+        "npm run build",
+        "npx tsc --noEmit",
+        "npm run test:e2e -- e2e/tasks-1-7-live.spec.ts -g \"fixed-day real readings\" --workers=1 --timeout=120000 --reporter=list"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-4",
+      "project": "264",
+      "level": "Nâng cao",
+      "description": "Dashboard bác sĩ và duyệt lời khuyên",
+      "status": "done",
+      "priority": 4,
+      "dependencies": [
+        "task-2",
+        "task-3"
+      ],
+      "use_cases": [
+        {
+          "id": "T04-UC01",
+          "scenario": "Bác sĩ mở danh sách hai bệnh nhân có số đo 280 và 300 mg/dL: dashboard phân mức watch và critical tương ứng; yêu cầu diễn giải của bệnh nhân vào hàng đợi duyệt, chỉ nội dung bác sĩ đã duyệt mới hiện cho bệnh nhân.",
+          "acceptance_criterion": "T04-AC02",
+          "test_targets": [
+            "tests/test_doctor_patients.py",
+            "tests/test_auth_hilt.py"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T04-UC02",
+          "scenario": "Khi diễn giải còn pending, API bệnh nhân không trả bản nháp và không ghi nó vào cache hoặc memory; chỉ bác sĩ/admin có quyền duyệt. Nếu hàng đợi lỗi, API trả 503 mà không lộ bản nháp; red-flag vẫn được cảnh báo ngay.",
+          "acceptance_criterion": "T04-AC03",
+          "test_targets": [
+            "tests/test_triage.py"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T04-UC03",
+          "scenario": "Bệnh nhân yêu cầu diễn giải qua UI; bác sĩ ở phiên riêng sửa hoặc duyệt, rồi bệnh nhân tải lại mới đọc được bản cuối. Bệnh nhân khác hoặc người không có quyền duyệt nhận 403; trạng thái duyệt trong UI/API khớp DB thử.",
+          "acceptance_criterion": "T04-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_doctor_patients.py -q --basetemp=test-results/tmp-task-4 -o cache_dir=test-results/pytest-cache",
+            "npm run build",
+            "npx tsc --noEmit"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T04-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_doctor_patients.py -q --basetemp=test-results/tmp-task-4 -o cache_dir=test-results/pytest-cache` → 7 pass, 0 fail, exit 0; `test-results/task-4-acceptance.log`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T04-AC02",
+          "description": "Test chức năng: Bác sĩ thấy nhiều bệnh nhân, 300 mg/dL ở mức critical, 280 mg/dL ở watch; yêu cầu diễn giải từ tracker buộc `require_doctor_review`, tạo hàng đợi bác sĩ và chỉ hiện nội dung sau quyết định duyệt. Backend `tests/test_doctor_patients.py tests/test_auth_hilt.py` → 14 pass, log `test-results/task-4-final.log`; UI dashboard/tracker → 2 pass, exit 0; `npm run build` exit 0, `test-results/task-4-build.log`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T04-AC03",
+          "description": "Test an toàn: API bệnh nhân không trả bản nháp pending; chỉ bác sĩ/admin được duyệt diễn giải theo workflow; hàng đợi lỗi trả 503 và không lộ bản nháp; câu trả lời cần duyệt không ghi cache/bộ nhớ trước duyệt. `tests/test_triage.py` → 27 pass, `test-results/task-4-triage.log`, red-flag vẫn cảnh báo ngay. Không có đường tự đổi mục tiêu/thuốc trong tác vụ này; `npx tsc --noEmit` và `git diff --check` exit 0. Giới hạn: UI dùng mock API; chưa chạy full RAG/benchmark.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T04-AC04",
+          "description": "Integration UI/API thật: Hai bệnh nhân thử có 280 và 300 mg/dL xuất hiện đúng mức watch/critical trên dashboard bác sĩ. Bệnh nhân yêu cầu diễn giải, xác nhận bản nháp pending không lộ; bác sĩ thử đã xác minh thấy yêu cầu và duyệt/sửa, bệnh nhân tải lại mới thấy nội dung cuối. Bệnh nhân khác hoặc tài khoản không có quyền không duyệt được (403). Kiểm tra trạng thái review lưu trong DB thử. Không mock `/v1/doctor/patients`, `/v1/query` hay `/v1/reviews*`; nếu đường RAG phụ thuộc provider/index, dùng cấu hình thử tái lập được và ghi giới hạn.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_doctor_patients.py -q --basetemp=test-results/tmp-task-4 -o cache_dir=test-results/pytest-cache",
+        "npm run build",
+        "npx tsc --noEmit"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-5",
+      "project": "264",
+      "level": "Nâng cao",
+      "description": "Dữ liệu thiếu, dự báo và báo cáo tái khám",
+      "status": "done",
+      "priority": 5,
+      "dependencies": [
+        "task-3"
+      ],
+      "use_cases": [
+        {
+          "id": "T05-UC01",
+          "scenario": "Bệnh nhân có số đo ở ba ngày liên tiếp và một ngày bỏ trống: báo cáo ghi rõ ngày thiếu theo giờ Việt Nam, xu hướng liên kết đúng `basis_log_ids`; SOAP JSON có `followup`, bản Markdown có liên kết log.",
+          "acceptance_criterion": "T05-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_264_followup.py tests/test_soap_summary.py -q --basetemp=test-results/tmp-task-5-current -o cache_dir=test-results/pytest-cache",
+            "npx playwright test previsit.spec.ts --workers=1 --reporter=list",
+            "npx tsc --noEmit",
+            "npm run build"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T05-UC02",
+          "scenario": "Khi thiếu số đo, hệ thống không tự điền giá trị và trả `insufficient_data` nếu không đủ căn cứ tính xu hướng; báo cáo không suy ra HbA1c hay kết luận đạt mục tiêu từ số đo tại nhà; Plan để trống cho bác sĩ.",
+          "acceptance_criterion": "T05-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_264_followup.py tests/test_soap_summary.py -q --basetemp=test-results/tmp-task-5-current -o cache_dir=test-results/pytest-cache",
+            "npx playwright test previsit.spec.ts --workers=1 --reporter=list",
+            "npx tsc --noEmit",
+            "npm run build"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T05-UC03",
+          "scenario": "Bệnh nhân lưu 100/110/120/130 mg/dL ở ngày 30/10 và 01–03/11/2026, để 31/10 trống: UI, SOAP JSON và Markdown cùng nêu ngày thiếu; DB không có số đo giả ngày đó, xu hướng `up` dùng log của 01–03/11 và Plan rỗng.",
+          "acceptance_criterion": "T05-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_264_followup.py tests/test_soap_summary.py -q --basetemp=test-results/tmp-task-5-current -o cache_dir=test-results/pytest-cache",
+            "npx playwright test previsit.spec.ts --workers=1 --reporter=list",
+            "npx tsc --noEmit",
+            "npm run build"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T05-UC04",
+          "scenario": "Khi tạo báo cáo SOAP với provider NVIDIA thật trên dữ liệu tổng hợp và index thử cô lập, báo cáo vẫn giữ liên kết log, ghi dữ kiện thiếu, không suy HbA1c và để Plan trống; phải quan sát mode xử lý để phân biệt nội dung LLM với fallback.",
+          "acceptance_criterion": "T05-AC05",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_264_followup.py tests/test_soap_summary.py -q --basetemp=test-results/tmp-task-5-current -o cache_dir=test-results/pytest-cache",
+            "npx playwright test previsit.spec.ts --workers=1 --reporter=list",
+            "npx tsc --noEmit",
+            "npm run build"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T05-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_264_followup.py tests/test_soap_summary.py -q --basetemp=test-results/tmp-task-5-current -o cache_dir=test-results/pytest-cache` → 11 pass, 0 fail, 0 skip, exit 0 (30/10/2026 ~08:50 +07, main 4130934 và diff task 5 chưa commit); có một cảnh báo không ghi được pytest cache trong `test-results`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T05-AC02",
+          "description": "Test chức năng: ngày không có bản ghi được liệt kê, ngày đo tính theo giờ Việt Nam, xu hướng từ ba ngày liên tiếp có `basis_log_ids`; SOAP JSON API trả `followup` và Markdown có link log. `npx playwright test previsit.spec.ts --workers=1 --reporter=list` → 4 pass, exit 0; `npx tsc --noEmit` và `npm run build` exit 0 (30/10/2026 ~08:51 +07).",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T05-AC03",
+          "description": "Test an toàn: không điền giá trị cho ngày thiếu; khi thiếu dữ liệu, xu hướng trả `insufficient_data`; báo cáo không suy HbA1c/không tuyên bố đạt mục tiêu từ đường huyết tự đo, Plan để trống cho bác sĩ. `git diff --check` exit 0. Giới hạn: xu hướng chỉ là mô tả chiều từ dữ liệu có sẵn, không dự báo số đo hoặc gửi thông báo ngoài app; UI test dùng mock API; chưa chạy full RAG/benchmark.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T05-AC04",
+          "description": "Integration UI/API thật: 03/11/2026 15:44 +07, ghi 100/110/120/130 mg/dL tại 30/10 và 01–03/11/2026 qua API thật, chủ động để 31/10 trống; tạo JSON và Markdown từ UI với backend thật. JSON/UI/Markdown cùng liệt kê 31/10 nhưng SQLite không có record ngày đó; xu hướng `up` dùng đúng `basis_log_ids` của ba log 01–03/11. Assessment ghi chưa có HbA1c và không thể kết luận đạt mục tiêu, không sinh số HbA1c; `soap.plan == \"\"`, Markdown có heading Plan rồi để trống, UI chỉ hiện placeholder cho bác sĩ. Không mock `/v1/glucose*` hoặc `/v1/soap/*`. Bằng chứng chung tác vụ 5–7: Playwright 16 pass/0 fail/0 skip, exit 0, 1.1m; log `test-results/tasks-5-7-browser-final.log`, DB `test-results/triage-e2e/tasks-5-7-20261103`, ảnh `task-5-previsit.png`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T05-AC05",
+          "description": "Integration NVIDIA riêng: 03/11/2026 15:49–15:51 +07, chạy cùng ca trên API thật 8116 + Next production 3116 với `TRIAGE_E2E_LIVE_RAG=1`, index active 452 chunk sao chép và DB riêng `test-results/triage-e2e/task-5-live-nvidia-20261103`; Playwright `--grep 'previsit report'` → 1 pass/0 fail/0 skip, exit 0, 1.7m. Backend ghi nhận hai POST NVIDIA chat `HTTP/1.1 200 OK`; UI/JSON/Markdown/SQLite và các guard Plan/HbA1c vẫn đạt. Giới hạn: response model API không xuất `_fallback_reason`, nên HTTP 200 không tự chứng minh nội dung model đã parse và được dùng; không thực hiện thêm lần gửi dữ liệu thử ra provider chỉ để quan sát cờ nội bộ.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T05-AC06",
+          "description": "Đóng rủi ro telemetry NVIDIA: 04/11/2026 00:09 +07, harness ánh xạ `TRIAGE_E2E_FRONTEND_URL` sang `FRONTEND_URL` nên CORS origin 3116 trả 200/allow-origin/credentials. SOAP dùng model light, tắt reasoning theo tham số Nemotron `enable_thinking=false`, kiểm content rỗng/finish reason và log mode không chứa payload. API integration live trên DB `task-5-live-telemetry-no-thinking-20261104`: NVIDIA HTTP 200 liền sau bởi `soap_generation mode=llm`, không fallback; S/O/A có nội dung, Plan rỗng, 4 ngày ghi nhận, trend `up`. Unit `tests/test_soap_summary.py` 8 pass/0 fail/0 skip, 38.30s; diff-check 3 file exit 0.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_264_followup.py tests/test_soap_summary.py -q --basetemp=test-results/tmp-task-5-current -o cache_dir=test-results/pytest-cache",
+        "npx playwright test previsit.spec.ts --workers=1 --reporter=list",
+        "npx tsc --noEmit",
+        "npm run build"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-6",
+      "project": "258-triage",
+      "level": "Cơ bản",
+      "description": "Hỏi triệu chứng có cấu trúc và phân mức",
+      "status": "done",
+      "priority": 6,
+      "dependencies": [
+        "task-1",
+        "task-2"
+      ],
+      "use_cases": [
+        {
+          "id": "T06-UC01",
+          "scenario": "Bệnh nhân mô tả triệu chứng nhưng thiếu số đo hoặc giờ đo: triage hỏi thêm dữ kiện; khi đủ thông tin, API đề xuất một trong `routine|soon|emergency` và nêu lý do.",
+          "acceptance_criterion": "T06-AC02",
+          "test_targets": [
+            "tests/test_triage.py"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T06-UC02",
+          "scenario": "Đề xuất triage phải ghi rõ không phải chẩn đoán và dẫn nguồn quy tắc; ca thường chưa được trả lịch hoặc hướng xử trí đã duyệt. Số đo 69 hoặc 300 mg/dL phải cảnh báo 115 ngay dù triệu chứng còn thiếu.",
+          "acceptance_criterion": "T06-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-6-final -o cache_dir=test-results/pytest-cache"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T06-UC03",
+          "scenario": "Trên UI gửi `structured=true`, bệnh nhân chưa có số đo thấy câu hỏi bổ sung; khi bổ sung 180 mg/dL và thời điểm đo, UI/API hiện `proposed_priority=soon`, lý do, nguồn và `pending_clinician_review`, chưa hiện lịch hay danh sách bác sĩ.",
+          "acceptance_criterion": "T06-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-6-final -o cache_dir=test-results/pytest-cache"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T06-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-6-final -o cache_dir=test-results/pytest-cache` → 29 pass, 0 fail, 0 skip, exit 0 (30/10/2026 ~10:33 +07; main 20fec547 + diff tác vụ 6). Một cảnh báo pytest cache không ghi được.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T06-AC02",
+          "description": "Test chức năng: Mô tả triệu chứng + đường huyết gần nhất tạo câu hỏi cho số đo/thời điểm thiếu, sau đó đề xuất `routine|soon|emergency`; `tests/test_triage.py::TestEndpoint::test_structured_questions_and_review_only_proposal`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T06-AC03",
+          "description": "Test an toàn: Đề xuất ghi rõ không phải chẩn đoán; trường hợp thường không trả lịch/hướng xử trí trước duyệt; nguồn protocol mô phỏng và ngưỡng trong `docs/project_requirements.json`. Glucose 69/300 cảnh báo 115 ngay cả khi thiếu triệu chứng. Giới hạn: chưa có hàng đợi duyệt thật (tác vụ 8), chưa benchmark chất lượng phân mức với gold set; UI chưa dùng `structured=true`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T06-AC04",
+          "description": "Integration UI/API thật: 03/11/2026 15:44 +07, UI gửi `structured=true`; khi thiếu số đo nhận câu hỏi bổ sung, khi đủ 180 mg/dL + thời điểm nhận `proposed_priority=soon` (thuộc enum), `rationale` ghi rõ không phải chẩn đoán, `source` trỏ `project_requirements.json`, `review_status=pending_clinician_review`. Response và UI không có danh sách bác sĩ/lịch hay hướng xử trí đã duyệt. Sửa lỗi nhánh người dùng đăng nhập làm rơi ba trường proposal khi tạo case; UI nay hiện mức/lý do/nguồn. Không mock `/v1/triage`. Bằng chứng: cùng lượt Playwright 16 pass; ảnh `task-6-structured.png` trong DB run.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-6-final -o cache_dir=test-results/pytest-cache"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-7",
+      "project": "258-triage",
+      "level": "Cơ bản",
+      "description": "Bốn nhóm red-flag và từ chối ngoài phạm vi",
+      "status": "done",
+      "priority": 7,
+      "dependencies": [
+        "task-2",
+        "task-6"
+      ],
+      "use_cases": [
+        {
+          "id": "T07-UC01",
+          "scenario": "Bệnh nhân nhập mô tả thuộc một trong bốn nhóm red-flag (hạ đường huyết, tăng đường huyết nguy hiểm, bàn chân, tim/đột quỵ), cả có dấu và không dấu: triage nhận diện; mô tả thường không bị báo nhầm.",
+          "acceptance_criterion": "T07-AC02",
+          "test_targets": [
+            "tests/test_triage.py"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T07-UC02",
+          "scenario": "Khi có red-flag hoặc số đo dưới 70/từ 300 mg/dL, hệ thống hướng tới 115/cơ sở y tế trước bước kiểm tra phạm vi; câu hỏi ngoài phạm vi không có red-flag nhận đúng câu từ chối cố định và không có chẩn đoán.",
+          "acceptance_criterion": "T07-AC03",
+          "test_targets": [
+            "e2e/triage-safety.spec.ts"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T07-UC03",
+          "scenario": "Qua UI/API thật, tám biến thể red-flag đều nhận cảnh báo 115 và không trả lịch/bác sĩ; ca thường `khát nhiều` với 180 mg/dL vào review pending. Ca vừa có dấu tim/đột quỵ vừa hỏi huyết áp vẫn ưu tiên cảnh báo khẩn.",
+          "acceptance_criterion": "T07-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-7 -o cache_dir=test-results/pytest-cache",
+            "npx playwright test e2e/triage-safety.spec.ts --workers=1 --reporter=list",
+            "npx tsc --noEmit",
+            "npm run build"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T07-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-7 -o cache_dir=test-results/pytest-cache` → 34 pass, 0 fail, 0 skip, exit 0 (30/10/2026 ~16:13 +07, `main` d9a806f + diff tác vụ 7); 1 cảnh báo cache WinError 5. Env: `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`, `MONITOR_SCHEDULER_DISABLE=true`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T07-AC02",
+          "description": "Test chức năng: Có dấu/không dấu cho hạ đường huyết, nghi tăng đường huyết nguy hiểm, bàn chân, tim/đột quỵ; câu bình thường không báo nhầm. `tests/test_triage.py::TestRedFlag`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T07-AC03",
+          "description": "Test an toàn: Red-flag và số đo <70/≥300 luôn trả 115/đến cơ sở y tế trước scope; ngoài phạm vi trả đúng câu cố định, không chẩn đoán. Playwright `npx playwright test e2e/triage-safety.spec.ts --workers=1 --reporter=list` → 1 pass, exit 0, ~16:12 +07 (mock API); `npx tsc --noEmit` và `npm run build` exit 0. Giới hạn: UI dùng mock API, chưa benchmark gold set, chưa xác minh toàn bộ RAG/API khác.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T07-AC04",
+          "description": "Integration UI/API thật: 03/11/2026 15:44 +07, 8 biến thể có/không dấu của 4 nhóm đều cảnh báo 115 và trả danh sách bác sĩ rỗng; ca thường `khát nhiều`, 180 mg/dL không bị gắn red-flag và chỉ vào pending review. Ca `đau ngực, méo miệng và hỏi về huyết áp` trả cảnh báo 115 thay vì scope refusal, chứng minh red-flag ưu tiên. 69 và 300 được gửi trong payload `/v1/triage` thật, trả `emergency`, `proposed_priority=emergency`, không lịch/danh sách bác sĩ. Câu ngoài phạm vi trả đúng câu cố định, không chứa tuyên bố chẩn đoán và không có bác sĩ. Không mock `/v1/triage`; cùng lượt Playwright 16 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q --basetemp=test-results/tmp-task-7 -o cache_dir=test-results/pytest-cache",
+        "npx playwright test e2e/triage-safety.spec.ts --workers=1 --reporter=list",
+        "npx tsc --noEmit",
+        "npm run build"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-8",
+      "project": "258-triage",
+      "level": "Nâng cao",
+      "description": "Hàng đợi điều dưỡng duyệt/điều chỉnh",
+      "status": "done",
+      "priority": 8,
+      "dependencies": [
+        "task-6",
+        "task-7"
+      ],
+      "use_cases": [
+        {
+          "id": "T08-UC01",
+          "scenario": "Bệnh nhân tạo ca triage không khẩn: ca vào hàng đợi; điều dưỡng đã xác minh sửa hoặc duyệt rồi bệnh nhân mới đọc được nội dung cuối.",
+          "acceptance_criterion": "T08-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_monitor.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T08-UC02",
+          "scenario": "Ca red-flag phải báo 115 ngay; bệnh nhân khác và điều dưỡng chưa xác minh không được xem/duyệt ca. Audit ghi người duyệt, thời điểm, mức ưu tiên và nội dung trước/sau.",
+          "acceptance_criterion": "T08-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_monitor.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T08-UC03",
+          "scenario": "Bệnh nhân tạo ca không khẩn qua UI; điều dưỡng ở phiên riêng sửa và duyệt, bệnh nhân tải lại thấy bản cuối. Trước duyệt không lộ hướng xử trí; bệnh nhân xem queue hoặc duyệt bị 403; DB thử giữ audit, red-flag không vào queue thường.",
+          "acceptance_criterion": "T08-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_monitor.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T08-AC01",
+          "description": "`HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 MONITOR_SCHEDULER_DISABLE=true .\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_monitor.py -q --basetemp=test-results/tmp-task-8-20261101c -o cache_dir=test-results/pytest-cache-task8c` → 4 pass, 0 fail, 0 skip, exit 0 (01/11/2026 ~16:49 +07, main f65619f + diff tác vụ 8). Lần đầu với `tmp-task-8` lỗi WinError 5 ở setup, không tính pass.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T08-AC02",
+          "description": "Test API chức năng: Ca không khẩn vào hàng đợi, điều dưỡng đã xác minh duyệt/sửa rồi bệnh nhân mới đọc được nội dung cuối; 4 pass ở lệnh trên.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T08-AC03",
+          "description": "Test API an toàn: Red-flag trả 115 ngay; bệnh nhân khác và điều dưỡng chưa xác minh bị từ chối; audit lưu người duyệt, mức ưu tiên trước/sau, nội dung trước/sau và thời điểm. 4 pass ở lệnh trên.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T08-AC04",
+          "description": "Integration UI/API thật (tác vụ 8): Bệnh nhân tạo ca không khẩn qua UI; điều dưỡng đã xác minh mở ở phiên đăng nhập riêng, sửa/duyệt; bệnh nhân nhận đúng nội dung cuối sau tải lại/polling. Trước duyệt không lộ hướng xử trí; bệnh nhân bị 403 khi duyệt/xem hàng đợi; SQLite lưu người duyệt, mức/nội dung trước và sau, thời điểm. Ca red-flag báo 115 ngay và không tạo ca mới khi hàng đợi còn pending. Playwright 1 pass như bằng chứng trên.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_monitor.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-9",
+      "project": "258-triage",
+      "level": "Nâng cao",
+      "description": "Phiếu bàn giao và giải thích có nguồn",
+      "status": "blocked",
+      "priority": 9,
+      "dependencies": [
+        "task-6",
+        "task-8"
+      ],
+      "use_cases": [
+        {
+          "id": "T09-UC01",
+          "scenario": "Người có quyền mở phiếu bàn giao của một ca triage: phiếu hiển thị triệu chứng nguyên văn, số đo gần nhất, dữ kiện còn thiếu, lý do mức ưu tiên và hai liên kết nguồn.",
+          "acceptance_criterion": "T09-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_handoff.py -q --basetemp=test-results/tmp-task-9 -o cache_dir=test-results/pytest-cache-task9"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T09-UC02",
+          "scenario": "Phiếu bàn giao không được tự thêm triệu chứng hoặc số đo; dữ kiện thiếu phải ghi là thiếu, phiếu ghi rõ không phải chẩn đoán; bệnh nhân khác đọc phiếu nhận 404.",
+          "acceptance_criterion": "T09-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_handoff.py -q --basetemp=test-results/tmp-task-9 -o cache_dir=test-results/pytest-cache-task9"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T09-UC03",
+          "scenario": "Tạo một phiên triage có dữ kiện thiếu rồi mở phiếu qua UI: từng trường phải khớp phiên/log trong DB thử, liên kết nguồn mở được và tải lại vẫn đúng phiên; phiên khác không lẫn dữ liệu, bệnh nhân khác không đọc được.",
+          "acceptance_criterion": "T09-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_handoff.py -q --basetemp=test-results/tmp-task-9 -o cache_dir=test-results/pytest-cache-task9"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T09-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_handoff.py -q --basetemp=test-results/tmp-task-9 -o cache_dir=test-results/pytest-cache-task9` → 1 pass, 0 fail, 0 skip, exit 0 (04/11/2026 +07, `main` e0e062d + diff tác vụ 9).",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T09-AC02",
+          "description": "Test chức năng: Phiếu gồm triệu chứng nguyên văn, chỉ số gần nhất, dữ kiện thiếu, lý do mức ưu tiên và hai liên kết nguồn.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T09-AC03",
+          "description": "Test an toàn: Không suy diễn triệu chứng/chỉ số; bệnh nhân khác nhận 404; phiếu ghi rõ không phải chẩn đoán.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T09-AC04",
+          "description": "Integration UI/API thật (tác vụ 9): Tạo phiên có triệu chứng, số đo và dữ kiện thiếu, mở phiếu bàn giao qua UI người có quyền; đối chiếu từng trường với dữ liệu phiên/log trong DB thử và mở liên kết nguồn. Tải lại vẫn đúng phiên; dữ kiện không có phải ghi thiếu; bệnh nhân khác không đọc được phiếu, không lẫn dữ liệu giữa hai phiên.",
+          "historical_check": false,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_handoff.py -q --basetemp=test-results/tmp-task-9 -o cache_dir=test-results/pytest-cache-task9"
+      ],
+      "migration_note": null,
+      "evidence": [
+        {
+          "criteria": [
+            "T09-AC02",
+            "T09-AC03",
+            "T09-AC04"
+          ],
+          "snapshot": "main 51966b7bc51da4c1ad502c60f247cf73ad6e0e6c",
+          "time": "2026-11-17T22:08:01+07:00",
+          "command": ".\\.venv\\Scripts\\python.exe -X utf8 -B test-results/task9-experiment-20261117/qa_http.py",
+          "result": "Smoke HTTP pass 2.14s. Hai ca đủ dữ kiện: owner/nurse/other/reget 200/200/404/200, khớp SQLite. Hai nhãn nguồn cùng một URL. Ca collecting không có ID.",
+          "log": "test-results/task9-experiment-20261117/qa_http.log",
+          "limits": "Router với TestClient và DB tạm. Chưa nghiệm thu UI, tải lại phiếu, mở nguồn hoặc chạy lại pytest AC01."
+        },
+        {
+          "experiment": "solo",
+          "snapshot": "51966b7bc51da4c1ad502c60f247cf73ad6e0e6c",
+          "time": "2026-11-17 22:13:57–22:21:01 +07",
+          "criteria": [
+            "T09-AC01",
+            "T09-AC02",
+            "T09-AC03",
+            "T09-AC04"
+          ],
+          "result": "AC01 pytest 1 pass, 171.50s. AC02/03 đạt trên dữ liệu tổng hợp. AC04 blocked: collecting/null/0 hàng. UI mất lựa chọn khi reload, chọn lại đúng ca. Hai nguồn cùng URL, HTTP 200 trong kiểm tra Chromium riêng.",
+          "artifacts": "test-results/task9-solo-20261117/",
+          "limits": "Hai lần thử lại trình duyệt. Chuyển hai ca tuần tự, chưa thử phản hồi đảo thứ tự."
+        }
+      ],
+      "blocked_reason": "AC04 yêu cầu mở phiếu khi thiếu dữ kiện. API trả collecting và chưa cấp case_id. Cần chốt vòng đời phiếu nháp hoặc điều chỉnh tiêu chí qua quyết định sản phẩm."
+    },
+    {
+      "id": "task-10",
+      "project": "258-triage",
+      "level": "Nâng cao",
+      "description": "Kiểm toán và đối chiếu với điều dưỡng",
+      "status": "done",
+      "priority": 10,
+      "dependencies": [
+        "task-8",
+        "task-9"
+      ],
+      "use_cases": [
+        {
+          "id": "T10-UC01",
+          "scenario": "Điều dưỡng sửa mức ưu tiên và nội dung đề xuất của ca triage: audit giữ đề xuất, quyết định, người duyệt và thời điểm; báo cáo tính tỷ lệ khác quyết định điều dưỡng và ghi version gold.",
+          "acceptance_criterion": "T10-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_audit.py -q --basetemp=test-results/tmp-task-10 -o cache_dir=test-results/pytest-cache-task10"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T10-UC02",
+          "scenario": "Báo cáo red-flag có mẫu số và danh sách lỗi riêng; phản hồi tổng hợp không chứa requester hoặc message, bệnh nhân truy cập báo cáo nhận 403.",
+          "acceptance_criterion": "T10-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_audit.py -q --basetemp=test-results/tmp-task-10 -o cache_dir=test-results/pytest-cache-task10"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T10-UC03",
+          "scenario": "Ca `soon` được điều dưỡng sửa thành `routine`: DB lưu mức và nội dung trước/sau cùng actor/thời điểm; UI/API báo 1/1 ca khác quyết định (100%). Red-flag khẩn không vào queue thường và gold red-flag được báo riêng.",
+          "acceptance_criterion": "T10-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_audit.py -q --basetemp=test-results/tmp-task-10 -o cache_dir=test-results/pytest-cache-task10"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T10-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_audit.py -q --basetemp=test-results/tmp-task-10 -o cache_dir=test-results/pytest-cache-task10` → 1 pass, 0 fail, 0 skip, exit 0; 04/11/2026 04:28 +07, `main` HEAD `e0e062d` + diff tác vụ 10.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T10-AC02",
+          "description": "Test chức năng: Log giữ đề xuất, chỉnh sửa, người duyệt, thời gian; báo cáo tỷ lệ sai khác với quyết định người duyệt và ghi dataset/version gold.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T10-AC03",
+          "description": "Test an toàn: Gold red-flag có mẫu số/danh sách lỗi riêng; báo cáo không chứa requester/message và bệnh nhân nhận 403.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T10-AC04",
+          "description": "Integration UI/API thật (tác vụ 10): 04/11/2026 04:29 +07, `scripts/run_triage_e2e.ps1` chạy API 8108, Next 3108 và SQLite thử cô lập → Playwright 1 pass/0 fail/0 skip, exit 0, 38,4s. Ca `soon` được điều dưỡng sửa thành `routine`; DB giữ actor, đề xuất/quyết định, nội dung trước/sau và cùng thời điểm reviewed/audit. UI/API báo 1/1 khác (100,0%), gold red-flag v1 có 0 lỗi; response tổng hợp không có requester/message, bệnh nhân bị 403. Red-flag khẩn đi đường cảnh báo tức thì và không bị đưa vào hàng đợi thường. Đây là kiểm tra integration, không thay benchmark chất lượng.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage_audit.py -q --basetemp=test-results/tmp-task-10 -o cache_dir=test-results/pytest-cache-task10"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-11",
+      "project": "260",
+      "level": "Cơ bản",
+      "description": "Bác sĩ tạo, duyệt và dừng phác đồ",
+      "status": "done",
+      "priority": 11,
+      "dependencies": [
+        "task-1"
+      ],
+      "use_cases": [
+        {
+          "id": "T11-UC01",
+          "scenario": "Bác sĩ tạo phác đồ nháp rồi duyệt: bệnh nhân chỉ thấy lịch đã duyệt; khi bác sĩ dừng với lý do, audit giữ các sự kiện `created/approved/stopped`.",
+          "acceptance_criterion": "T11-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T11-UC02",
+          "scenario": "Bệnh nhân không được tạo/dừng phác đồ, bác sĩ khác không được duyệt/dừng; AI không có đường áp dụng hoặc thay đổi liều.",
+          "acceptance_criterion": "T11-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T11-UC03",
+          "scenario": "Qua UI/API thật, bác sĩ tạo nháp, bệnh nhân chưa thấy; bác sĩ khác bị 403; sau duyệt bệnh nhân thấy lịch, sau dừng tải lại thấy lý do và audit `created/approved/stopped` trong DB thử.",
+          "acceptance_criterion": "T11-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T11-AC01",
+          "description": "Pytest `tests/test_medications.py` trên diff tác vụ 11 → 8 pass/0 fail; lượt regression sau tác vụ 13 → 10 pass chung, 04/11/2026 +07.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T11-AC02",
+          "description": "Test chức năng: Bác sĩ tạo nháp, duyệt; bệnh nhân chỉ thấy lịch duyệt; bác sĩ dừng có lý do; audit giữ `created/approved/stopped`.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T11-AC03",
+          "description": "Test an toàn: Bệnh nhân không tạo/dừng, bác sĩ khác không duyệt/dừng; không có đường AI áp dụng liều.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T11-AC04",
+          "description": "Integration UI/API thật: 04/11/2026 04:42 +07, suite API/Next/SQLite cô lập tạo nháp, xác nhận bệnh nhân chưa thấy, bác sĩ khác 403, duyệt rồi bệnh nhân thấy, dừng có lý do và tải lại audit `created/approved/stopped`. Cùng lượt Playwright 2 pass/0 fail, 50,8s.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-12",
+      "project": "260",
+      "level": "Cơ bản",
+      "description": "Lịch nhắc và xác nhận đã dùng/bỏ liều",
+      "status": "done",
+      "priority": 12,
+      "dependencies": [
+        "task-11"
+      ],
+      "use_cases": [
+        {
+          "id": "T12-UC01",
+          "scenario": "Với lịch thuốc đã được bác sĩ duyệt, scheduler tạo thông báo nội bộ đúng giờ một lần; bệnh nhân xác nhận đã dùng hoặc bỏ liều và dashboard cập nhật trạng thái.",
+          "acceptance_criterion": "T12-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T12-UC02",
+          "scenario": "Báo cáo dùng thuốc ở thời điểm tương lai hoặc gửi trùng bị từ chối; khi báo bỏ liều, hệ thống khuyên hỏi bác sĩ/dược sĩ và không hướng dẫn tự uống bù.",
+          "acceptance_criterion": "T12-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T12-UC03",
+          "scenario": "Chạy scheduler thử hai lần cho một liều đến hạn: chỉ có một thông báo trong `/my/reviews`; bệnh nhân báo bỏ liều qua UI, API/DB ghi `skipped`, gửi lại nhận 409 và thông điệp không khuyên uống bù.",
+          "acceptance_criterion": "T12-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T12-AC01",
+          "description": "Pytest `tests/test_medications.py` → 9 pass/0 fail/0 skip, 47,80s, 04/11/2026 +07.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T12-AC02",
+          "description": "Test chức năng: Lịch theo giờ đã duyệt; scheduler tạo notification nội bộ ngoài trang đúng một lần; xác nhận đã dùng/bỏ liều cập nhật dashboard.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T12-AC03",
+          "description": "Test an toàn: Tương lai/trùng bị từ chối; bỏ liều nhắc hỏi bác sĩ/dược sĩ và không tự uống bù.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T12-AC04",
+          "description": "Integration UI/API thật: scheduler thử tạo in-app notification trong `/my/reviews`, lần chạy hai gửi 0; bệnh nhân báo bỏ liều qua UI, DB/API trả `skipped`, gửi trùng 409, thông báo không uống bù. Xác nhận tương lai được unit/API test 422. Kênh thử là notification nội bộ, không tuyên bố email/web-push.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-13",
+      "project": "260",
+      "level": "Nâng cao",
+      "description": "Tuân thủ và đối chiếu đường huyết",
+      "status": "done",
+      "priority": 13,
+      "dependencies": [
+        "task-1",
+        "task-12"
+      ],
+      "use_cases": [
+        {
+          "id": "T13-UC01",
+          "scenario": "Bác sĩ xem kỳ theo dõi thuốc: thấy số liều đã dùng/tổng liều, tỷ lệ, chuỗi bỏ liều và log đường huyết cùng kỳ; kỳ không có dữ liệu được ghi rõ.",
+          "acceptance_criterion": "T13-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py tests/test_medication_adherence.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T13-UC02",
+          "scenario": "Báo cáo tuân thủ không suy hiệu quả thuốc hay đề xuất đổi liều; bác sĩ chỉ xem phác đồ mình tạo, bệnh nhân chỉ xem dữ liệu của mình.",
+          "acceptance_criterion": "T13-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py tests/test_medication_adherence.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T13-UC03",
+          "scenario": "Với một liều bỏ và một log 180 mg/dL, UI bác sĩ hiện 0/1 (0%), chuỗi bỏ liều 1 và log 180; thông điệp không kết luận hiệu quả hoặc đổi liều. Trước khi có log, UI ghi chưa có dữ liệu; bác sĩ khác không thấy phác đồ.",
+          "acceptance_criterion": "T13-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py tests/test_medication_adherence.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T13-AC01",
+          "description": "Pytest `tests/test_medications.py tests/test_medication_adherence.py` → 10 pass/0 fail/0 skip, 50,50s, 04/11/2026 +07.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T13-AC02",
+          "description": "Test chức năng: Bác sĩ thấy tử/mẫu số, tỷ lệ, chuỗi bỏ liều và danh sách log cùng kỳ; kỳ rỗng ghi chưa có dữ liệu.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T13-AC03",
+          "description": "Test an toàn: Disclaimer không suy hiệu quả/đổi liều; response bác sĩ chỉ có plan do chính bác sĩ tạo, bệnh nhân chỉ xem chính mình.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T13-AC04",
+          "description": "Integration UI/API thật: cùng suite 04/11/2026, lịch một liều bị bỏ + log 180 mg/dL; UI bác sĩ hiện 0/1 (0%), chuỗi 1 và 180 mg/dL, kèm cảnh báo không chứng minh hiệu quả/đề xuất đổi liều. Trước khi có log, UI ghi chưa có dữ liệu; bác sĩ khác không đọc được plan qua danh sách lọc theo owner.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medications.py tests/test_medication_adherence.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-14",
+      "project": "260",
+      "level": "Nâng cao",
+      "description": "Báo tác dụng phụ, nhắc lại, báo cáo và duyệt đổi lịch",
+      "status": "todo",
+      "priority": 14,
+      "dependencies": [
+        "task-11",
+        "task-12"
+      ],
+      "use_cases": [
+        {
+          "id": "T14-UC01",
+          "scenario": "Bệnh nhân báo triệu chứng nặng trong khi dùng thuốc: người phụ trách nhận cảnh báo; lịch không được phản hồi chỉ được nhắc lại trong giới hạn đã duyệt; đổi lịch phải được bác sĩ duyệt và lưu báo cáo.",
+          "acceptance_criterion": "T14-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medication_escalation.py -q --basetemp=test-results/tmp-task-14 -o cache_dir=test-results/pytest-cache"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T14-UC02",
+          "scenario": "Hạ đường huyết nặng luôn chuyển hỗ trợ y tế; hệ thống không tự đổi/ngưng thuốc. Chỉ báo người thân khi có consent và quyền phù hợp.",
+          "acceptance_criterion": "T14-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medication_escalation.py -q --basetemp=test-results/tmp-task-14 -o cache_dir=test-results/pytest-cache"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T14-UC03",
+          "scenario": "Qua UI/API thật, bệnh nhân báo triệu chứng nặng và cảnh báo khẩn hiện ngay; scheduler thử theo đồng hồ kiểm soát dừng ở giới hạn retry đã duyệt. Yêu cầu đổi lịch chỉ có hiệu lực sau duyệt, DB giữ trước/sau; không gửi người thân khi thiếu consent.",
+          "acceptance_criterion": "T14-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medication_escalation.py -q --basetemp=test-results/tmp-task-14 -o cache_dir=test-results/pytest-cache"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T14-AC01",
+          "description": "`.\\.venv\\Scripts\\python.exe -m pytest tests/test_medication_escalation.py -q --basetemp=test-results/tmp-task-14 -o cache_dir=test-results/pytest-cache` → exit 0, 0 fail; nếu test chưa có, tạo file nêu trong lệnh ở phiên triển khai.",
+          "historical_check": false,
+          "tests": []
+        },
+        {
+          "id": "T14-AC02",
+          "description": "Test chức năng: Báo triệu chứng nặng tạo cảnh báo; không phản hồi tạo retry giới hạn; đổi lịch có bác sĩ duyệt và báo cáo.",
+          "historical_check": false,
+          "tests": []
+        },
+        {
+          "id": "T14-AC03",
+          "description": "Test an toàn: Hạ đường huyết nặng luôn escalate; không tự đổi/ngưng thuốc; báo người thân chỉ khi có đồng ý/phân quyền.",
+          "historical_check": false,
+          "tests": []
+        },
+        {
+          "id": "T14-AC04",
+          "description": "Integration UI/API thật (tác vụ 14): Bệnh nhân báo triệu chứng nặng qua UI, người phụ trách nhận ca thật và cảnh báo khẩn hiện ngay. Với lịch không phản hồi, chạy scheduler thử theo thời gian kiểm soát và giới hạn retry đã được duyệt; đối chiếu số lần gửi trong DB/kênh thử. Yêu cầu đổi lịch chỉ có hiệu lực sau bác sĩ duyệt, báo cáo giữ phiên bản trước/sau; không gửi người thân thiếu consent, không tự ngưng thuốc.",
+          "historical_check": false,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_medication_escalation.py -q --basetemp=test-results/tmp-task-14 -o cache_dir=test-results/pytest-cache"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-15",
+      "project": "262",
+      "level": "Cơ bản",
+      "description": "Nhập transcript và soạn SOAP có mục thiếu",
+      "status": "done",
+      "priority": 15,
+      "dependencies": [
+        "task-1"
+      ],
+      "use_cases": [
+        {
+          "id": "T15-UC01",
+          "scenario": "Bệnh nhân nhập transcript và có log đường huyết: hệ thống tạo nháp SOAP với S/O/A từ dữ kiện có thật; trường chưa có dữ kiện ghi “chưa ghi nhận”.",
+          "acceptance_criterion": "T15-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_summary.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T15-UC02",
+          "scenario": "Nháp SOAP không tự chẩn đoán; Plan để trống cho bác sĩ, mỗi dữ kiện S/O/A có thể truy về đoạn transcript hoặc log gốc.",
+          "acceptance_criterion": "T15-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_summary.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T15-UC03",
+          "scenario": "Qua UI/API thật, nhập transcript tổng hợp và log thử, tạo SOAP rồi mở lại nguồn của S/O/A; dữ kiện thiếu hoặc mâu thuẫn không được bịa, Plan rỗng và tải lại không lẫn hồ sơ bệnh nhân.",
+          "acceptance_criterion": "T15-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_summary.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T15-UC04",
+          "scenario": "Bệnh nhân có log 142 mg/dL nhập transcript trên `/soap`: UI hiện S/O/A và liên kết log, Plan bị khóa; bác sĩ ở phiên riêng mở đúng note ID, nhập Plan và ký, sau đó API/DB tải lại trạng thái `signed`.",
+          "acceptance_criterion": "T15-AC05",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_summary.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T15-AC01",
+          "description": "`tests/test_soap_summary.py` trong regression tác vụ 15–26: đạt; toàn regression 59 pass/0 fail, 04/11/2026 07:01 +07.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T15-AC02",
+          "description": "Test chức năng: Transcript + log tạo nháp S/O/A, trường không có ghi “chưa ghi nhận”.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T15-AC03",
+          "description": "Test an toàn: Không tự chẩn đoán; Plan trống; S/O/A liên kết transcript/log gốc.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T15-AC04",
+          "description": "Integration UI/API thật (tác vụ 15): Nhập transcript tổng hợp và log thử qua UI, tạo SOAP qua API thật; đối chiếu S/O/A với đoạn transcript/log có thể mở lại. Trường thiếu ghi chưa ghi nhận, Plan trống; tải lại không lẫn bệnh nhân; trường hợp transcript mâu thuẫn hoặc thiếu không được tự bịa dữ kiện/chẩn đoán.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T15-AC05",
+          "description": "Integration nền UI/API/SQLite thật 04/11/2026: bệnh nhân có log 142 mg/dL nhập transcript trên `/soap`, UI hiện S/O/A, evidence log và Plan khóa; bác sĩ mở cùng note ID ở phiên khác, nhập Plan, lưu và ký; DB/API tải lại `signed`. Nằm trong Playwright 5 pass/0 fail, 1,3 phút. Các ca transcript mâu thuẫn chuyên biệt vẫn do unit guard bao phủ, chưa có case browser riêng.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_summary.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-16",
+      "project": "262",
+      "level": "Cơ bản",
+      "description": "Bác sĩ sửa, ký duyệt rồi lưu",
+      "status": "done",
+      "priority": 16,
+      "dependencies": [
+        "task-15"
+      ],
+      "use_cases": [
+        {
+          "id": "T16-UC01",
+          "scenario": "Bác sĩ có quyền sửa nháp SOAP, nhập Plan và ký duyệt: bản đã ký có thể xem lại và không cho sửa trực tiếp.",
+          "acceptance_criterion": "T16-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_approval.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T16-UC02",
+          "scenario": "Bệnh nhân hoặc AI không được ký hay nhập Plan; người không có quyền không được đọc hồ sơ bệnh nhân khác.",
+          "acceptance_criterion": "T16-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_approval.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T16-UC03",
+          "scenario": "Qua UI/API thật, bác sĩ sửa S/O/A và Plan, ký rồi tải lại bản cuối từ DB; sửa bản ký bị từ chối, audit giữ người ký/thời điểm; bệnh nhân không thể ký, sửa Plan hoặc xem hồ sơ khác.",
+          "acceptance_criterion": "T16-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_approval.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T16-UC04",
+          "scenario": "Trong hai phiên bệnh nhân/bác sĩ, bệnh nhân thấy Plan bị khóa; bác sĩ sửa/ký, API trả `signed`. Gửi lại yêu cầu sửa bản đã ký nhận 409 và bệnh nhân thử ký nhận 403.",
+          "acceptance_criterion": "T16-AC05",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_approval.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T16-AC01",
+          "description": "`tests/test_soap_approval.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T16-AC02",
+          "description": "Test chức năng: Bác sĩ chỉnh nháp, ký duyệt, bản cuối bất biến và xem lại được.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T16-AC03",
+          "description": "Test an toàn: Bệnh nhân/AI không ký; Plan chỉ bác sĩ nhập; PHI phân quyền.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T16-AC04",
+          "description": "Integration UI/API thật (tác vụ 16): Bác sĩ có quyền mở nháp, sửa S/O/A và nhập Plan, ký duyệt rồi tải lại bản cuối từ DB thử. Gửi yêu cầu sửa trực tiếp bản đã ký bị từ chối; lưu dấu vết người ký/thời điểm. Bệnh nhân và tài khoản trái quyền không ký, sửa Plan hoặc đọc hồ sơ khác.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T16-AC05",
+          "description": "Integration nền 04/11/2026: hai browser context bệnh nhân/bác sĩ dùng API và SQLite cô lập; bệnh nhân thấy Plan disabled, bác sĩ sửa/ký và API xác nhận bản `signed`. Unit test xác minh sửa bản ký trả 409 và bệnh nhân ký trả 403. Playwright chung 5 pass.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_approval.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-17",
+      "project": "262",
+      "level": "Nâng cao",
+      "description": "ICD tham khảo, so sánh bản nháp, audit",
+      "status": "done",
+      "priority": 17,
+      "dependencies": [
+        "task-16"
+      ],
+      "use_cases": [
+        {
+          "id": "T17-UC01",
+          "scenario": "Bác sĩ mở gợi ý mã E11.x cho một hồ sơ: hệ thống hiện nguồn WHO; khi bác sĩ sửa nháp, audit lưu giá trị trước/sau và người sửa.",
+          "acceptance_criterion": "T17-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_review.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T17-UC02",
+          "scenario": "Mã E11.x chỉ là gợi ý tham khảo có nguồn để bác sĩ kiểm chứng; hệ thống không tự thêm mã thành chẩn đoán trong SOAP.",
+          "acceptance_criterion": "T17-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_review.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T17-UC03",
+          "scenario": "Với hồ sơ đủ và thiếu dữ kiện, bác sĩ mở gợi ý ICD, sửa nháp và so sánh với bản duyệt trên UI: diff/audit khớp DB, nguồn mở được; người trái quyền không đọc được audit.",
+          "acceptance_criterion": "T17-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_review.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T17-AC01",
+          "description": "`tests/test_soap_review.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T17-AC02",
+          "description": "Test chức năng: Gợi ý E11.x có nguồn WHO; audit giữ trước/sau và người sửa.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T17-AC03",
+          "description": "Test an toàn: Mã chỉ tham khảo, bác sĩ kiểm chứng; không tự thêm mã vào SOAP.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T17-AC04",
+          "description": "Integration UI/API thật (tác vụ 17): Dùng hồ sơ thử có dữ kiện đủ và thiếu, bác sĩ mở gợi ý ICD có nguồn, chỉnh nháp và so sánh với bản duyệt qua UI; diff/audit phải khớp dữ liệu trước/sau trong DB. Mã E11.x chỉ là tham khảo có nguồn tra được, không tự thêm chẩn đoán; người trái quyền không đọc audit hồ sơ.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_review.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-18",
+      "project": "262",
+      "level": "Nâng cao",
+      "description": "Thoại→text, kiểm tra hồ sơ và xuất bản bàn giao",
+      "status": "partial",
+      "priority": 18,
+      "dependencies": [
+        "task-16",
+        "task-17"
+      ],
+      "use_cases": [
+        {
+          "id": "T18-UC01",
+          "scenario": "Bác sĩ duyệt transcript, đối chiếu HbA1c và thuốc đã có trong hồ sơ trước khi ký SOAP, rồi xuất bản bàn giao từ bản cuối.",
+          "acceptance_criterion": "T18-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_export.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T18-UC02",
+          "scenario": "Khi thiếu dữ kiện hoặc transcript không rõ, hệ thống cảnh báo thay vì bịa nội dung; chỉ người có quyền được xuất bản SOAP đã ký, bản nháp không xuất được.",
+          "acceptance_criterion": "T18-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_export.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T18-UC03",
+          "scenario": "Nạp audio tổng hợp vào STT thật, bác sĩ sửa/xác nhận transcript rồi tạo SOAP; đối chiếu HbA1c/thuốc và phần thiếu, ký rồi tải file bàn giao. Nội dung file phải khớp bản ký; bản nháp/người trái quyền bị chặn. Nếu STT hoặc xuất file chưa đạt, giữ feature chưa hoàn tất.",
+          "acceptance_criterion": "T18-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_export.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T18-AC01",
+          "description": "`tests/test_soap_export.py` đạt trong regression 59 pass/0 fail; chỉ bản ký và role bác sĩ/admin xuất được.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T18-AC02",
+          "description": "Test chức năng: Transcript mô phỏng được duyệt, đối chiếu HbA1c/thuốc trước, xuất bản cuối.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T18-AC03",
+          "description": "Test an toàn: Thiếu dữ kiện phải cảnh báo; không bịa; xuất chỉ bản đã ký cho người có quyền.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T18-AC04",
+          "description": "Integration UI/API thật (tác vụ 18): Nạp audio tổng hợp vào luồng thoại thật, nhận transcript qua dịch vụ STT thử, bác sĩ sửa/xác nhận rồi tạo SOAP, đối chiếu thuốc/HbA1c có sẵn và cảnh báo phần thiếu. Ký bản cuối, xuất tài liệu bàn giao và kiểm tra nội dung/file tải về khớp bản đã ký; bản nháp hoặc người trái quyền không xuất được. Thiếu STT/kênh xuất thì ghi chưa xác minh, không thay bằng mock response.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_soap_export.py -q"
+      ],
+      "migration_note": "TASKS.md ghi done nhưng bằng chứng STT thật chưa đạt độ chính xác và export vẫn là text, chưa phải PDF; cần xác minh lại trước khi đóng.",
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-19",
+      "project": "266",
+      "level": "Cơ bản",
+      "description": "Hồ sơ ăn kiêng, dị ứng và ràng buộc",
+      "status": "done",
+      "priority": 19,
+      "dependencies": [
+        "task-1"
+      ],
+      "use_cases": [
+        {
+          "id": "T19-UC01",
+          "scenario": "Bệnh nhân lưu hồ sơ dị ứng và sở thích ăn uống; tải lại qua API phải đúng hồ sơ của người đó.",
+          "acceptance_criterion": "T19-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_nutrition_profile.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T19-UC02",
+          "scenario": "Món chứa thành phần dị ứng phải bị chặn; người khác không được xem/sửa hồ sơ; hệ thống không kê chế độ điều trị.",
+          "acceptance_criterion": "T19-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_nutrition_profile.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T19-UC03",
+          "scenario": "Bệnh nhân nhập dị ứng/sở thích qua UI rồi tải lại: UI, API và DB khớp; tài khoản khác không xem/sửa được. Khi yêu cầu món chứa chất dị ứng, hệ thống chặn; hồ sơ thiếu dị ứng không được coi là đã xác nhận an toàn.",
+          "acceptance_criterion": "T19-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_nutrition_profile.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T19-AC01",
+          "description": "`tests/test_nutrition_profile.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T19-AC02",
+          "description": "Test chức năng: Lưu dị ứng/sở thích, truy vấn lại đúng bệnh nhân.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T19-AC03",
+          "description": "Test an toàn: Món gây dị ứng bị chặn; không tiết lộ hồ sơ người khác; không kê chế độ điều trị.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T19-AC04",
+          "description": "Integration UI/API thật (tác vụ 19): Bệnh nhân nhập dị ứng/sở thích qua UI, tải lại và đối chiếu hồ sơ từ API/DB; tài khoản khác không đọc/sửa được. Dùng hồ sơ đó yêu cầu món có thành phần gây dị ứng, hệ thống phải chặn trong luồng thật; hồ sơ thiếu thông tin không được coi như đã xác nhận không dị ứng.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_nutrition_profile.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-20",
+      "project": "266",
+      "level": "Cơ bản",
+      "description": "Thực đơn Việt có nguồn và nhật ký ăn",
+      "status": "done",
+      "priority": 20,
+      "dependencies": [
+        "task-19"
+      ],
+      "use_cases": [
+        {
+          "id": "T20-UC01",
+          "scenario": "Bệnh nhân tra món Việt, tạo thực đơn và ghi bữa ăn: mỗi món/khẩu phần có gram, carbohydrate, năng lượng và nguồn cho từng số có dữ liệu.",
+          "acceptance_criterion": "T20-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_nutrition.py tests/test_meal_plan.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T20-UC02",
+          "scenario": "Thực phẩm thiếu dữ liệu phải trả `unknown` và không bịa số; thực đơn chưa duyệt được gắn nháp; thông điệp không khuyên nhịn ăn hoặc tự đổi thuốc.",
+          "acceptance_criterion": "T20-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_nutrition.py tests/test_meal_plan.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T20-UC03",
+          "scenario": "Qua UI/API thật với dataset có nguồn, bệnh nhân tạo thực đơn nháp và nhật ký ăn rồi tải lại: gram, carbohydrate, năng lượng và nguồn khớp DB; món thiếu dữ liệu ghi không rõ, món dị ứng bị chặn, nháp không hiện như bản đã duyệt.",
+          "acceptance_criterion": "T20-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_nutrition.py tests/test_meal_plan.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T20-AC01",
+          "description": "`tests/test_nutrition.py tests/test_meal_plan.py` đạt trong regression 59 pass/0 fail (sửa lệnh tài liệu sai dấu `+`).",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T20-AC02",
+          "description": "Test chức năng: Tra món và tạo thực đơn/nhật ký với gram, carbohydrate, năng lượng và nguồn từng số.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T20-AC03",
+          "description": "Test an toàn: Thực phẩm thiếu dữ liệu trả `unknown`/không có số; thực đơn là nháp chờ chuyên gia; có cảnh báo không nhịn ăn/đổi thuốc.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T20-AC04",
+          "description": "Integration UI/API thật (tác vụ 20): Tra món Việt, tạo thực đơn nháp và ghi bữa ăn qua UI/API thật với dataset thử có nguồn; tải lại đối chiếu gram, carbohydrate, năng lượng và nguồn từng giá trị. Món không có dữ liệu phải ghi không rõ, không tạo số giả; món gây dị ứng bị chặn, nháp chưa được trình bày như bản chuyên gia đã duyệt; kiểm tra cảnh báo nhịn ăn khi dùng thuốc.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_nutrition.py tests/test_meal_plan.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-21",
+      "project": "266",
+      "level": "Nâng cao",
+      "description": "Chuyên gia duyệt và so với đường huyết sau ăn",
+      "status": "done",
+      "priority": 21,
+      "dependencies": [
+        "task-2",
+        "task-20"
+      ],
+      "use_cases": [
+        {
+          "id": "T21-UC01",
+          "scenario": "Chuyên gia hoặc bác sĩ có quyền sửa/duyệt thực đơn; nhật ký bữa ăn chỉ liên kết với số đo sau ăn khi người dùng chọn đúng log ID.",
+          "acceptance_criterion": "T21-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_meal_review.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T21-UC02",
+          "scenario": "Báo cáo bữa ăn và đường huyết chỉ mô tả tương quan, không khẳng định nguyên nhân hay chẩn đoán; mọi số dinh dưỡng có nguồn.",
+          "acceptance_criterion": "T21-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_meal_review.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T21-UC03",
+          "scenario": "Chuyên gia duyệt thực đơn qua UI; bệnh nhân tải lại mới thấy bản duyệt là chính thức. Khi ghi bữa ăn và số đo sau hai giờ, DB giữ đúng ID/thời điểm; thiếu số đo thì không tự ghép log khác, người trái quyền không duyệt được.",
+          "acceptance_criterion": "T21-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_meal_review.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T21-AC01",
+          "description": "`tests/test_meal_review.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T21-AC02",
+          "description": "Test chức năng: Chuyên gia/bác sĩ duyệt; nhật ký chỉ ghép số đo khi có ID tường minh, không tự ghép ca thiếu.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T21-AC03",
+          "description": "Test an toàn: Response ghi tương quan không chứng minh nguyên nhân/chẩn đoán; số liệu có nguồn.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T21-AC04",
+          "description": "Integration UI/API thật (tác vụ 21): Chuyên gia có quyền sửa/duyệt thực đơn qua UI; bệnh nhân chỉ thấy bản được duyệt là bản chính thức sau tải lại. Ghi bữa ăn và số đo sau 2 giờ, kiểm tra liên kết ID/thời điểm đúng trong DB; ca thiếu số đo không tự ghép dữ liệu khác. Người trái quyền không duyệt; báo cáo không chẩn đoán hoặc tự đặt mục tiêu.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_meal_review.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-22",
+      "project": "266",
+      "level": "Nâng cao",
+      "description": "Tình huống đặc biệt và danh sách đi chợ",
+      "status": "done",
+      "priority": 22,
+      "dependencies": [
+        "task-20",
+        "task-21"
+      ],
+      "use_cases": [
+        {
+          "id": "T22-UC01",
+          "scenario": "Bệnh nhân chọn tình huống Tết hoặc ăn chay để tạo thực đơn nháp; danh sách đi chợ chỉ lấy thành phần/số lượng từ đúng phiên bản được chuyên gia duyệt.",
+          "acceptance_criterion": "T22-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_grocery_list.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T22-UC02",
+          "scenario": "Món chứa chất dị ứng vẫn bị chặn trong tình huống đặc biệt; nguyên liệu ngoài dữ liệu nguồn được ghi không rõ, không bịa dinh dưỡng.",
+          "acceptance_criterion": "T22-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_grocery_list.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T22-UC03",
+          "scenario": "Qua UI/API thật, chọn Tết/ăn chay, chuyên gia duyệt rồi sinh danh sách mua: thành phần và số lượng khớp phiên bản duyệt trong DB; sửa nháp sau đó không đổi danh sách chính thức; dị ứng và món không có dữ liệu được xử lý an toàn.",
+          "acceptance_criterion": "T22-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_grocery_list.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T22-AC01",
+          "description": "`tests/test_grocery_list.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T22-AC02",
+          "description": "Test chức năng: Tết/ăn chay là scenario của nháp; danh sách mua chỉ sinh từ đúng phiên bản đã duyệt.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T22-AC03",
+          "description": "Test an toàn: Dị ứng vẫn bị chặn; ngoài CSDL ghi không rõ, không bịa dinh dưỡng.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T22-AC04",
+          "description": "Integration UI/API thật (tác vụ 22): Chọn tình huống Tết/ăn chay qua UI, tạo lựa chọn từ dataset thử có nguồn, chuyên gia duyệt rồi sinh danh sách mua. Đối chiếu thành phần/số lượng với đúng phiên bản duyệt; đổi bản nháp không làm thay danh sách chính thức. Dị ứng vẫn bị chặn; nguyên liệu ngoài dataset ghi không rõ, không bịa dinh dưỡng.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_grocery_list.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-23",
+      "project": "258-booking",
+      "level": "Cơ bản",
+      "description": "Gợi ý khoa và lịch trống có nguồn",
+      "status": "done",
+      "priority": 23,
+      "dependencies": [
+        "task-7"
+      ],
+      "use_cases": [
+        {
+          "id": "T23-UC01",
+          "scenario": "Bệnh nhân nêu nhu cầu khám mắt, thận hoặc nội tiết liên quan đái tháo đường: hệ thống gợi ý khoa trong roster và các giờ trống mô phỏng có nguồn.",
+          "acceptance_criterion": "T23-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T23-UC02",
+          "scenario": "Hệ thống không tạo bác sĩ/khoa/giờ trống ngoài roster; khi có red-flag, trả cảnh báo 115 và không đưa slot đặt lịch thường.",
+          "acceptance_criterion": "T23-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T23-UC03",
+          "scenario": "Qua UI/API thật, bệnh nhân chọn nhu cầu mắt/thận/nội tiết: khoa, bác sĩ, slot và nguồn khớp roster/DB thử; hết slot phải báo hết lịch, red-flag phải chuyển hỗ trợ khẩn thay vì gợi ý lịch.",
+          "acceptance_criterion": "T23-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T23-AC01",
+          "description": "`tests/test_triage.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T23-AC02",
+          "description": "Test chức năng: Nhu cầu mắt/thận/nội tiết trả khoa trong roster và giờ trống mô phỏng.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T23-AC03",
+          "description": "Test an toàn: Không bịa bác sĩ/khoa; red-flag chuyển 115 và không trả slot.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T23-AC04",
+          "description": "Integration UI/API thật (tác vụ 23): Bệnh nhân nhập nhu cầu mắt/thận/nội tiết qua UI; đối chiếu khoa, bác sĩ và giờ trống trả từ API thật với danh mục/lịch mô phỏng trong DB thử, nguồn mở được. Không có slot thì báo hết lịch, không bịa; nhập red-flag phải nhận cảnh báo 115 thay lịch thường.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_triage.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-24",
+      "project": "258-booking",
+      "level": "Cơ bản",
+      "description": "Bệnh nhân xác nhận và lễ tân duyệt đặt lịch",
+      "status": "done",
+      "priority": 24,
+      "dependencies": [
+        "task-23"
+      ],
+      "use_cases": [
+        {
+          "id": "T24-UC01",
+          "scenario": "Bệnh nhân giữ slot và xác nhận yêu cầu; lịch chỉ thành chính thức khi tài khoản `receptionist` hoặc admin duyệt.",
+          "acceptance_criterion": "T24-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_confirmation.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T24-UC02",
+          "scenario": "Người khác không được xác nhận/duyệt hộ; hai yêu cầu cùng slot chỉ được một lịch hợp lệ; red-flag không vào quy trình đặt lịch thường.",
+          "acceptance_criterion": "T24-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_confirmation.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T24-UC03",
+          "scenario": "Bệnh nhân giữ và xác nhận slot qua UI, lễ tân ở phiên riêng duyệt: sau tải lại lịch mới hiện chính thức. Hai bệnh nhân tranh một slot qua API chỉ có một lịch hợp lệ trong DB; người trái quyền bị chặn và red-flag đi đường khẩn.",
+          "acceptance_criterion": "T24-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_confirmation.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T24-UC04",
+          "scenario": "Với role `receptionist` trong dữ liệu thử, lễ tân đăng nhập phiên riêng và thấy lịch chờ trên dashboard, duyệt được; bệnh nhân tải lại thấy trạng thái đã duyệt, kiểm tra ownership và unique slot ở API/DB.",
+          "acceptance_criterion": "T24-AC05",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_confirmation.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T24-AC01",
+          "description": "`tests/test_booking_confirmation.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T24-AC02",
+          "description": "Test chức năng: Giữ chỗ rồi bệnh nhân xác nhận, role `receptionist`/admin duyệt mới thành lịch chính thức.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T24-AC03",
+          "description": "Test an toàn: Người khác không xác nhận/duyệt; red-flag không vào luồng; unique index chống trùng slot.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T24-AC04",
+          "description": "Integration UI/API thật (tác vụ 24): Bệnh nhân giữ chỗ rồi xác nhận qua UI, lễ tân có quyền duyệt ở phiên khác; tải lại chỉ thấy lịch chính thức sau duyệt. Hai bệnh nhân cùng yêu cầu một slot qua API thật phải chỉ có một lịch hợp lệ, kiểm tra DB; người khác không xác nhận/duyệt hộ trái quyền. Red-flag không đi qua luồng đặt lịch thường.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T24-AC05",
+          "description": "Integration nền 04/11/2026: thêm role `receptionist` xuyên schema/migration/admin UI; bệnh nhân giữ chỗ và xác nhận, receptionist đăng nhập phiên khác, thấy dashboard chờ và duyệt qua UI. Unique slot/ownership/red-flag được test API. Playwright chung 5 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_confirmation.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-25",
+      "project": "258-booking",
+      "level": "Nâng cao",
+      "description": "Xung đột lịch, đổi lịch và nhắc hẹn",
+      "status": "done",
+      "priority": 25,
+      "dependencies": [
+        "task-24"
+      ],
+      "use_cases": [
+        {
+          "id": "T25-UC01",
+          "scenario": "Khi slot đã bận, bệnh nhân nhận lựa chọn khác; yêu cầu đổi lịch cần lễ tân duyệt; thông báo nhắc nội bộ chỉ gửi khi có consent và không gửi lặp.",
+          "acceptance_criterion": "T25-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_reschedule.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T25-UC02",
+          "scenario": "Thông báo nhắc chỉ giữ patient ID, kênh và giờ cần thiết; lịch cũ vẫn có hiệu lực đến khi đổi lịch được duyệt; ca cấp cứu không vào queue đặt lịch.",
+          "acceptance_criterion": "T25-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_reschedule.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T25-UC03",
+          "scenario": "Qua UI/API thật, tạo xung đột slot, chọn giờ khác rồi yêu cầu đổi: DB chỉ có một lịch chính thức sau duyệt. Chạy nhắc bằng đồng hồ kiểm soát và kênh thử: không consent thì không gửi, có consent thì đúng người/giờ và không trùng; red-flag đi đường khẩn.",
+          "acceptance_criterion": "T25-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_reschedule.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T25-AC01",
+          "description": "`tests/test_booking_reschedule.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T25-AC02",
+          "description": "Test chức năng: Slot bận trả lựa chọn khác; điều phối duyệt đổi; reminder nội bộ chỉ gửi khi consent và idempotent.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T25-AC03",
+          "description": "Test an toàn: Reminder chỉ giữ patient ID/kênh/giờ, lịch cũ chỉ đổi sau duyệt; cấp cứu không vào queue thường.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T25-AC04",
+          "description": "Integration UI/API thật (tác vụ 25): Tạo lịch đã duyệt rồi gây xung đột slot trong dữ liệu thử; UI đề xuất giờ khác, bệnh nhân yêu cầu đổi và lễ tân duyệt, kiểm tra DB không giữ hai lịch chính thức cho cùng yêu cầu. Chạy nhắc theo thời gian kiểm soát bằng kênh thử đã duyệt: có consent mới gửi, đúng người/giờ và không gửi trùng; không dùng mock response để chứng minh giao thông báo. Red-flag chuyển hỗ trợ khẩn.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_reschedule.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "task-26",
+      "project": "258-booking",
+      "level": "Nâng cao",
+      "description": "Dashboard điều phối và chuyển người thật",
+      "status": "done",
+      "priority": 26,
+      "dependencies": [
+        "task-24",
+        "task-25"
+      ],
+      "use_cases": [
+        {
+          "id": "T26-UC01",
+          "scenario": "Lễ tân xem dashboard: tải công việc và tỷ lệ lịch được tính từ tập lịch có nguồn; ca có `confidence < 0,6` được chuyển người xử lý.",
+          "acceptance_criterion": "T26-AC02",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_audit.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T26-UC02",
+          "scenario": "Chỉ `receptionist`/admin được xem dashboard; phản hồi nêu rõ confidence do quy tắc nào tạo; danh sách ca và báo cáo tổng hợp không lộ patient ID hoặc PHI.",
+          "acceptance_criterion": "T26-AC03",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_audit.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        },
+        {
+          "id": "T26-UC03",
+          "scenario": "Tạo lịch duyệt, lịch chờ và ca cần người xử lý qua UI/API thật: dashboard khớp số liệu tính từ DB thử; sau khi xử lý ca và tải lại, trạng thái/audit còn nguyên; người trái quyền không đọc chi tiết, nguồn và confidence không được bịa.",
+          "acceptance_criterion": "T26-AC04",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_audit.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "T26-AC01",
+          "description": "`tests/test_booking_audit.py` đạt trong regression 59 pass/0 fail.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T26-AC02",
+          "description": "Test chức năng: Tính tải/tỷ lệ lịch có nguồn; confidence <0,6 tạo ca người xử lý.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T26-AC03",
+          "description": "Test an toàn: Confidence do rule trả rõ; `receptionist`/admin mới xem dashboard; danh sách ca không trả patient ID.",
+          "historical_check": true,
+          "tests": []
+        },
+        {
+          "id": "T26-AC04",
+          "description": "Integration UI/API thật (tác vụ 26): Tạo lịch đã duyệt, lịch chờ và ca cần người xử lý qua UI/API thật; mở dashboard lễ tân, đối chiếu tải công việc/tỷ lệ đúng khoa với tập thử có kết quả tính sẵn. Ca thiếu dữ kiện/độ tin cậy được chuyển người thật, xử lý rồi tải lại thấy trạng thái/audit bền vững; người trái quyền không đọc chi tiết, báo cáo tổng hợp không lộ PHI hoặc bịa nguồn/độ tin cậy.",
+          "historical_check": true,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_booking_audit.py -q"
+      ],
+      "migration_note": null,
+      "evidence": [],
+      "blocked_reason": null
+    },
+    {
+      "id": "payload-privacy",
+      "project": "cross-cutting",
+      "level": "security",
+      "description": "Bảo vệ payload, provenance và bộ nhớ trước khi gửi provider",
+      "status": "partial",
+      "priority": 27,
+      "dependencies": [],
+      "use_cases": [
+        {
+          "id": "PRIV-UC01",
+          "scenario": "Khi chat, embedding hoặc memory chứa dữ liệu định danh, cổng privacy phải chặn hoặc làm sạch trước khi gửi provider và không lộ dữ liệu giữa hai chủ sở hữu. Index phục vụ chỉ dùng nguồn đã duyệt; index v2 không được kích hoạt nếu retrieval gate còn fail.",
+          "acceptance_criterion": "PRIV-AC01",
+          "test_targets": [
+            ".\\.venv\\Scripts\\python.exe -m pytest tests/test_payload_privacy.py -q"
+          ],
+          "verification_status": "historical_or_planned; recheck_on_current_code"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "PRIV-AC01",
+          "description": "Hoàn tất các mục còn mở trong hồ sơ privacy; đặc biệt review gold/source relevance, sửa retrieval hoặc chunking, rebuild và benchmark index v2 mà không hạ ngưỡng.",
+          "historical_check": false,
+          "tests": []
+        }
+      ],
+      "test_command": [
+        ".\\.venv\\Scripts\\python.exe -m pytest tests/test_payload_privacy.py -q"
+      ],
+      "migration_note": "Không suy ra pass từ benchmark lịch sử; đọc hồ sơ privacy trước khi chạy eval.",
+      "evidence": [],
+      "blocked_reason": null
+    }
+  ]
+}

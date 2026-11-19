@@ -1,11 +1,11 @@
 # Bắt đầu với tài liệu DiaTrack
 
-DiaTrack hiện chỉ hỗ trợ đái tháo đường týp 2. Khi tài liệu và code khác nhau, ưu tiên `project_requirements.json` cho phạm vi và an toàn, `TASKS.md` cho trạng thái nghiệm thu, rồi đến code và test hiện hành.
+DiaTrack hiện chỉ hỗ trợ đái tháo đường týp 2. Khi tài liệu và code khác nhau, ưu tiên `project_requirements.json` cho phạm vi và an toàn, `../feature_list.json` cho trạng thái nghiệm thu, rồi đến code và test hiện hành. `TASKS_ARCHIVE.md` chỉ giữ bằng chứng lịch sử.
 
 ## Thứ tự đọc
 
 1. [`project_requirements.json`](project_requirements.json), đặc biệt `scope_rules`: phạm vi, sáu project và ràng buộc an toàn.
-2. [`TASKS.md`](TASKS.md): tác vụ, tiêu chí chấp nhận và bằng chứng; các kết quả cũ chỉ là lịch sử của đúng snapshot đã ghi.
+2. [`feature_list.json`](../feature_list.json): tính năng, use case, tiêu chí chấp nhận và trạng thái. [`TASKS_ARCHIVE.md`](TASKS_ARCHIVE.md) giữ bằng chứng cũ của đúng snapshot đã ghi.
 3. [`architecture_diagram.md`](architecture_diagram.md): luồng hệ thống và bản đồ module.
 4. [`api_contract.md`](api_contract.md) và [`data_contract.md`](data_contract.md): hợp đồng API, dữ liệu, corpus và index.
 5. [`PAYLOAD_PRIVACY_IMPLEMENTATION.md`](PAYLOAD_PRIVACY_IMPLEMENTATION.md): ranh giới gửi dữ liệu, cô lập memory và provenance.

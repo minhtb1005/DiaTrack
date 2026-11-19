@@ -1,4 +1,6 @@
-# TASKS — DiaTrack týp 2
+# TASKS — DiaTrack týp 2 (lưu trữ)
+
+> Tài liệu lịch sử, không cập nhật trạng thái ở đây. Nguồn hiện hành cho danh sách tính năng, use case, trạng thái và tiêu chí nghiệm thu là [`feature_list.json`](../feature_list.json). Kết quả kiểm thử dưới đây chỉ có giá trị với snapshot code đã ghi.
 
 > Kiểm chứng index v2 và ưu tiên 1–2, 02/11/2026 22:30 +07 trên `main` HEAD `f65619f62fe7fc3df477a1669363ef81a2ce1371` + working tree dirty: build 1.798 chunk/6 source, audit 0 invalid và sidecar SHA-256 `4e6d7e...ddab`; full backend **637 pass/4 live-provider deselected/0 fail** trong 1.862,29s; frontend production build exit 0; Playwright backend thật 8101 + Next 3101 + DB cô lập `test-results/triage-e2e/tasks-1-7-v2-20261102-222416-151` **14 pass/0 fail** trong 1,4 phút. Retrieval gate v2 **fail** lặp lại: Hit@5 0,733/MRR@5 0,567, miss DQ7/DQ9/DQ12/DQ13; 0 source violation và scope guard đạt. Active pointer đã rollback về index 452 chunk; không package/deploy v2 và không hạ ngưỡng.
 

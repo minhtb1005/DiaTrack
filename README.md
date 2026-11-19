@@ -32,7 +32,7 @@ Where to read next:
 
 - New contributor guide and reading order: [docs/README.md](docs/README.md)
 - Current scope, six project requirements and safety rules: [docs/project_requirements.json](docs/project_requirements.json) (`scope_rules`).
-- Task list and acceptance criteria: `docs/TASKS.md` when present.
+- Feature list, use cases, status and acceptance criteria: [feature_list.json](feature_list.json). Historical task evidence: [docs/TASKS_ARCHIVE.md](docs/TASKS_ARCHIVE.md).
 - Agent workflow, verification and handoff: [AGENTS.md](AGENTS.md)
 - Container configuration: [docker-compose.yml](docker-compose.yml), [backend Dockerfile](Dockerfile), [frontend Dockerfile](frontend/Dockerfile)
 - Code navigation: [Repository map](#repository-map)
